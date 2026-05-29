@@ -225,6 +225,7 @@
   let blockRepeatState = null;
   let dayDragState = null;
   let voiceRecognition = null;
+  let voiceStopRequested = false;
   const blockHoldDelay = 520;
   const singleSubmitActions = new Set([
     "save-bill",
@@ -3880,17 +3881,37 @@
     const transcript = ui.voiceTranscript || "";
     const parsed = ui.voiceParsedTask || (transcript ? parseVoiceTask(transcript) : null);
     const speechAvailable = Boolean(speechRecognitionCtor());
+    const listenAction = ui.voiceListening ? "stop-voice-task" : "start-voice-task";
+    const listenClass = ui.voiceListening ? "danger-btn" : "primary-btn";
+    const listenLabel = ui.voiceListening ? "Stop Listening" : "Listen";
+    const statusHelp = ui.voiceListening
+      ? "Microphone is active. Speak the task, then tap Stop Listening."
+      : transcript
+        ? "Captured text is below. Tap Parse Details to review it before saving."
+        : speechAvailable
+          ? "Tap Listen, speak naturally, then stop when you are done."
+          : "Voice capture is unavailable here. Type or paste the task sentence.";
+    const example = `<div class="voice-example">
+        <span class="voice-example-label">Example voice memo</span>
+        <span>Add task: Call Isaiah</span>
+        <span>Tomorrow</span>
+        <span>From 3 PM to 4 PM</span>
+        <span>At 217 Alexander Avenue, Bronx, NY</span>
+        <span>High priority</span>
+        <span>Project Isaiah</span>
+      </div>`;
     return `${modalHeader("Add Task By Voice", speechAvailable ? "Speak the title, time, address, priority, status, project, or category." : "Voice capture may be blocked here. Type or paste the sentence, then parse it.")}
       <section class="voice-panel">
         <div class="voice-status ${ui.voiceListening ? "listening" : ""}">
           <span class="round-icon">${icon(ui.voiceListening ? "ai" : "mic")}</span>
           <div>
             <strong>${ui.voiceListening ? "Listening..." : speechAvailable ? "Ready for voice input" : "Typed fallback ready"}</strong>
-            <div class="subtle">${ui.voiceError ? esc(ui.voiceError) : "Example: Add task call Isaiah tomorrow from 3 PM to 4 PM at 217 Alexander Avenue Bronx NY high priority project Isaiah."}</div>
+            <div class="subtle">${esc(statusHelp)}</div>
           </div>
         </div>
+        ${ui.voiceError ? `<div class="voice-message">${esc(ui.voiceError)}</div>` : example}
         <div class="sheet-actions" style="grid-template-columns:1fr 1fr;margin-top:12px;">
-          <button class="primary-btn" data-action="start-voice-task" ${ui.voiceListening || !speechAvailable ? "disabled" : ""}>${icon("mic")} ${ui.voiceListening ? "Listening" : "Listen"}</button>
+          <button class="${listenClass}" data-action="${listenAction}" ${!ui.voiceListening && !speechAvailable ? "disabled" : ""}>${icon(ui.voiceListening ? "close" : "mic")} ${listenLabel}</button>
           <button class="outline-btn" data-action="parse-voice-task">${icon("search")} Parse Details</button>
         </div>
       </section>
@@ -5511,6 +5532,7 @@
     if (action === "image-fit") return setImageFit(el);
     if (action === "quick-add-task") return quickAddTask();
     if (action === "start-voice-task") return startVoiceTask();
+    if (action === "stop-voice-task") return stopVoiceTask();
     if (action === "parse-voice-task") return parseVoiceTaskFromInput();
     if (action === "save-voice-task") return saveVoiceTask();
     if (action === "apply-habit-template") return applyHabitTemplate(Number(el.dataset.slot || 1));
@@ -5885,14 +5907,12 @@
       return;
     }
     if (voiceRecognition && ui.voiceListening) {
-      try {
-        voiceRecognition.stop();
-      } catch (error) {
-        // Ignore stale recognition sessions.
-      }
+      stopVoiceTask();
+      return;
     }
     const recognition = new Recognition();
     voiceRecognition = recognition;
+    voiceStopRequested = false;
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
@@ -5905,12 +5925,20 @@
       ui.voiceTranscript = transcript;
       ui.voiceParsedTask = transcript ? parseVoiceTask(transcript) : null;
       ui.voiceListening = false;
+      ui.voiceError = "";
       voiceRecognition = null;
+      voiceStopRequested = false;
       showToast("Voice task captured.");
     };
     recognition.onerror = (event) => {
       ui.voiceListening = false;
       voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        ui.voiceError = "Listening stopped. Review the text below, type anything missing, or tap Listen again.";
+        showToast("Listening stopped.");
+        return;
+      }
       ui.voiceError = voiceErrorMessage(event?.error);
       showToast(ui.voiceError, "danger");
     };
@@ -5918,17 +5946,43 @@
       if (voiceRecognition === recognition) voiceRecognition = null;
       if (ui.voiceListening) {
         ui.voiceListening = false;
+        if (voiceStopRequested) ui.voiceError = "Listening stopped. Review the text below, type anything missing, or tap Listen again.";
         render();
       }
+      voiceStopRequested = false;
     };
     try {
       recognition.start();
     } catch (error) {
       ui.voiceListening = false;
       voiceRecognition = null;
+      voiceStopRequested = false;
       ui.voiceError = "Could not start voice capture. Try typing the task sentence.";
       showToast(ui.voiceError, "danger");
     }
+  }
+
+  function stopVoiceTask() {
+    if (!voiceRecognition) {
+      ui.voiceListening = false;
+      ui.voiceError = ui.voiceTranscript
+        ? "Listening stopped. Review the text below, type anything missing, or tap Parse Details."
+        : "Listening stopped. No speech text was captured yet.";
+      render();
+      return;
+    }
+    voiceStopRequested = true;
+    ui.voiceListening = false;
+    ui.voiceError = ui.voiceTranscript
+      ? "Listening stopped. Review the text below, type anything missing, or tap Parse Details."
+      : "Listening stopped. If no text appears, type the task sentence or tap Listen again.";
+    try {
+      voiceRecognition.stop();
+    } catch (error) {
+      voiceRecognition = null;
+      voiceStopRequested = false;
+    }
+    render();
   }
 
   function collectSpeechTranscript(event) {

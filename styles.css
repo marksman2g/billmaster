@@ -748,6 +748,40 @@ button.round-icon {
   animation: pulse-mic 1.1s ease-in-out infinite;
 }
 
+.voice-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  color: var(--navy);
+  background: #fff7e6;
+  border: 1px solid #ffd58a;
+  border-radius: 8px;
+  font-weight: 720;
+}
+
+.voice-example {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.voice-example span {
+  display: block;
+  color: var(--navy);
+  line-height: 1.3;
+}
+
+.voice-example .voice-example-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 820;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
 .voice-preview {
   margin-top: 16px;
   box-shadow: none;
