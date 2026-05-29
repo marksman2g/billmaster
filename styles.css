@@ -3243,6 +3243,7 @@ canvas {
 .day-task-body {
   flex: 1 1 auto;
   min-width: 0;
+  padding-right: 36px;
 }
 
 .compact-day-task .entity-title {
@@ -3350,6 +3351,54 @@ canvas {
   width: 34px;
   height: 34px;
   margin-left: auto;
+}
+
+.time-of-day-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.time-of-day-badge.morning {
+  color: #f59e0b;
+  background: #fff7d6;
+  animation: morning-rise 2.8s ease-in-out infinite;
+}
+
+.time-of-day-badge.noon {
+  color: #ff9800;
+  background: #fff3dc;
+  animation: noon-glow 2.2s ease-in-out infinite;
+}
+
+.time-of-day-badge.night {
+  color: #6c63ff;
+  background: #efedff;
+  animation: night-twinkle 2.6s ease-in-out infinite;
+}
+
+@keyframes morning-rise {
+  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.18); }
+  50% { transform: translateY(-2px); box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+}
+
+@keyframes noon-glow {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.2); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(255, 152, 0, 0); }
+}
+
+@keyframes night-twinkle {
+  0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 0 rgba(108, 99, 255, 0)); }
+  50% { transform: rotate(-6deg); filter: drop-shadow(0 0 6px rgba(108, 99, 255, 0.35)); }
 }
 
 .compact-card-actions {
@@ -3489,6 +3538,12 @@ canvas {
   border-left: 4px solid var(--category-color);
   border-radius: 999px;
   font-weight: 820;
+}
+
+.inline-add-trigger {
+  justify-self: start;
+  min-height: 34px;
+  padding-inline: 12px;
 }
 
 .block-calendar {

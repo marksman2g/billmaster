@@ -52,9 +52,11 @@
 
   const validViews = new Set(["dashboard", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
+  const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
-  const taskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
+  const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
+  const taskCategories = [...baseTaskCategories];
   const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
   const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
   const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -69,6 +71,7 @@
     settings: {
       taskDefaultBgColor: DEFAULT_TASK_BG,
       categoryColors: { ...defaultCategoryColors },
+      customTaskCategories: [],
       interfaceMode: "power"
     },
     accounts: [
@@ -452,6 +455,8 @@
     });
     nextData.settings = { taskDefaultBgColor: DEFAULT_TASK_BG, categoryColors: { ...defaultCategoryColors }, interfaceMode: "power", ...(nextData.settings || {}) };
     nextData.settings.categoryColors = { ...defaultCategoryColors, ...(nextData.settings.categoryColors || {}) };
+    nextData.settings.customTaskCategories = normalizeCustomTaskCategories(nextData.settings.customTaskCategories);
+    nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
     if (!["simple", "power"].includes(nextData.settings.interfaceMode)) nextData.settings.interfaceMode = "power";
     if (!taskBackgrounds.includes(nextData.settings.taskDefaultBgColor)) nextData.settings.taskDefaultBgColor = DEFAULT_TASK_BG;
     taskCategories.forEach((category) => {
@@ -473,6 +478,46 @@
 
   function isHexColor(value) {
     return /^#[0-9a-f]{6}$/i.test(String(value || ""));
+  }
+
+  function normalizeCategoryName(value) {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function normalizeCustomTaskCategories(categories) {
+    return Array.from(new Set((Array.isArray(categories) ? categories : [])
+      .map(normalizeCategoryName)
+      .filter((category) => category && !baseTaskCategories.some((existing) => existing.toLowerCase() === category.toLowerCase()))));
+  }
+
+  function customCategoryColor(category) {
+    const palette = ["#6c63ff", "#00bcd4", "#4caf50", "#ff9800", "#f44336", "#ffc107", "#14b8a6", "#8b5cf6"];
+    const total = Array.from(category || "").reduce((sumValue, char) => sumValue + char.charCodeAt(0), 0);
+    return palette[total % palette.length];
+  }
+
+  function ensureTaskCategory(category, color = "", targetData = data) {
+    const normalized = normalizeCategoryName(category);
+    if (!normalized) return "";
+    const existing = taskCategories.find((item) => item.toLowerCase() === normalized.toLowerCase());
+    const finalName = existing || normalized;
+    if (!existing) taskCategories.push(finalName);
+    if (ui.taskCategoryFilters[finalName] === undefined) ui.taskCategoryFilters[finalName] = true;
+    if (targetData?.settings) {
+      targetData.settings.customTaskCategories = targetData.settings.customTaskCategories || [];
+      if (!Object.keys(defaultCategoryColors).some((name) => name.toLowerCase() === finalName.toLowerCase())
+        && !targetData.settings.customTaskCategories.some((name) => name.toLowerCase() === finalName.toLowerCase())) {
+        targetData.settings.customTaskCategories.push(finalName);
+      }
+      targetData.settings.categoryColors = targetData.settings.categoryColors || {};
+      if (!isHexColor(targetData.settings.categoryColors[finalName])) {
+        targetData.settings.categoryColors[finalName] = isHexColor(color) ? color : customCategoryColor(finalName);
+      }
+    }
+    return finalName;
   }
 
   function normalizeAddresses(nextData) {
@@ -633,6 +678,8 @@
       task.subtasks = normalizeSubtasks(task.subtasks);
       task.notifyContactIds = Array.isArray(task.notifyContactIds) ? task.notifyContactIds : [];
       task.notifyGroupIds = Array.isArray(task.notifyGroupIds) ? task.notifyGroupIds : [];
+      task.notifyExtraRecipient = String(task.notifyExtraRecipient || "");
+      task.notifyMessage = String(task.notifyMessage || "");
     });
   }
 
@@ -2409,12 +2456,29 @@
     return "General";
   }
 
+  function taskCategoryLabel(category) {
+    return category === ADD_TASK_CATEGORY_VALUE ? "+ Add new category" : category;
+  }
+
   function isTaskCategoryEnabled(category) {
     return ui.taskCategoryFilters[category] !== false;
   }
 
   function taskCategoryColor(category) {
     return data?.settings?.categoryColors?.[category] || defaultCategoryColors[category] || "#8892b0";
+  }
+
+  function taskTimeOfDay(task) {
+    const startMinutes = minutes(task?.start || "");
+    if (!task?.start) return { key: "noon", label: "No time set", iconName: "noon" };
+    if (startMinutes >= 5 * 60 && startMinutes < 12 * 60) return { key: "morning", label: "Morning task", iconName: "morning" };
+    if (startMinutes >= 12 * 60 && startMinutes < 18 * 60) return { key: "noon", label: "Afternoon task", iconName: "noon" };
+    return { key: "night", label: "Night task", iconName: "night" };
+  }
+
+  function taskTimeOfDayBadge(task) {
+    const meta = taskTimeOfDay(task);
+    return `<span class="time-of-day-badge ${meta.key}" title="${esc(meta.label)} starting at ${esc(timeLabel(task.start))}" aria-label="${esc(meta.label)}">${icon(meta.iconName)}</span>`;
   }
 
   function taskDayCard(task) {
@@ -2424,6 +2488,7 @@
     const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
     const doneLabel = task.isHabit && task.status === "Completed" ? "Done" : "Done";
     return `<article class="task-card day-task-card compact-day-task ${task.status === "Completed" ? "complete" : ""}" data-task-id="${task.id}" style="${selected ? "background:#eaf4ff;border-color:#8dc8ff;" : ""}">
+      ${taskTimeOfDayBadge(task)}
       <div class="card-row">
         <div class="day-task-main">
           <button class="icon-btn" data-action="toggle-task-select" data-id="${task.id}" aria-label="Select task">${selected ? icon("check") : icon("more")}</button>
@@ -3706,7 +3771,12 @@
         ${choiceField("taskPriority", "Priority", taskPriorityOptions, task.priority || "Medium", priorityColor)}
         ${choiceField("taskStatus", "Status", taskStatusOptions, task.status || "Not Started", statusHandleColor)}
         ${selectField("taskRepeat", "Repeat", ["None", "Daily", "Weekly", "Bi-Weekly", "Monthly", "Custom"], task.repeat || "None")}
-        ${selectField("taskCategory", "Category", taskCategories, taskCategory(task))}
+        ${selectField("taskCategory", "Category", [ADD_TASK_CATEGORY_VALUE, ...taskCategories], taskCategory(task), taskCategoryLabel)}
+        <button class="outline-btn inline-add-trigger" data-action="show-task-category-panel">${icon("plus")} Add new category</button>
+        <div id="taskNewCategoryPanel" class="inline-add-panel" hidden>
+          <div class="inline-add-heading">${icon("plus")} New task category</div>
+          <div class="field-row">${field("taskNewCategory", "Category Name", "", "Errands, Calls, Clients")}${field("taskNewCategoryColor", "Category Color", customCategoryColor(task.title || "New Category"), "", "color")}</div>
+        </div>
         ${swatchChoiceField("taskBgColor", "Event Background", taskBackgrounds, taskBackgroundColor(task))}
         ${selectField("taskFont", "Event Font", taskFonts, task.fontFamily || "System")}
         ${selectField("taskAddress", "Location", [ADD_TASK_ADDRESS_VALUE, "", ...data.addresses.map((a) => a.id)], task.addressId || "", taskAddressLabel)}
@@ -3726,7 +3796,7 @@
         <section class="inline-add-panel task-notify-panel">
           <div class="inline-add-heading">${icon("bell")} Notify Contacts</div>
           <p class="subtle">${taskNotifySummary(task)}</p>
-          ${task.id ? `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}">${icon("plus")} Select contacts or groups</button>` : `<p class="subtle">Save this task first, then select contacts or groups to notify.</p>`}
+          ${task.id ? `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}" data-return-modal="editTask">${icon("plus")} Select contacts or groups</button>` : `<p class="subtle">Save this task first, then select contacts or groups to notify.</p>`}
         </section>
         ${textArea("taskSubtasks", "Checklist Items", taskChecklistText(task), "One item per line. Use [x] to mark something done.")}
         ${imageAttachmentField("task", task.image || "", "Task Picture / Graphic", task.imageZoom, task.imageX, task.imageY, task.imageFit, task.imageOpacity)}
@@ -4100,8 +4170,8 @@
     const contact = taskContact(task);
     const selectedContactIds = new Set([...(task.notifyContactIds || []), task.contactId].filter(Boolean));
     const selectedGroupIds = new Set(task.notifyGroupIds || []);
-    const recipient = contact?.email || contact?.phone || "";
-    const message = taskAlertMessage(task);
+    const recipient = task.notifyExtraRecipient || contact?.email || contact?.phone || "";
+    const message = task.notifyMessage || taskAlertMessage(task);
     return `${modalHeader("Notify About Task", task.title)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${icon("bell")} Alert preview</strong><span class="status muted">${esc(task.status)}</span></div>
@@ -5441,6 +5511,7 @@
   document.addEventListener("change", (event) => {
     const target = event.target;
     if (target && target.id === "taskAddress") toggleTaskAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
+    if (target && target.id === "taskCategory") toggleTaskCategoryPanel(target.value === ADD_TASK_CATEGORY_VALUE);
     if (target && target.id === "habitAddress") toggleHabitAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
     if (target && target.dataset.action === "image-upload") handleImageUpload(target);
@@ -5519,7 +5590,7 @@
     if (action === "calendar-nav") return moveCalendar(Number(el.dataset.direction || 1));
     if (action === "go-calendar-today") return goCalendarToday(el.dataset.view);
     if (action === "open-day") return openCalendarDay(el.dataset.date);
-    if (action === "open-modal") return openModal(el.dataset.modal, el.dataset.id);
+    if (action === "open-modal") return openModal(el.dataset.modal, el.dataset.id, el.dataset.returnModal);
     if (action === "close-modal") return closeModal();
     if (action === "set-tab") {
       ui[el.dataset.key] = el.dataset.value;
@@ -5530,6 +5601,7 @@
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);
     if (action === "pick-choice") return pickChoice(el);
     if (action === "image-fit") return setImageFit(el);
+    if (action === "show-task-category-panel") return showTaskCategoryPanel();
     if (action === "quick-add-task") return quickAddTask();
     if (action === "start-voice-task") return startVoiceTask();
     if (action === "stop-voice-task") return stopVoiceTask();
@@ -5776,8 +5848,8 @@
     el.classList.add("active");
   }
 
-  function openModal(type, modalId) {
-    ui.modal = { type, id: modalId || "" };
+  function openModal(type, modalId, returnTo = "") {
+    ui.modal = { type, id: modalId || "", returnTo: returnTo || "" };
     ui.noteColor = null;
     if (type === "voiceTask") {
       const quickInput = document.getElementById("quickTaskInput")?.value?.trim() || "";
@@ -5850,6 +5922,19 @@
     const panel = document.getElementById("taskNewAddressPanel");
     if (!panel) return;
     panel.hidden = !show;
+  }
+
+  function toggleTaskCategoryPanel(show) {
+    const panel = document.getElementById("taskNewCategoryPanel");
+    if (!panel) return;
+    panel.hidden = !show;
+    if (show) document.getElementById("taskNewCategory")?.focus();
+  }
+
+  function showTaskCategoryPanel() {
+    const select = document.getElementById("taskCategory");
+    if (select) select.value = ADD_TASK_CATEGORY_VALUE;
+    toggleTaskCategoryPanel(true);
   }
 
   function toggleHabitAddressPanel(show) {
@@ -7104,8 +7189,13 @@
     const selectedAddressId = value("taskAddress");
     const wantsNewAddress = selectedAddressId === ADD_TASK_ADDRESS_VALUE;
     const newAddressId = wantsNewAddress ? createTaskAddressFromForm() : "";
+    const category = taskCategoryFromForm();
     if (wantsNewAddress && !newAddressId) {
       showToast("Enter the new address details first.", "danger");
+      return;
+    }
+    if (!category) {
+      showToast("Enter the new category name first.", "danger");
       return;
     }
     const payload = {
@@ -7118,7 +7208,7 @@
       priority: value("taskPriority"),
       status: value("taskStatus"),
       repeat: value("taskRepeat"),
-      category: value("taskCategory") || "General",
+      category,
       bgColor: value("taskBgColor") || defaultTaskBgColor(),
       fontFamily: value("taskFont") || "System",
       includeHours: Boolean(document.getElementById("taskIncludeHours")?.checked),
@@ -7135,6 +7225,8 @@
       contactId: value("taskContact") || task?.contactId || null,
       notifyContactIds: task?.notifyContactIds || [],
       notifyGroupIds: task?.notifyGroupIds || [],
+      notifyExtraRecipient: task?.notifyExtraRecipient || "",
+      notifyMessage: task?.notifyMessage || "",
       tags: task ? task.tags || [] : [],
       subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks)
     };
@@ -7148,6 +7240,14 @@
   function createTaskAddressFromForm() {
     if (value("taskAddress") !== ADD_TASK_ADDRESS_VALUE) return "";
     return createInlineAddressFromForm("task", value("taskTitle") || "Task Location", "task");
+  }
+
+  function taskCategoryFromForm() {
+    const typed = normalizeCategoryName(value("taskNewCategory"));
+    const selected = value("taskCategory");
+    if (typed) return ensureTaskCategory(typed, value("taskNewCategoryColor") || customCategoryColor(typed));
+    if (selected === ADD_TASK_CATEGORY_VALUE) return "";
+    return ensureTaskCategory(selected || "General");
   }
 
   function createHabitAddressFromForm() {
@@ -7748,7 +7848,8 @@
   function taskNotifySummary(task) {
     const contactCount = (task.notifyContactIds || []).filter((idValue) => data.contacts.some((contact) => contact.id === idValue)).length;
     const groupCount = (task.notifyGroupIds || []).filter((idValue) => (data.contactGroups || []).some((group) => group.id === idValue)).length;
-    if (contactCount || groupCount) return `${contactCount} contact${contactCount === 1 ? "" : "s"} and ${groupCount} group${groupCount === 1 ? "" : "s"} selected.`;
+    const extraCount = task.notifyExtraRecipient ? 1 : 0;
+    if (contactCount || groupCount || extraCount) return `${contactCount} contact${contactCount === 1 ? "" : "s"}, ${groupCount} group${groupCount === 1 ? "" : "s"}, and ${extraCount} extra address${extraCount === 1 ? "" : "es"} selected.`;
     if (task.contactId) return "Primary contact is linked. Add more people or groups if needed.";
     return "No notification contacts selected yet.";
   }
@@ -7782,9 +7883,12 @@
     if (!task) return;
     task.notifyContactIds = selectedNotifyContactIds();
     task.notifyGroupIds = selectedNotifyGroupIds();
+    task.notifyExtraRecipient = value("taskNotifyRecipient");
+    task.notifyMessage = value("taskNotifyMessage");
     if (!task.contactId && task.notifyContactIds.length === 1) task.contactId = task.notifyContactIds[0];
     saveData();
-    closeModal();
+    if (ui.modal?.returnTo === "editTask") ui.modal = { type: "editTask", id: task.id };
+    else ui.modal = { type: "taskNotify", id: task.id, returnTo: ui.modal?.returnTo || "" };
     showToast("Task notification contacts saved.");
   }
 
@@ -7805,7 +7909,7 @@
       .filter(Boolean)
       .map((contact) => contact.email || contact.phone)
       .filter(Boolean);
-    const extra = value("taskNotifyRecipient");
+    const extra = value("taskNotifyRecipient") || task.notifyExtraRecipient;
     if (extra) recipients.push(extra);
     return Array.from(new Set(recipients));
   }
@@ -7818,7 +7922,7 @@
       showToast("Select a contact with email/phone or enter an address first.", "danger");
       return;
     }
-    const message = value("taskNotifyMessage") || taskAlertMessage(task);
+    const message = value("taskNotifyMessage") || task.notifyMessage || taskAlertMessage(task);
     window.location.href = taskAlertMailto(task, recipient, message);
   }
 
@@ -7826,7 +7930,7 @@
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return;
     try {
-      await copyText(value("taskNotifyMessage") || taskAlertMessage(task));
+      await copyText(value("taskNotifyMessage") || task.notifyMessage || taskAlertMessage(task));
       showToast("Task alert copied.");
     } catch (error) {
       showToast("Could not copy the task alert.", "danger");
