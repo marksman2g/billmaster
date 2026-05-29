@@ -3668,6 +3668,7 @@ canvas {
   position: absolute;
   right: 4px;
   left: 4px;
+  container-type: inline-size;
   min-height: 34px;
   padding: 18px 7px;
   overflow: visible;
@@ -3833,6 +3834,49 @@ canvas {
   overflow: hidden;
 }
 
+.block-event-title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(26, 31, 54, 0.24);
+  white-space: nowrap;
+}
+
+.event-block.short-block {
+  padding: 7px 28px;
+}
+
+.event-block.short-block .event-drag-area {
+  position: absolute;
+  inset: 7px 28px;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  align-content: center;
+  gap: 4px;
+  height: auto;
+  min-width: 0;
+}
+
+.event-block.short-block .block-event-title {
+  grid-column: 1;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.event-block.short-block .block-duration {
+  grid-column: 2;
+  flex: 0 0 auto;
+}
+
+.event-block.short-block .block-time-range {
+  display: none;
+}
+
 .event-block.micro-block {
   min-height: 28px;
   padding: 2px 30px;
@@ -3845,7 +3889,7 @@ canvas {
   z-index: 6;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 4px;
   height: auto;
   min-width: 0;
@@ -3854,11 +3898,13 @@ canvas {
   white-space: nowrap;
 }
 
-.event-block.micro-block .event-drag-area strong {
-  max-width: min(46%, 72px);
+.event-block.micro-block .block-event-title {
+  flex: 1 1 auto;
+  max-width: none;
   overflow: hidden;
   color: #fff;
-  font-size: 0.64rem;
+  font-size: 0.66rem;
+  font-weight: 950;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3872,13 +3918,27 @@ canvas {
 }
 
 .event-block.micro-block .block-time-range {
-  overflow: hidden;
-  color: #fff;
-  font-size: 0.61rem;
-  font-weight: 900;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
+}
+
+@container (max-width: 126px) {
+  .event-block.short-block .event-drag-area,
+  .event-block.micro-block .event-drag-area {
+    inset-right: 22px;
+    inset-left: 22px;
+    justify-content: center;
+  }
+
+  .event-block.short-block .block-duration,
+  .event-block.micro-block .block-duration {
+    display: none;
+  }
+
+  .event-block.short-block .block-event-title,
+  .event-block.micro-block .block-event-title {
+    max-width: 100%;
+    text-align: center;
+  }
 }
 
 .block-duration {

@@ -2566,7 +2566,7 @@
       <span class="block-resize block-resize-top" data-resize="top" data-tooltip="Priority: ${esc(task.priority)}" title="Priority: ${esc(task.priority)}" aria-label="Priority: ${esc(task.priority)}"></span>
       <span class="block-repeat block-repeat-left" data-repeat="left" data-tooltip="Drag left and up/down to duplicate earlier with shifted times" title="Drag left and up/down to duplicate earlier with shifted times" aria-label="Duplicate earlier days and shift time"></span>
       <div class="event-drag-area">
-        <strong>${esc(task.title)}</strong>
+        <strong class="block-event-title">${esc(task.title)}</strong>
         <span class="block-duration">${durationLabel(duration)}</span>
         <span class="block-time-range">${micro ? esc(blockMicroTimeRange(task.start, task.end)) : `${timeLabel(task.start)} - ${timeLabel(task.end)}`}</span>${task.includeHours ? "" : `<span>not counted</span>`}
       </div>
