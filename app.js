@@ -3584,10 +3584,12 @@
     const forgiven = loanForgiven(loan);
     const remaining = loanRemaining(loan);
     const dueOrOverdue = daysBetween(loan.dueDate) <= 0 && remaining > 0;
-    const repaidPct = progressPct(repaid, amount);
+    const repaidPct = amount ? clamp((repaid / amount) * 100, 0, 100) : 0;
+    const forgivenStartPct = repaidPct;
+    const forgivenEndPct = amount ? clamp(((repaid + forgiven) / amount) * 100, forgivenStartPct, 100) : forgivenStartPct;
     const baseBg = dueOrOverdue ? "#fff4f4" : "#ffffff";
     const media = entityImage(loan);
-    return `<article class="loan-card compact-loan-card ${dueOrOverdue ? "overdue" : ""}" style="--repaid-pct:${repaidPct}%;--loan-base-bg:${baseBg};" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}" title="Click blank space to edit ${esc(loan.borrower)}">
+    return `<article class="loan-card compact-loan-card ${dueOrOverdue ? "overdue" : ""}" style="--repaid-pct:${round1(repaidPct)}%;--forgiven-start-pct:${round1(forgivenStartPct)}%;--forgiven-end-pct:${round1(forgivenEndPct)}%;--loan-base-bg:${baseBg};" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}" title="Click blank space to edit ${esc(loan.borrower)}">
       <div class="loan-card-top">
         <div class="loan-person">${media ? `<span class="media-thumb" ${imageStyleAttr(loan)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:#1d6fd9;background:#e7f3ff;">${esc(loan.borrower.charAt(0))}</span>`}<div><h2 class="entity-title"><button class="link-title" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}">${esc(loan.borrower)}</button></h2><div class="entity-subtitle">${esc(loan.description)}</div>${loan.borrowerPhone || loan.borrowerEmail ? `<div class="entity-subtitle">${esc([loan.borrowerPhone, loan.borrowerEmail].filter(Boolean).join(" · "))}</div>` : ""}</div></div>
         <div class="loan-amount-block"><strong class="amount-large">${money(remaining)}</strong><span class="status ${statusClass(status)}">${esc(status)}</span></div>

@@ -2939,10 +2939,12 @@ button.round-icon {
 }
 
 .compact-loan-card {
+  position: relative;
   display: grid;
   min-width: 0;
   gap: 10px;
   padding: 12px;
+  overflow: hidden;
   background:
     linear-gradient(
       90deg,
@@ -2952,6 +2954,27 @@ button.round-icon {
   box-shadow: none;
   cursor: pointer;
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.compact-loan-card::before {
+  position: absolute;
+  inset-block: 0;
+  left: var(--forgiven-start-pct, 0%);
+  z-index: 0;
+  width: calc(var(--forgiven-end-pct, 0%) - var(--forgiven-start-pct, 0%));
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(132, 143, 154, 0.2) 0 10px,
+      rgba(255, 255, 255, 0.78) 10px 20px
+    );
+  content: "";
+  pointer-events: none;
+}
+
+.compact-loan-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .compact-loan-card:hover {
@@ -3026,8 +3049,26 @@ button.round-icon {
   border-radius: 8px;
 }
 
+.loan-progress {
+  position: relative;
+}
+
 .loan-progress span {
   background: var(--green);
+}
+
+.loan-progress::after {
+  position: absolute;
+  inset-block: 0;
+  left: var(--forgiven-start-pct, 0%);
+  width: calc(var(--forgiven-end-pct, 0%) - var(--forgiven-start-pct, 0%));
+  background:
+    repeating-linear-gradient(
+      135deg,
+      #b9c0c9 0 6px,
+      #ffffff 6px 12px
+    );
+  content: "";
 }
 
 .loan-meta-row {
