@@ -20,6 +20,7 @@
     billInboxFilter: "pending",
     taskFilter: "all",
     projectId: null,
+    projectSort: "level",
     notesFilter: "all",
     notesView: "stream",
     notesSort: "newest",
@@ -61,6 +62,7 @@
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
+  const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
   const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
@@ -174,9 +176,9 @@
       { id: "loan_4", borrower: "I", description: "Lend Isaiah Money", amount: 100, repaid: 10, forgiven: 0, date: "2026-04-25", dueDate: "2026-04-27", status: "Money Owed", type: "Lent" }
     ],
     projects: [
-      { id: "proj_1", name: "aaaa", description: "General project", status: "Active", color: "#ff7a1a", dueDate: "2026-05-27" },
-      { id: "proj_2", name: "Isaiah", description: "Family project", status: "Active", color: "#2196f3", dueDate: "2026-06-01" },
-      { id: "proj_3", name: "Big Project note", description: "Big Project note description", status: "On Hold", color: "#6c63ff", dueDate: "2026-06-12" }
+      { id: "proj_1", name: "aaaa", description: "General project", status: "Active", level: "Medium", color: "#ff7a1a", dueDate: "2026-05-27" },
+      { id: "proj_2", name: "Isaiah", description: "Family project", status: "Active", level: "High", color: "#2196f3", dueDate: "2026-06-01" },
+      { id: "proj_3", name: "Big Project note", description: "Big Project note description", status: "On Hold", level: "Low", color: "#6c63ff", dueDate: "2026-06-12" }
     ],
     notebooks: [
       { id: "nb_1", title: "General Notes", description: "Default", projectId: null, color: "#4388f3", icon: "book" },
@@ -473,6 +475,7 @@
     });
     normalizeAddresses(nextData);
     normalizeLoans(nextData);
+    normalizeProjects(nextData);
     normalizeHabits(nextData);
     normalizeHabitTemplates(nextData);
     normalizeContacts(nextData);
@@ -676,6 +679,18 @@
     }, { outstanding: 0, partial: 0, repaid: 0, forgiven: 0, total: 0 });
   }
 
+  function normalizeProjects(nextData) {
+    (nextData.projects || []).forEach((project) => {
+      project.name = String(project.name || "Project");
+      project.description = String(project.description || "");
+      project.status = String(project.status || "Active");
+      project.color = isHexColor(project.color) ? project.color : "#1a1f36";
+      project.dueDate = project.dueDate || todayIso();
+      if (!projectLevelOptions.includes(project.level)) project.level = "Medium";
+      project.lastEditedAt = String(project.lastEditedAt || "");
+    });
+  }
+
   function normalizeTasks(nextData) {
     (nextData.tasks || []).forEach((task) => {
       task.endDate = task.endDate || task.date;
@@ -689,6 +704,7 @@
       task.notifyGroupIds = Array.isArray(task.notifyGroupIds) ? task.notifyGroupIds : [];
       task.notifyExtraRecipient = String(task.notifyExtraRecipient || "");
       task.notifyMessage = String(task.notifyMessage || "");
+      task.updatedAt = String(task.updatedAt || "");
     });
   }
 
@@ -966,15 +982,15 @@
           ["habits", "check", "Habits"],
           ["projects", "folder", "Projects"]
         ]],
+        ["Notes", [
+          ["notebooks", "book", "Notebooks"],
+          ["notes", "note", "Notes"]
+        ]],
         ["Money", [
           ["goals", "chart", "Goals"],
           ["lending", "loan", "Lending"],
           ["inbox", "receipt", "Review Inbox"],
           ["sync", "settings", "Sync Center"]
-        ]],
-        ["Notes", [
-          ["notebooks", "book", "Notebooks"],
-          ["notes", "note", "Notes"]
         ]],
         ["People & Places", [
           ["contacts", "home", "Contacts"],
@@ -2992,11 +3008,21 @@
     const activeProject = data.projects.find((project) => project.id === ui.projectId);
     if (activeProject) return renderProjectDetail(activeProject);
     const unassigned = data.tasks.filter((task) => !task.projectId);
+    const projects = sortedProjects();
     return `<section class="screen">
       ${header("Project Tasks", `<button class="icon-btn">${icon("chart")}</button>`)}
       <div class="mini-tabs"><button class="active">${icon("folder")} By Project</button><button>${icon("chart")} Timeline</button></div>
+      <div class="filter-row project-sort-row" aria-label="Project sort">
+        <span class="sort-label">Sort projects by</span>
+        ${[
+          ["level", "Level"],
+          ["lastEdited", "Last edited task"],
+          ["tasks", "Task count"],
+          ["name", "Name"]
+        ].map(([value, label]) => `<button class="${(ui.projectSort || "level") === value ? "active" : ""}" data-action="set-tab" data-key="projectSort" data-value="${value}">${esc(label)}</button>`).join("")}
+      </div>
       <div class="project-tile-grid">
-        ${data.projects.map((project) => projectTile(project)).join("")}
+        ${projects.map((project) => projectTile(project)).join("")}
       </div>
       <div class="list">
         ${projectGroup({ id: null, name: "Unassigned", color: "#607d8b" }, unassigned)}
@@ -3004,25 +3030,73 @@
     </section>`;
   }
 
+  function sortedProjects() {
+    const sort = ui.projectSort || "level";
+    return [...data.projects].sort((a, b) => {
+      if (sort === "level") return projectLevelRank(b.level) - projectLevelRank(a.level) || a.name.localeCompare(b.name);
+      if (sort === "lastEdited") return taskEditedStamp(projectLastEditedTask(b)) - taskEditedStamp(projectLastEditedTask(a)) || a.name.localeCompare(b.name);
+      if (sort === "tasks") return projectTasks(b).length - projectTasks(a).length || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  function projectTasks(project) {
+    return data.tasks.filter((task) => task.projectId === project.id);
+  }
+
+  function projectLevelRank(level) {
+    return { Low: 1, Medium: 2, High: 3, Critical: 4 }[level] || 2;
+  }
+
+  function projectLevelClass(level) {
+    return `project-level-${String(level || "Medium").toLowerCase()}`;
+  }
+
+  function projectLevelBadge(level) {
+    return `<span class="status project-level-badge ${projectLevelClass(level)}">Level: ${esc(level || "Medium")}</span>`;
+  }
+
+  function taskEditedStamp(task) {
+    if (!task) return 0;
+    const parsedEdited = Date.parse(task.updatedAt || "");
+    if (Number.isFinite(parsedEdited)) return parsedEdited;
+    const parsedSchedule = Date.parse(`${task.date || todayIso()}T${task.start || "00:00"}`);
+    return Number.isFinite(parsedSchedule) ? parsedSchedule : 0;
+  }
+
+  function projectLastEditedTask(project) {
+    return projectTasks(project).sort((a, b) => taskEditedStamp(b) - taskEditedStamp(a))[0] || null;
+  }
+
+  function projectLastTaskText(task) {
+    if (!task) return "Last edited: none yet";
+    const when = task.updatedAt ? dateLabel(task.updatedAt.slice(0, 10)) : dateLabel(task.date);
+    return `Last edited: ${task.title} - ${when}`;
+  }
+
   function projectTile(project) {
     const media = entityImage(project);
-    const tasks = data.tasks.filter((task) => task.projectId === project.id);
+    const tasks = projectTasks(project);
     const completed = tasks.filter((task) => task.status === "Completed").length;
+    const lastTask = projectLastEditedTask(project);
     return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" title="Open project or drop an unassigned task here">
       <span class="project-tile-cover" ${imageStyleAttr(project)}>
         ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
       </span>
       <span class="project-tile-title">${esc(project.name)}</span>
+      <span class="project-tile-row">${projectLevelBadge(project.level)}</span>
       <span class="project-tile-meta">${tasks.length} tasks - ${completed} done</span>
+      <span class="project-tile-last" title="${esc(projectLastTaskText(lastTask))}">${esc(projectLastTaskText(lastTask))}</span>
       <span class="project-drop-hint">${icon("task")} Drop task here</span>
     </button>`;
   }
 
   function renderProjectDetail(project) {
-    const tasks = data.tasks.filter((task) => task.projectId === project.id);
+    const tasks = projectTasks(project);
     const notebooks = data.notebooks.filter((notebook) => notebook.projectId === project.id);
     const media = entityImage(project);
     const done = tasks.filter((task) => task.status === "Completed").length;
+    const lastTask = projectLastEditedTask(project);
     return `<section class="screen">
       ${header(project.name, `<button class="icon-btn" data-action="open-modal" data-modal="editTask">${icon("plus")}</button><button class="icon-btn" data-action="close-project">${icon("close")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}">${icon("edit")}</button>`)}
       <section class="project-detail-hero">
@@ -3033,7 +3107,8 @@
         <div>
           <h2>${esc(project.name)}</h2>
           <p>${esc(project.description || "No project description yet.")}</p>
-          <div class="task-meta"><span class="status info">${tasks.length} tasks</span><span class="status muted">${notebooks.length} notebooks</span><span class="status warn">Due ${dateLabel(project.dueDate)}</span></div>
+          <div class="task-meta">${projectLevelBadge(project.level)}<span class="status info">${tasks.length} tasks</span><span class="status muted">${notebooks.length} notebooks</span><span class="status warn">Due ${dateLabel(project.dueDate)}</span></div>
+          <p class="project-last-edited-line">${esc(projectLastTaskText(lastTask))}</p>
         </div>
       </section>
       <section class="section-card project-task-toolbar">
@@ -3121,6 +3196,7 @@
     const project = data.projects.find((item) => item.id === projectId);
     if (!task || !project) return;
     task.projectId = project.id;
+    task.updatedAt = new Date().toISOString();
     saveData();
     render();
     showToast(`${task.title} assigned to ${project.name}.`);
@@ -4348,6 +4424,7 @@
     return `${modalHeader("Edit Project", project.name)}
       <div class="field-grid">
         ${field("projectQuickName", "Project Name", project.name, "Project name")}
+        ${selectField("projectLevel", "Project Level", projectLevelOptions, project.level || "Medium")}
         ${imageAttachmentField("project", project.image || "", "Project Picture / Tile Image", project.imageZoom, project.imageX, project.imageY, project.imageFit, project.imageOpacity)}
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;"><button class="outline-btn" data-action="close-modal">Cancel</button><button class="secondary-btn" data-action="save-project-name" data-id="${project.id}">Save Project</button></div>`;
@@ -5393,6 +5470,7 @@
       status: "Not Started",
       category: source.isHabit ? "Habit" : taskCategory(source),
       tags: Array.from(new Set([...(source.tags || []), ...(source.isHabit ? ["habit"] : [])])),
+      updatedAt: new Date().toISOString(),
       ...overrides
     };
   }
@@ -5411,7 +5489,7 @@
       if (updates.endDate !== undefined && updates.endDate && updates.endDate !== updates.date) habit.endDate = updates.endDate;
       return;
     }
-    Object.assign(item, updates);
+    Object.assign(item, updates, { updatedAt: new Date().toISOString() });
   }
 
   function dateSpanDays(startIso, endIso) {
@@ -6156,7 +6234,8 @@
       goalId: null,
       contactId: null,
       addressId: null,
-      tags: []
+      tags: [],
+      updatedAt: new Date().toISOString()
     });
     saveData();
     render();
@@ -6566,7 +6645,8 @@
       goalId: null,
       contactId: null,
       addressId,
-      tags: parsed.category ? [parsed.category.toLowerCase()] : []
+      tags: parsed.category ? [parsed.category.toLowerCase()] : [],
+      updatedAt: new Date().toISOString()
     };
     data.tasks.unshift(task);
     saveData();
@@ -8072,7 +8152,8 @@
       notifyExtraRecipient: task?.notifyExtraRecipient || "",
       notifyMessage: task?.notifyMessage || "",
       tags: task ? task.tags || [] : [],
-      subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks)
+      subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks),
+      updatedAt: new Date().toISOString()
     };
     if (task) Object.assign(task, payload);
     else data.tasks.unshift({ id: id("task"), ...payload });
@@ -8449,6 +8530,7 @@
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return;
     task.status = "Completed";
+    task.updatedAt = new Date().toISOString();
     saveData();
     render();
   }
@@ -8532,6 +8614,7 @@
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task || !taskPriorityOptions.includes(priority)) return;
     task.priority = priority;
+    task.updatedAt = new Date().toISOString();
     ui.taskPicker = null;
     saveData();
     showToast(`Priority changed to ${task.priority}.`);
@@ -8550,6 +8633,7 @@
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task || !taskStatusOptions.includes(status)) return;
     task.status = status;
+    task.updatedAt = new Date().toISOString();
     ui.taskPicker = null;
     if (ui.modal?.type === "blockStatus") ui.modal = null;
     saveData();
@@ -8755,6 +8839,7 @@
     task.notifyExtraRecipient = value("taskNotifyRecipient");
     task.notifyMessage = value("taskNotifyMessage");
     if (!task.contactId && task.notifyContactIds.length === 1) task.contactId = task.notifyContactIds[0];
+    task.updatedAt = new Date().toISOString();
     saveData();
     if (ui.modal?.returnTo === "editTask") ui.modal = { type: "editTask", id: task.id };
     else ui.modal = { type: "taskNotify", id: task.id, returnTo: ui.modal?.returnTo || "" };
@@ -8815,12 +8900,14 @@
       return;
     }
     project.name = nextName;
+    project.level = projectLevelOptions.includes(value("projectLevel")) ? value("projectLevel") : "Medium";
     project.image = imageValue("project");
     project.imageZoom = imageZoomValue("project");
     project.imageX = imagePanValue("project", "x");
     project.imageY = imagePanValue("project", "y");
     project.imageFit = imageFitValue("project");
     project.imageOpacity = imageOpacityValue("project");
+    project.lastEditedAt = new Date().toISOString();
     saveData();
     closeModal();
     showToast("Project updated.");

@@ -1765,6 +1765,17 @@ button.round-icon {
   grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
 }
 
+.project-sort-row {
+  align-items: center;
+  margin-top: -2px;
+}
+
+.project-sort-row .sort-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .project-picture-tile,
 .notebook-tile {
   display: grid;
@@ -1853,6 +1864,57 @@ button.round-icon {
   font-weight: 720;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-tile-row {
+  display: flex;
+  min-width: 0;
+}
+
+.project-level-badge {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+}
+
+.project-level-low {
+  color: #756100;
+  background: #fff8dc;
+  border-color: #ffdf75;
+}
+
+.project-level-medium {
+  color: #a45400;
+  background: #fff2df;
+  border-color: #ffc47d;
+}
+
+.project-level-high {
+  color: #c2312d;
+  background: #fff0ef;
+  border-color: #ffb3af;
+}
+
+.project-level-critical {
+  color: #8b1020;
+  background: #ffe8ed;
+  border-color: #ff9aad;
+}
+
+.project-tile-last,
+.project-last-edited-line {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-last-edited-line {
+  margin: 8px 0 0;
+  white-space: normal;
 }
 
 .project-drag-note {
