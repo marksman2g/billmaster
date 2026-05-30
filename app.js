@@ -60,6 +60,7 @@
   const validViews = new Set(["dashboard", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
+  const ADD_NOTEBOOK_VALUE = "__add_note_notebook__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
@@ -4441,8 +4442,8 @@
         ${field("noteDate", "Note Date", note.date || "2026-05-06", "", "date")}
         ${noteSubjectField(note)}
         ${selectField("noteImportance", "Importance Level", ["Low", "Medium", "High", "Critical"], note.importance || "Low")}
-        ${selectField("noteNotebook", "Notebook", data.notebooks.map((nb) => nb.id), note.notebookId || data.notebooks[0]?.id, (value) => data.notebooks.find((nb) => nb.id === value)?.title || "Notebook")}
-        ${insideNotebook ? `<p class="subtle notebook-auto-note">${icon("book")} This note will be saved directly inside ${esc(data.notebooks.find((nb) => nb.id === ui.notebookId)?.title || "this notebook")}.</p>` : ""}
+        ${noteNotebookField(note)}
+        ${insideNotebook ? `<p class="subtle notebook-auto-note">${icon("book")} This note defaults to ${esc(data.notebooks.find((nb) => nb.id === ui.notebookId)?.title || "this notebook")}, or you can choose + New notebook above.</p>` : ""}
         ${selectField("noteCover", "Stock Image", ["", "cherries", "bananas"], note.cover || "", (value) => value ? filterLabel(value) : "No stock image")}
         ${imageAttachmentField("note", note.image || note.cover || "", "Note Picture / Graphic", note.imageZoom, note.imageX, note.imageY, note.imageFit, note.imageOpacity)}
         <div class="field"><label>Color</label><div class="swatches">${["#4388f3", "#6c63ff", "#10b981", "#ff9800", "#f44336", "#8b5cf6", "#ec4899", "#14b8a6"].map((c) => `<button class="swatch ${note.color === c ? "active" : ""}" style="background:${c}" data-action="pick-note-color" data-color="${c}"></button>`).join("")}</div></div>
@@ -4458,6 +4459,14 @@
     const options = ["", "__new_subject__", ...subjects];
     return `${selectField("noteSubjectSelect", "Subject", options, wantsNew ? "__new_subject__" : selected, (value) => value === "__new_subject__" ? "+ New subject" : value || "No subject")}
       <div id="noteSubjectNewWrap" ${wantsNew ? "" : "hidden"}>${field("noteSubjectNew", "New Subject", wantsNew ? current : "", "Type a new subject")}</div>`;
+  }
+
+  function noteNotebookField(note) {
+    const currentNotebookId = note.notebookId || data.notebooks[0]?.id || ADD_NOTEBOOK_VALUE;
+    const creatingNew = currentNotebookId === ADD_NOTEBOOK_VALUE;
+    const options = [ADD_NOTEBOOK_VALUE, ...data.notebooks.map((nb) => nb.id)];
+    return `${selectField("noteNotebook", "Notebook", options, currentNotebookId, (value) => value === ADD_NOTEBOOK_VALUE ? "+ New notebook" : data.notebooks.find((nb) => nb.id === value)?.title || "Notebook")}
+      <div id="noteNotebookNewWrap" ${creatingNew ? "" : "hidden"}>${field("noteNewNotebookTitle", "New Notebook Name", "", "Notebook name")}</div>`;
   }
 
   function modalDuplicateNotes(noteId) {
@@ -5771,6 +5780,11 @@
     if (target && target.id === "noteSubjectSelect") {
       const panel = document.getElementById("noteSubjectNewWrap");
       if (panel) panel.hidden = target.value !== "__new_subject__";
+    }
+    if (target && target.id === "noteNotebook") {
+      const panel = document.getElementById("noteNotebookNewWrap");
+      if (panel) panel.hidden = target.value !== ADD_NOTEBOOK_VALUE;
+      if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("noteNewNotebookTitle")?.focus();
     }
     if (target && target.id === "loanContact") {
       const contact = data.contacts.find((item) => item.id === target.value);
@@ -9134,10 +9148,34 @@
     return selected === "__new_subject__" ? value("noteSubjectNew") : selected;
   }
 
+  function noteNotebookIdFromForm() {
+    const selected = value("noteNotebook");
+    if (selected !== ADD_NOTEBOOK_VALUE) return selected || data.notebooks[0]?.id || "";
+    const title = value("noteNewNotebookTitle");
+    if (!title) return "";
+    const existing = data.notebooks.find((notebook) => notebook.title.toLowerCase() === title.toLowerCase());
+    if (existing) return existing.id;
+    const notebook = {
+      id: id("nb"),
+      title,
+      description: "Created while saving a note",
+      projectId: null,
+      color: "#4388f3",
+      icon: "book"
+    };
+    data.notebooks.unshift(notebook);
+    return notebook.id;
+  }
+
   function saveNote(noteId) {
     const note = data.notes.find((item) => item.id === noteId);
+    const notebookId = noteNotebookIdFromForm();
+    if (!notebookId) {
+      showToast("Enter a new notebook name first.", "danger");
+      return;
+    }
     const payload = {
-      notebookId: value("noteNotebook") || data.notebooks[0]?.id,
+      notebookId,
       title: value("noteTitle") || "Note",
       content: value("noteContent"),
       date: value("noteDate") || "2026-05-06",
