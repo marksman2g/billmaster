@@ -42,7 +42,9 @@
     aiDraft: "",
     voiceTranscript: "",
     voiceParsedTask: null,
+    voiceCorrectionDraft: "",
     voiceListening: false,
+    voiceCorrectionListening: false,
     voiceError: "",
     habitTemplateDraft: null,
     selectedHabits: [],
@@ -5594,7 +5596,11 @@
     if (target && target.id === "voiceTranscript") {
       ui.voiceTranscript = target.value;
       ui.voiceParsedTask = null;
+      ui.voiceCorrectionDraft = "";
       ui.voiceError = "";
+    }
+    if (target && target.id === "voiceCorrection") {
+      ui.voiceCorrectionDraft = target.value;
     }
     if (target && target.dataset.action === "image-url") {
       const hidden = document.getElementById(target.dataset.target);
@@ -5714,6 +5720,9 @@
     if (action === "start-voice-task") return startVoiceTask();
     if (action === "stop-voice-task") return stopVoiceTask();
     if (action === "parse-voice-task") return parseVoiceTaskFromInput();
+    if (action === "start-voice-correction") return startVoiceCorrection();
+    if (action === "stop-voice-correction") return stopVoiceCorrection();
+    if (action === "apply-voice-correction") return applyVoiceCorrection();
     if (action === "save-voice-task") return saveVoiceTask();
     if (action === "apply-habit-template") return applyHabitTemplate(Number(el.dataset.slot || 1));
     if (action === "save-habit-template-slot") return saveHabitTemplateSlot(el.dataset.id, Number(el.dataset.slot || 1));
@@ -6104,6 +6113,10 @@
       stopVoiceTask();
       return;
     }
+    if (voiceRecognition && ui.voiceCorrectionListening) {
+      stopVoiceCorrection();
+      return;
+    }
     const recognition = new Recognition();
     voiceRecognition = recognition;
     voiceStopRequested = false;
@@ -6119,6 +6132,7 @@
       ui.voiceTranscript = transcript;
       ui.voiceParsedTask = transcript ? parseVoiceTask(transcript) : null;
       ui.voiceListening = false;
+      ui.voiceCorrectionListening = false;
       ui.voiceError = "";
       voiceRecognition = null;
       voiceStopRequested = false;
@@ -6126,6 +6140,7 @@
     };
     recognition.onerror = (event) => {
       ui.voiceListening = false;
+      ui.voiceCorrectionListening = false;
       voiceRecognition = null;
       if (voiceStopRequested || event?.error === "aborted") {
         voiceStopRequested = false;
@@ -6149,6 +6164,7 @@
       recognition.start();
     } catch (error) {
       ui.voiceListening = false;
+      ui.voiceCorrectionListening = false;
       voiceRecognition = null;
       voiceStopRequested = false;
       ui.voiceError = "Could not start voice capture. Try typing the task sentence.";
@@ -6170,6 +6186,102 @@
     ui.voiceError = ui.voiceTranscript
       ? "Listening stopped. Review the text below, type anything missing, or tap Parse Details."
       : "Listening stopped. If no text appears, type the task sentence or tap Listen again.";
+    try {
+      voiceRecognition.stop();
+    } catch (error) {
+      voiceRecognition = null;
+      voiceStopRequested = false;
+    }
+    render();
+  }
+
+  function startVoiceCorrection() {
+    const Recognition = speechRecognitionCtor();
+    const transcript = value("voiceTranscript") || ui.voiceTranscript;
+    if (!Recognition) {
+      ui.voiceError = "Voice correction is not available in this browser. Type the correction and tap Apply.";
+      showToast("Voice correction is not available here.", "danger");
+      return;
+    }
+    if (!transcript && !ui.voiceParsedTask) {
+      showToast("Parse a task first, then correct it.", "danger");
+      return;
+    }
+    if (voiceRecognition && ui.voiceCorrectionListening) {
+      stopVoiceCorrection();
+      return;
+    }
+    if (voiceRecognition && ui.voiceListening) {
+      stopVoiceTask();
+      return;
+    }
+    const recognition = new Recognition();
+    voiceRecognition = recognition;
+    voiceStopRequested = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    ui.voiceCorrectionListening = true;
+    ui.voiceListening = false;
+    ui.voiceError = "";
+    render();
+    recognition.onresult = (event) => {
+      const correction = collectSpeechTranscript(event) || ui.voiceCorrectionDraft;
+      ui.voiceCorrectionListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      applyVoiceCorrectionValue(correction, transcript);
+    };
+    recognition.onerror = (event) => {
+      ui.voiceCorrectionListening = false;
+      voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        ui.voiceError = "Correction listening stopped. Type the correction or tap Listen Correction again.";
+        render();
+        showToast("Correction listening stopped.");
+        return;
+      }
+      ui.voiceError = voiceErrorMessage(event?.error);
+      render();
+      showToast(ui.voiceError, "danger");
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      if (ui.voiceCorrectionListening) {
+        ui.voiceCorrectionListening = false;
+        if (voiceStopRequested) ui.voiceError = "Correction listening stopped. Type the correction or tap Listen Correction again.";
+        render();
+      }
+      voiceStopRequested = false;
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      ui.voiceCorrectionListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      ui.voiceError = "Could not start voice correction. Try typing the correction.";
+      render();
+      showToast(ui.voiceError, "danger");
+    }
+  }
+
+  function stopVoiceCorrection() {
+    if (!voiceRecognition) {
+      ui.voiceCorrectionListening = false;
+      ui.voiceError = ui.voiceCorrectionDraft
+        ? "Correction listening stopped. Review the correction below or tap Apply."
+        : "Correction listening stopped. No correction text was captured yet.";
+      render();
+      return;
+    }
+    voiceStopRequested = true;
+    ui.voiceCorrectionListening = false;
+    ui.voiceError = ui.voiceCorrectionDraft
+      ? "Correction listening stopped. Review the correction below or tap Apply."
+      : "Correction listening stopped. If no text appears, type the correction or tap Listen Correction again.";
     try {
       voiceRecognition.stop();
     } catch (error) {
@@ -6207,9 +6319,45 @@
     }
     ui.voiceTranscript = transcript;
     ui.voiceParsedTask = parseVoiceTask(transcript);
+    ui.voiceCorrectionListening = false;
     ui.voiceError = "";
     render();
     showToast("Task details parsed.");
+  }
+
+  function applyVoiceCorrection() {
+    const correction = value("voiceCorrection") || ui.voiceCorrectionDraft;
+    const transcript = value("voiceTranscript") || ui.voiceTranscript;
+    return applyVoiceCorrectionValue(correction, transcript);
+  }
+
+  function applyVoiceCorrectionValue(correction, transcript) {
+    correction = String(correction || "");
+    transcript = transcript || ui.voiceTranscript;
+    if (!correction.trim()) {
+      showToast("Say or type the correction first.", "danger");
+      return;
+    }
+    if (!transcript && !ui.voiceParsedTask) {
+      showToast("Parse a task first, then correct it.", "danger");
+      return;
+    }
+    const parsed = { ...(ui.voiceParsedTask || parseVoiceTask(transcript)) };
+    const changes = applyVoiceCorrectionText(parsed, correction);
+    if (!changes.length) {
+      ui.voiceCorrectionDraft = correction;
+      render();
+      showToast("I could not find a correction to apply.", "danger");
+      return;
+    }
+    parsed.source = transcript || parsed.source || "";
+    reconcileVoiceTaskDates(parsed);
+    ui.voiceTranscript = transcript || parsed.source;
+    ui.voiceParsedTask = parsed;
+    ui.voiceCorrectionDraft = "";
+    ui.voiceError = "";
+    render();
+    showToast(`Updated ${changes.join(", ")}.`);
   }
 
   function saveVoiceTask() {
@@ -6252,6 +6400,8 @@
     saveData();
     ui.voiceTranscript = "";
     ui.voiceParsedTask = null;
+    ui.voiceCorrectionDraft = "";
+    ui.voiceCorrectionListening = false;
     ui.voiceError = "";
     ui.selectedDate = task.date;
     ui.calendarView = "day";
@@ -6265,7 +6415,10 @@
     const project = data.projects.find((item) => item.id === parsed.projectId);
     const rows = [
       ["Title", parsed.title || "Voice Task"],
-      ["When", `${dateLabel(parsed.date)} ${timeLabel(parsed.start)} - ${dateLabel(parsed.endDate)} ${timeLabel(parsed.end)}`],
+      ["Start Date", dateLabel(parsed.date)],
+      ["Start Time", timeLabel(parsed.start)],
+      ["End Date", dateLabel(parsed.endDate)],
+      ["End Time", timeLabel(parsed.end)],
       ["Priority", parsed.priority],
       ["Status", parsed.status],
       ["Category", parsed.category],
@@ -6276,6 +6429,15 @@
     return `<section class="voice-preview section-card">
       <div class="section-title"><h2>${icon("task")} Parsed Task</h2><span class="status ${parsed.address ? "success" : "muted"}">${parsed.address ? "address ready" : "no address"}</span></div>
       <div class="voice-preview-grid">${rows.map(([label, text]) => `<div><span>${esc(label)}</span><strong>${esc(text)}</strong></div>`).join("")}</div>
+      <div class="voice-correction-box">
+        <label for="voiceCorrection">Quick voice correction</label>
+        <div class="voice-correction-row">
+          <input id="voiceCorrection" placeholder="Example: change status to in progress, date tomorrow, start time 2 PM, end time 4 PM" value="${esc(ui.voiceCorrectionDraft || "")}" autocomplete="off">
+          <button class="outline-btn" data-action="${ui.voiceCorrectionListening ? "stop-voice-correction" : "start-voice-correction"}" ${!speechRecognitionCtor() && !ui.voiceCorrectionListening ? "disabled" : ""}>${icon(ui.voiceCorrectionListening ? "close" : "mic")} ${ui.voiceCorrectionListening ? "Stop" : "Listen Correction"}</button>
+          <button class="outline-btn" data-action="apply-voice-correction">${icon("edit")} Apply</button>
+        </div>
+        <p class="subtle">Correct one thing at a time: status, priority, date, start time, end time, title, category, repeat, project, or address.</p>
+      </div>
     </section>`;
   }
 
@@ -6323,6 +6485,165 @@
       address,
       bgColor: defaultTaskBgColor()
     };
+  }
+
+  function applyVoiceCorrectionText(parsed, correction) {
+    const source = String(correction || "").trim();
+    const text = normalizeVoiceText(source);
+    const changes = [];
+    const oldStart = parsed.start;
+    const oldEnd = parsed.end;
+    const oldDuration = voiceTaskDurationMinutes(parsed);
+
+    const status = parseVoiceStatusCorrection(text);
+    if (status) {
+      parsed.status = status;
+      changes.push("status");
+    }
+
+    const priority = parseVoicePriorityCorrection(text);
+    if (priority) {
+      parsed.priority = priority;
+      changes.push("priority");
+    }
+
+    if (hasVoiceDateCorrection(text)) {
+      parsed.date = parseVoiceDate(text);
+      changes.push("date");
+    }
+
+    const start = parseVoiceTimeCorrection(source, "start");
+    const end = parseVoiceTimeCorrection(source, "end");
+    const genericTime = !start && !end ? parseVoiceTimeCorrection(source, "generic") : "";
+    const duration = parseVoiceDuration(source);
+    if (start || genericTime) {
+      parsed.start = start || genericTime;
+      if (!end) parsed.end = timeFromMinutes(minutes(parsed.start) + (duration || oldDuration || 60));
+      changes.push("start time");
+    }
+    if (end) {
+      parsed.end = end;
+      changes.push("end time");
+    } else if (duration && !start && !genericTime) {
+      parsed.end = timeFromMinutes(minutes(parsed.start || oldStart || "09:00") + duration);
+      changes.push("end time");
+    }
+    if ((start || genericTime || end || duration) && parsed.start === oldStart && parsed.end === oldEnd) {
+      const range = parseVoiceTimeRange(source);
+      if (range.start) parsed.start = range.start;
+      if (range.end) parsed.end = range.end;
+    }
+
+    const title = parseVoiceTitleCorrection(source);
+    if (title) {
+      parsed.title = title;
+      changes.push("title");
+    }
+
+    const category = parseVoiceCategoryCorrection(text);
+    if (category) {
+      parsed.category = category;
+      changes.push("category");
+    }
+
+    const repeat = parseVoiceRepeatCorrection(text);
+    if (repeat) {
+      parsed.repeat = repeat;
+      changes.push("repeat");
+    }
+
+    const projectId = parseVoiceProjectCorrection(text);
+    if (projectId !== undefined) {
+      parsed.projectId = projectId;
+      changes.push("project");
+    }
+
+    const address = parseVoiceAddress(source);
+    if (address) {
+      parsed.address = address;
+      changes.push("address");
+    }
+
+    return [...new Set(changes)];
+  }
+
+  function voiceTaskDurationMinutes(task) {
+    const start = minutes(task?.start || "");
+    const end = minutes(task?.end || "");
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return 60;
+    const duration = end > start ? end - start : end + 24 * 60 - start;
+    return duration > 0 ? duration : 60;
+  }
+
+  function reconcileVoiceTaskDates(task) {
+    task.date = task.date || todayIso();
+    task.start = task.start || "09:00";
+    task.end = task.end || "10:00";
+    task.endDate = minutes(task.end) <= minutes(task.start) ? addDaysIso(task.date, 1) : task.date;
+  }
+
+  function parseVoiceStatusCorrection(text) {
+    const target = text.match(/\b(?:status|change status|set status|make status|mark(?: it)?(?: as)?)\s*(?:to|as|is)?\s*(not started|pending|in progress|started|complete|completed|done|finished|cancelled|canceled)\b/)
+      || text.match(/\bto\s+(not started|pending|in progress|started|complete|completed|done|finished|cancelled|canceled)\b/);
+    const statusText = target ? target[1] : text;
+    if (/\b(cancelled|canceled|cancel it|cancel this)\b/.test(statusText)) return "Cancelled";
+    if (/\b(completed|complete|done|finished|finish it|mark complete|mark done)\b/.test(statusText)) return "Completed";
+    if (/\b(not started|pending|not start it|not started yet)\b/.test(statusText)) return "Not Started";
+    if (/\b(in progress|started|start it|start this|working on|mark started|make it started)\b/.test(statusText)) return "In Progress";
+    return "";
+  }
+
+  function parseVoicePriorityCorrection(text) {
+    if (!/\b(priority|urgent|high|medium|low)\b/.test(text)) return "";
+    return parseVoicePriority(text);
+  }
+
+  function hasVoiceDateCorrection(text) {
+    return /\b(date|day|today|tomorrow|next\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec|\d{1,2}[/-]\d{1,2})\b/.test(text);
+  }
+
+  function parseVoiceTimeCorrection(source, kind) {
+    const timeToken = "(\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?|am|pm)?)";
+    const patterns = {
+      start: [
+        `\\b(?:start|starts|starting|begin|begins|from)\\s+(?:time\\s+)?(?:at\\s+)?${timeToken}`,
+        `\\b(?:change|set|make)\\s+(?:the\\s+)?start\\s+(?:time\\s+)?(?:to|at)\\s+${timeToken}`
+      ],
+      end: [
+        `\\b(?:end|ends|ending|finish|finishes|until|to)\\s+(?:time\\s+)?(?:at\\s+)?${timeToken}`,
+        `\\b(?:change|set|make)\\s+(?:the\\s+)?end\\s+(?:time\\s+)?(?:to|at)\\s+${timeToken}`
+      ],
+      generic: [
+        `\\b(?:time|at|around)\\s+${timeToken}`,
+        `\\b(?:change|set|make)\\s+(?:the\\s+)?time\\s+(?:to|at)\\s+${timeToken}`
+      ]
+    }[kind] || [];
+    for (const pattern of patterns) {
+      const match = source.match(new RegExp(pattern, "i"));
+      if (match) return parseSpokenTime(match[1]);
+    }
+    return "";
+  }
+
+  function parseVoiceTitleCorrection(source) {
+    const match = String(source || "").match(/\b(?:title|name|rename)(?:\s+it|\s+task)?\s+(?:to|as)?\s*["']?(.+?)["']?$/i);
+    return match ? cleanupTaskTitle(match[1]) : "";
+  }
+
+  function parseVoiceCategoryCorrection(text) {
+    if (!/\bcategory\b/.test(text)) return "";
+    return taskCategories.find((category) => new RegExp(`\\b${escapeRegExp(category.toLowerCase())}\\b`).test(text)) || "";
+  }
+
+  function parseVoiceRepeatCorrection(text) {
+    if (!/\b(repeat|daily|weekly|monthly|every)\b/.test(text)) return "";
+    return parseVoiceRepeat(text);
+  }
+
+  function parseVoiceProjectCorrection(text) {
+    if (/\b(no project|remove project|clear project)\b/.test(text)) return null;
+    if (!/\bproject\b/.test(text)) return undefined;
+    return parseVoiceProject(text) || undefined;
   }
 
   function normalizeVoiceText(text) {
