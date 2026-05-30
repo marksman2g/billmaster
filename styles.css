@@ -280,6 +280,42 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.nav-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100% - 20px);
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.nav-section-toggle:hover,
+.nav-section-toggle:focus-visible {
+  color: rgba(255, 255, 255, 0.88);
+  outline: none;
+}
+
+.nav-section-caret {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.nav-section-links {
+  display: grid;
+  gap: 2px;
+}
+
 .dashboard-grid,
 .two-col,
 .analytics-grid,

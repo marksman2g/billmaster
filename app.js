@@ -29,6 +29,7 @@
     notebookQuery: "",
     selectedNotes: [],
     taskPicker: null,
+    navCollapsed: {},
     habitFilter: "all",
     habitView: "regular",
     taskCategoryFilters: { General: true, Habit: true, Finance: true, Project: true, Personal: true },
@@ -969,15 +970,9 @@
   }
 
   function navMarkup(kind) {
-    const items = routeNavItems()
-      .map(([view, iconName, label]) => {
-        const active = activeRoot() === view ? "is-active" : "";
-        return `<button class="nav-item ${active}" data-action="navigate-root" data-view="${view}" aria-label="${esc(label)}">${icon(iconName)}<span>${esc(label)}</span></button>`;
-      })
-      .join("");
-
     if (kind === "side") {
       const sections = [
+        ["Main", routeNavItems(), "root"],
         ["Work", [
           ["calendar", "calendar", "Calendar"],
           ["tasks", "task", "Tasks"],
@@ -1002,12 +997,37 @@
           ["ai", "ai", "AI Assistant"]
         ]]
       ];
-      const extras = sections.map(([section, links]) => `<div class="nav-section-label">${esc(section)}</div>${links
-        .map(([view, iconName, label]) => `<button class="nav-item ${ui.view === view ? "is-active" : ""}" data-action="navigate" data-view="${view}">${icon(iconName)}<span>${esc(label)}</span></button>`)
-        .join("")}`).join("");
-      return `<aside class="side-nav"><div class="brand"><span class="round-icon">${icon("wallet")}</span><span>BillMaster</span></div><div class="nav-section-label">Main</div>${items}${extras}</aside>`;
+      return `<aside class="side-nav"><div class="brand"><span class="round-icon">${icon("wallet")}</span><span>BillMaster</span></div>${sections.map(([section, links, mode]) => navSectionMarkup(section, links, mode)).join("")}</aside>`;
     }
+    const items = routeNavItems()
+      .map(([view, iconName, label]) => {
+        const active = activeRoot() === view ? "is-active" : "";
+        return `<button class="nav-item ${active}" data-action="navigate-root" data-view="${view}" aria-label="${esc(label)}">${icon(iconName)}<span>${esc(label)}</span></button>`;
+      })
+      .join("");
     return `<nav class="bottom-nav" aria-label="Primary">${items}</nav>`;
+  }
+
+  function navSectionKey(section) {
+    return String(section || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section";
+  }
+
+  function navSectionMarkup(section, links, mode = "page") {
+    const key = navSectionKey(section);
+    const collapsed = Boolean(ui.navCollapsed?.[key]);
+    const navItems = links
+      .map(([view, iconName, label]) => {
+        const active = mode === "root" ? activeRoot() === view : ui.view === view;
+        const action = mode === "root" ? "navigate-root" : "navigate";
+        return `<button class="nav-item ${active ? "is-active" : ""}" data-action="${action}" data-view="${view}">${icon(iconName)}<span>${esc(label)}</span></button>`;
+      })
+      .join("");
+    return `<section class="nav-section ${collapsed ? "is-collapsed" : ""}">
+      <button class="nav-section-label nav-section-toggle" data-action="toggle-nav-section" data-section="${esc(key)}" aria-expanded="${collapsed ? "false" : "true"}">
+        <span>${esc(section)}</span><span class="nav-section-caret" aria-hidden="true">${collapsed ? "+" : "-"}</span>
+      </button>
+      <div class="nav-section-links" ${collapsed ? "hidden" : ""}>${navItems}</div>
+    </section>`;
   }
 
   function header(title, actions = "") {
@@ -5923,6 +5943,7 @@
       ui[el.dataset.key] = el.dataset.value;
       return render();
     }
+    if (action === "toggle-nav-section") return toggleNavSection(el.dataset.section);
     if (action === "toggle-interface-mode") return toggleInterfaceMode();
     if (action === "toggle-task-category") return toggleTaskCategory(el.dataset.category);
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);
@@ -8590,6 +8611,12 @@
     data.settings = { ...(data.settings || {}), interfaceMode: current === "power" ? "simple" : "power" };
     saveData();
     showToast(`${filterLabel(data.settings.interfaceMode)} mode enabled.`);
+  }
+
+  function toggleNavSection(sectionKey) {
+    if (!sectionKey) return;
+    ui.navCollapsed = { ...(ui.navCollapsed || {}), [sectionKey]: !ui.navCollapsed?.[sectionKey] };
+    render();
   }
 
   function completeTask(taskId) {
