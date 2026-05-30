@@ -4841,6 +4841,14 @@ canvas {
   resize: vertical;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
 .inline-add-panel {
   padding: 10px;
   background: #f8fbff;

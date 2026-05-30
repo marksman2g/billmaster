@@ -4454,11 +4454,16 @@
   function noteSubjectField(note) {
     const subjects = notebookSubjects(note.notebookId, note.subject);
     const current = String(note.subject || "").trim();
-    const selected = current && subjects.includes(current) ? current : "";
-    const wantsNew = current && !selected;
-    const options = ["", "__new_subject__", ...subjects];
-    return `${selectField("noteSubjectSelect", "Subject", options, wantsNew ? "__new_subject__" : selected, (value) => value === "__new_subject__" ? "+ New subject" : value || "No subject")}
-      <div id="noteSubjectNewWrap" ${wantsNew ? "" : "hidden"}>${field("noteSubjectNew", "New Subject", wantsNew ? current : "", "Type a new subject")}</div>`;
+    return `<div class="field">
+      <label for="noteSubject">Subject</label>
+      <input id="noteSubject" list="noteSubjectOptions" value="${esc(current)}" placeholder="No subject or type a new subject" autocomplete="off">
+      <datalist id="noteSubjectOptions">
+        <option value="">No subject</option>
+        <option value="+ New subject">Type a new subject</option>
+        ${subjects.map((subject) => `<option value="${esc(subject)}">${esc(subject)}</option>`).join("")}
+      </datalist>
+      <span class="field-hint">Pick an existing subject or type a new one here.</span>
+    </div>`;
   }
 
   function noteNotebookField(note) {
@@ -5707,6 +5712,11 @@
 
   document.addEventListener("input", (event) => {
     const target = event.target;
+    if (target && target.id === "noteSubject" && target.value === "+ New subject") {
+      target.value = "";
+      target.placeholder = "Type the new subject name";
+      return;
+    }
     if (target && target.dataset.action === "bill-search") {
       ui.billQuery = target.value;
       renderPreservingInput(target);
@@ -5777,9 +5787,10 @@
 
   document.addEventListener("change", (event) => {
     const target = event.target;
-    if (target && target.id === "noteSubjectSelect") {
-      const panel = document.getElementById("noteSubjectNewWrap");
-      if (panel) panel.hidden = target.value !== "__new_subject__";
+    if (target && target.id === "noteSubject" && target.value === "+ New subject") {
+      target.value = "";
+      target.placeholder = "Type the new subject name";
+      target.focus();
     }
     if (target && target.id === "noteNotebook") {
       const panel = document.getElementById("noteNotebookNewWrap");
@@ -9144,8 +9155,8 @@
   }
 
   function noteSubjectValue() {
-    const selected = value("noteSubjectSelect");
-    return selected === "__new_subject__" ? value("noteSubjectNew") : selected;
+    const selected = value("noteSubject");
+    return selected === "+ New subject" ? "" : selected;
   }
 
   function noteNotebookIdFromForm() {
