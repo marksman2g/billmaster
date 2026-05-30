@@ -30,6 +30,7 @@
     selectedNotes: [],
     taskPicker: null,
     navCollapsed: {},
+    goalView: "full",
     habitFilter: "all",
     habitView: "regular",
     taskCategoryFilters: { General: true, Habit: true, Finance: true, Project: true, Personal: true },
@@ -3147,6 +3148,7 @@
   }
 
   function renderGoals() {
+    const compact = ui.goalView === "compact";
     return `<section class="screen">
       ${header("Financial Goals", `<button class="icon-btn" data-action="open-modal" data-modal="editGoal">${icon("plus")}</button>`)}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
@@ -3156,14 +3158,47 @@
         </div>
         <div class="balance-meta"><span>${icon("chart")} Target ${money(sum(data.goals, "target"))}</span><span>${icon("task")} Linked tasks ${data.tasks.filter((task) => task.goalId).length}</span></div>
       </section>
-      <div class="goal-grid">${data.goals.map((goal) => goalDetailCard(goal)).join("")}</div>
+      <div class="filter-row goal-view-row">
+        ${[["full", "Full"], ["compact", "Compact"]].map(([view, label]) => `<button class="${ui.goalView === view ? "active" : ""}" data-action="set-tab" data-key="goalView" data-value="${view}">${label}</button>`).join("")}
+      </div>
+      <div class="goal-grid ${compact ? "compact-goals" : ""}">${data.goals.map((goal) => goalDetailCard(goal, compact)).join("")}</div>
     </section>`;
   }
 
-  function goalDetailCard(goal) {
+  function goalDetailCard(goal, compact = false) {
     const pct = progressPct(goal.current, goal.target);
     const linkedTasks = data.tasks.filter((task) => task.goalId === goal.id);
     const media = entityImage(goal);
+    const remaining = Math.max(goal.target - goal.current, 0);
+    if (compact) {
+      return `<article class="project-card compact-goal-card">
+        <div class="compact-goal-head">
+          ${media ? `<span class="media-thumb compact-goal-thumb" ${imageStyleAttr(goal)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${goal.color});background:${softColor(goal.color)};">${icon("chart")}</span>`}
+          <div class="compact-goal-title">
+            <h2 class="entity-title">${esc(goal.name)}</h2>
+            <div class="entity-subtitle">Target ${dateLabel(goal.targetDate)}</div>
+          </div>
+          <div class="compact-goal-tools">
+            <button class="icon-btn" data-action="open-modal" data-modal="editGoal" data-id="${goal.id}" aria-label="Edit goal">${icon("edit")}</button>
+            <button class="icon-btn danger-text" data-action="delete-goal" data-id="${goal.id}" aria-label="Delete goal">${icon("trash")}</button>
+          </div>
+        </div>
+        <div class="compact-goal-amounts">
+          <span><strong class="positive">${money(goal.current)}</strong><small>saved</small></span>
+          <span><strong>${money(goal.target)}</strong><small>target</small></span>
+          <span><strong>${money(remaining)}</strong><small>to go</small></span>
+        </div>
+        <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
+        <div class="compact-goal-meta">
+          <span class="${pct >= 50 ? "positive" : "money-blue"}">${pct}% complete</span>
+          <span>${linkedTasks.length} linked tasks</span>
+        </div>
+        <div class="compact-goal-actions">
+          <button class="outline-btn" data-action="open-modal" data-modal="goalContribution" data-id="${goal.id}">${icon("plus")} Add</button>
+          <button class="outline-btn" data-action="navigate" data-view="calendar">${icon("calendar")} Calendar</button>
+        </div>
+      </article>`;
+    }
     return `<article class="project-card">
       <div class="card-row">
         <div style="display:flex;gap:12px;align-items:center;">
@@ -3177,7 +3212,7 @@
       </div>
       <div class="card-row" style="margin:12px 0 8px;">
         <strong class="amount-large positive">${money(goal.current)}</strong>
-        <span class="muted">of ${money(goal.target)} - ${money(goal.target - goal.current)} to go</span>
+        <span class="muted">of ${money(goal.target)} - ${money(remaining)} to go</span>
       </div>
       <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
       <div class="card-row" style="margin-top:10px;">
