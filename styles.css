@@ -3433,72 +3433,78 @@ canvas {
 }
 
 .time-period-chip.morning {
-  color: #9a6700;
-  background: #fff7d6;
-  border-color: #ffd56a;
+  color: #00c853;
+  background: #edfff5;
+  border-color: #00e676;
 }
 
 .time-period-chip.afternoon {
-  color: #b45f00;
-  background: #fff3dc;
-  border-color: #ffc878;
+  color: #9a7a00;
+  background: #fffbe6;
+  border-color: #ffd600;
 }
 
 .time-period-chip.night {
-  color: #5148d9;
-  background: #efedff;
-  border-color: #bcb7ff;
+  color: #004bff;
+  background: #eaf1ff;
+  border-color: #004bff;
 }
 
 .time-period-chip.late-night {
-  color: #7c3aed;
-  background: #f5f0ff;
-  border-color: #cdbdff;
+  color: #fff;
+  background: repeating-linear-gradient(135deg, #004bff 0 8px, #004bff 8px 16px, #00c853 16px 24px, #00c853 24px 32px);
+  border-color: #00c853;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
 .time-of-day-badge.morning {
-  color: #f59e0b;
-  background: #fff7d6;
+  color: #00c853;
+  background: #edfff5;
+  border-color: #00e676;
   animation: morning-rise 2.8s ease-in-out infinite;
 }
 
 .time-of-day-badge.noon,
 .time-of-day-badge.afternoon {
-  color: #ff9800;
-  background: #fff3dc;
+  color: #ffd600;
+  background: #fffbe6;
+  border-color: #ffd600;
   animation: noon-glow 2.2s ease-in-out infinite;
 }
 
 .time-of-day-badge.night {
-  color: #6c63ff;
-  background: #efedff;
+  color: #004bff;
+  background: #eaf1ff;
+  border-color: #004bff;
   animation: night-twinkle 2.6s ease-in-out infinite;
 }
 
 .time-of-day-badge.late-night {
-  color: #8b5cf6;
-  background: #f5f0ff;
+  color: #fff;
+  background: repeating-linear-gradient(135deg, #004bff 0 7px, #004bff 7px 14px, #00c853 14px 21px, #00c853 21px 28px);
+  border-color: #00c853;
+  box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.15);
   animation: late-night-float 3s ease-in-out infinite;
 }
 
 @keyframes morning-rise {
-  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.18); }
-  50% { transform: translateY(-2px); box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.18); }
+  50% { transform: translateY(-2px); box-shadow: 0 0 0 7px rgba(0, 200, 83, 0); }
 }
 
 @keyframes noon-glow {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.2); }
-  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(255, 152, 0, 0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 214, 0, 0.24); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(255, 214, 0, 0); }
 }
 
 @keyframes night-twinkle {
-  0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 0 rgba(108, 99, 255, 0)); }
-  50% { transform: rotate(-6deg); filter: drop-shadow(0 0 6px rgba(108, 99, 255, 0.35)); }
+  0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 0 rgba(0, 75, 255, 0)); }
+  50% { transform: rotate(-6deg); filter: drop-shadow(0 0 6px rgba(0, 75, 255, 0.42)); }
 }
 
 @keyframes late-night-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 0 rgba(139, 92, 246, 0)); }
-  50% { transform: translateY(-2px) rotate(5deg); filter: drop-shadow(0 0 7px rgba(139, 92, 246, 0.32)); }
+  0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 0 rgba(0, 200, 83, 0)); }
+  50% { transform: translateY(-2px) rotate(5deg); filter: drop-shadow(0 0 7px rgba(0, 75, 255, 0.35)); }
 }
 
 .compact-card-actions {
