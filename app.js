@@ -716,6 +716,7 @@
       habit.days = Array.isArray(habit.days) ? habit.days.map(Number).filter((day) => day >= 0 && day <= 6) : [fallbackDay];
       if (!habit.days.length) habit.days = [fallbackDay];
       habit.completions = Array.from(new Set((Array.isArray(habit.completions) ? habit.completions : []).map(String).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))));
+      habit.skippedDates = Array.from(new Set((Array.isArray(habit.skippedDates) ? habit.skippedDates : []).map(String).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))).sort();
     });
   }
 
@@ -2286,6 +2287,7 @@
     if (habit.status === "Paused") return false;
     if (iso < habit.startDate) return false;
     if (habit.endDate && iso > habit.endDate) return false;
+    if (Array.isArray(habit.skippedDates) && habit.skippedDates.includes(iso)) return false;
     const weekday = parseLocalDate(iso).getDay();
     if (habit.schedule === "Daily") return true;
     if (habit.schedule === "Weekdays") return weekday >= 1 && weekday <= 5;
@@ -4051,11 +4053,14 @@
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="${editModal}" data-id="${editId}">
           <span class="round-icon">${icon("edit")}</span><span>Edit ${task.isHabit ? "habit" : "task"}</span><span class="muted">Double-click</span>
         </button>
+        ${task.isHabit ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="edit-habit-instance" data-id="${task.id}">
+          <span class="round-icon" style="color:#0b7b4b;background:#edf9f2;">${icon("edit")}</span><span>Edit this date only</span><span class="muted">${dateLabel(task.date)}</span>
+        </button>` : ""}
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="blockDuplicateHorizontal" data-id="${task.id}">
-          <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("calendar")}</span><span>Duplicate horizontally</span><span class="muted">Choose count</span>
+          <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("calendar")}</span><span>Duplicate across</span><span class="muted">Choose count</span>
         </button>
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="blockDuplicateVertical" data-id="${task.id}">
-          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate vertically</span><span class="muted">Choose count</span>
+          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate down</span><span class="muted">Choose count</span>
         </button>
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="start-block-multi-select" data-id="${task.id}">
           <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("check")}</span><span>Multi-select tasks</span><span class="muted">Then delete selected</span>
@@ -4129,7 +4134,7 @@
     const task = findCalendarItemById(taskId);
     if (!task) return "";
     const horizontal = direction === "horizontal";
-    return `${modalHeader(horizontal ? "Duplicate Horizontally" : "Duplicate Vertically", task.title)}
+    return `${modalHeader(horizontal ? "Duplicate Across" : "Duplicate Down", task.title)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${horizontal ? "Across days" : "Below this time block"}</strong><span class="status info">${timeLabel(task.start)} - ${timeLabel(task.end)}</span></div>
         <p class="muted">${horizontal ? "Each copy moves one day later while keeping the same time and task details." : "Each copy is placed after the previous block using the same duration."}</p>
@@ -4146,7 +4151,7 @@
   function modalSelectedDuplicate(direction) {
     const selected = ui.selectedTasks.map((taskId) => findCalendarItemById(taskId)).filter(Boolean);
     const horizontal = direction === "horizontal";
-    return `${modalHeader(horizontal ? "Duplicate Selected Horizontally" : "Duplicate Selected Vertically", `${selected.length} selected`)}
+    return `${modalHeader(horizontal ? "Duplicate Selected Across" : "Duplicate Selected Down", `${selected.length} selected`)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${horizontal ? "Across days" : "Below each selected block"}</strong><span class="status info">${selected.length} tasks</span></div>
         <p class="muted">${horizontal ? "Each selected task gets the number of day-by-day copies you enter." : "Each selected task gets stacked copies after its own end time."}</p>
@@ -4167,10 +4172,10 @@
     return `${modalHeader(`${selected.length} tasks selected`)}
       <div class="list">
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="selectedDuplicateHorizontal">
-          <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("calendar")}</span><span>Duplicate horizontally</span><span class="muted">Choose count</span>
+          <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("calendar")}</span><span>Duplicate across</span><span class="muted">Choose count</span>
         </button>
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="selectedDuplicateVertical">
-          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate vertically</span><span class="muted">Choose count</span>
+          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate down</span><span class="muted">Choose count</span>
         </button>
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="duplicate-selected-tasks">
           <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate selected</span><span class="muted">${selected.length}</span>
@@ -4966,15 +4971,18 @@
     const column = event.currentTarget;
     const calendar = column.closest(".block-calendar");
     const columns = Array.from(calendar?.querySelectorAll(".block-col") || []);
-    const startIndex = columns.indexOf(column);
+    const startColumn = blockColumnFromCrosshair(columns, event.clientX, event.clientY, column);
+    const startIndex = columns.indexOf(startColumn);
     if (startIndex < 0) return;
-    const rect = column.getBoundingClientRect();
+    const rect = startColumn.getBoundingClientRect();
     const startMinute = snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top));
     event.preventDefault();
-    column.setPointerCapture?.(event.pointerId);
+    startColumn.setPointerCapture?.(event.pointerId);
     blockCreateState = {
       columns,
       startIndex,
+      pointerColumn: startColumn,
+      pointerId: event.pointerId,
       startMinute,
       startX: event.clientX,
       startY: event.clientY,
@@ -5000,6 +5008,7 @@
     const state = blockCreateState;
     const selection = blockCreateSelection(event, state);
     clearBlockCreatePreview(state);
+    state.pointerColumn?.releasePointerCapture?.(state.pointerId);
     blockCreateState = null;
     if (!state.moved) return;
     const duration = selection.endMinute - selection.startMinute;
@@ -5010,15 +5019,25 @@
   function cancelBlockCreate() {
     document.removeEventListener("pointermove", moveBlockCreate);
     if (blockCreateState) {
+      blockCreateState.pointerColumn?.releasePointerCapture?.(blockCreateState.pointerId);
       clearBlockCreatePreview(blockCreateState);
       blockCreateState = null;
     }
   }
 
+  function blockColumnFromCrosshair(columns, x, y, fallback) {
+    const firstRect = columns[0]?.getBoundingClientRect();
+    if (!firstRect) return fallback;
+    const colWidth = Math.max(1, firstRect.width);
+    const rawIndex = Math.floor((x + 4 - firstRect.left) / colWidth);
+    const index = clamp(rawIndex, 0, columns.length - 1);
+    return columns[index] || fallback;
+  }
+
   function blockCreateSelection(event, state) {
     const firstRect = state.columns[0].getBoundingClientRect();
     const colWidth = Math.max(1, firstRect.width);
-    const rawIndex = state.startIndex + Math.round((event.clientX - state.startX) / colWidth);
+    const rawIndex = Math.floor((event.clientX + 4 - firstRect.left) / colWidth);
     const endIndex = clamp(rawIndex, 0, state.columns.length - 1);
     const range = blockFocusRange();
     const y = event.clientY - firstRect.top;
@@ -5707,6 +5726,7 @@
     if (action === "copy-route-link") return copyRouteLink();
     if (action === "save-task") return saveTask(el.dataset.id);
     if (action === "save-habit") return saveHabit(el.dataset.id);
+    if (action === "edit-habit-instance") return editHabitInstance(el.dataset.id);
     if (action === "delete-habit") return deleteHabit(el.dataset.id);
     if (action === "toggle-habit-completion") return toggleHabitCompletion(el.dataset.id, el.dataset.date);
     if (action === "adjust-habit-end") return adjustHabitEnd(el.dataset.id, Number(el.dataset.delta || 0));
@@ -7415,6 +7435,7 @@
     copy.id = id("habit");
     copy.title = `${habit.title || "Habit"} copy`;
     copy.completions = [];
+    copy.skippedDates = [];
     return copy;
   }
 
@@ -7559,7 +7580,8 @@
       imageY: imagePanValue("habit", "y"),
       imageFit: imageFitValue("habit"),
       imageOpacity: imageOpacityValue("habit"),
-      completions: habit?.completions || []
+      completions: habit?.completions || [],
+      skippedDates: habit?.skippedDates || []
     };
     let savedHabit = habit;
     if (habit) Object.assign(habit, payload);
@@ -7675,6 +7697,29 @@
     render();
   }
 
+  function editHabitInstance(taskId) {
+    const parsed = parseHabitInstanceId(taskId);
+    if (!parsed) return;
+    const habit = data.habits.find((item) => item.id === parsed.habitId);
+    if (!habit) return;
+    const instance = habitInstance(habit, parsed.date);
+    const task = taskCopyFromCalendarItem(instance, {
+      title: instance.title,
+      date: parsed.date,
+      endDate: parsed.date,
+      repeat: "None",
+      status: instance.status || "Not Started"
+    });
+    habit.skippedDates = Array.from(new Set([...(habit.skippedDates || []), parsed.date])).sort();
+    habit.completions = Array.isArray(habit.completions) ? habit.completions.filter((date) => date !== parsed.date) : [];
+    data.tasks.unshift(task);
+    ui.selectedTasks = ui.selectedTasks.filter((idValue) => idValue !== taskId);
+    ui.modal = { type: "editTask", id: task.id };
+    saveData();
+    render();
+    showToast("This date is now its own editable task.");
+  }
+
   function duplicateBlockHorizontal(taskId, count = 1) {
     const task = findCalendarItemById(taskId);
     if (!task) return;
@@ -7689,7 +7734,7 @@
     data.tasks.unshift(...copies);
     saveData();
     closeModal();
-    showToast(`${copies.length} horizontal ${copies.length === 1 ? "copy" : "copies"} created.`);
+    showToast(`${copies.length} across ${copies.length === 1 ? "copy" : "copies"} created.`);
   }
 
   function duplicateBlockVertical(taskId, count = 1) {
@@ -7710,7 +7755,7 @@
     data.tasks.unshift(...copies);
     saveData();
     closeModal();
-    showToast(`${copies.length} vertical ${copies.length === 1 ? "copy" : "copies"} created.`);
+    showToast(`${copies.length} down ${copies.length === 1 ? "copy" : "copies"} created.`);
   }
 
   function toggleTaskPicker(taskId, kind) {
@@ -8140,7 +8185,7 @@
     ui.blockSelectMode = true;
     saveData();
     closeModal();
-    showToast(`${copies.length} horizontal ${copies.length === 1 ? "copy" : "copies"} created.`);
+    showToast(`${copies.length} across ${copies.length === 1 ? "copy" : "copies"} created.`);
   }
 
   function duplicateSelectedVertical(count = 1) {
@@ -8168,7 +8213,7 @@
     ui.blockSelectMode = true;
     saveData();
     closeModal();
-    showToast(`${copies.length} vertical ${copies.length === 1 ? "copy" : "copies"} created.`);
+    showToast(`${copies.length} down ${copies.length === 1 ? "copy" : "copies"} created.`);
   }
 
   function copySelectedTomorrow() {
