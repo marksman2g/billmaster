@@ -3458,6 +3458,7 @@ canvas {
   color: #004bff;
   background: #eaf1ff;
   border-color: #101828;
+  isolation: isolate;
 }
 
 .time-period-chip.late-night {
@@ -3504,7 +3505,31 @@ canvas {
   color: #004bff;
   background: #eaf1ff;
   border-color: #101828;
+  isolation: isolate;
   animation: night-twinkle 2.6s ease-in-out infinite;
+}
+
+.time-period-chip.night::before,
+.time-of-day-badge.night::before {
+  position: absolute;
+  inset: 3px 7px;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle, #ffffff 0 1.7px, transparent 2.1px),
+    radial-gradient(circle, #7dd3fc 0 1.35px, transparent 1.8px),
+    radial-gradient(circle, #c7d2fe 0 1.2px, transparent 1.6px);
+  background-position: 2px 4px, 18px 10px, 33px 5px;
+  background-size: 42px 18px, 34px 16px, 48px 20px;
+  border-radius: inherit;
+  opacity: 0.9;
+  animation: night-stars-drift 5.8s ease-in-out infinite;
+}
+
+.time-of-day-badge.night::before {
+  inset: 6px;
+  background-position: 1px 3px, 13px 8px, 22px 2px;
+  background-size: 28px 16px, 22px 14px, 30px 16px;
 }
 
 .time-of-day-badge.late-night {
@@ -3532,6 +3557,12 @@ canvas {
 @keyframes night-twinkle {
   0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 0 rgba(0, 75, 255, 0)); }
   50% { transform: rotate(-6deg); filter: drop-shadow(0 0 6px rgba(0, 75, 255, 0.42)); }
+}
+
+@keyframes night-stars-drift {
+  0%, 100% { transform: translateX(-4px) translateY(0); opacity: 0.65; }
+  45% { transform: translateX(7px) translateY(-1px); opacity: 1; }
+  70% { transform: translateX(3px) translateY(1px); opacity: 0.82; }
 }
 
 @keyframes late-night-float {
