@@ -2400,14 +2400,56 @@ button.round-icon {
   border-radius: 8px;
 }
 
+.notes-subject-select {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 280px);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.notes-subject-select select {
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 760;
+}
+
+.notes-importance-filters {
+  gap: 6px;
+}
+
 .notes-importance-filters button {
+  min-height: 32px;
+  padding: 0 9px;
   border-color: color-mix(in srgb, var(--importance-color, var(--line)) 42%, var(--line));
+  font-size: 0.76rem;
 }
 
 .notes-importance-filters button.active {
   color: #1a1f36;
   background: color-mix(in srgb, var(--importance-color, var(--blue)) 18%, #fff);
   border-color: var(--importance-color, var(--blue));
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  color: var(--grey);
+  background: #eef3f7;
+  border: 1px solid #d8e2ea;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 850;
 }
 
 .address-route-panel {

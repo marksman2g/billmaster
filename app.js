@@ -22,6 +22,7 @@
     projectId: null,
     projectSort: "level",
     notesFilter: "all",
+    notesSubjectFilter: "all",
     notesView: "stream",
     notesSort: "newest",
     notesQuery: "",
@@ -3264,12 +3265,9 @@
   function renderNotes() {
     const notebookId = ui.notebookId;
     const baseNotes = notebookId ? data.notes.filter((note) => note.notebookId === notebookId) : data.notes;
-    const query = ui.notesQuery.trim().toLowerCase();
-    const notes = baseNotes
-      .filter((note) => ui.notesFilter !== "unassigned" || !String(note.subject || "").trim())
-      .filter((note) => ["all", "unassigned"].includes(ui.notesFilter) || note.importance === ui.notesFilter)
-      .filter((note) => !query || [note.title, note.content, note.subject, note.importance].some((part) => String(part || "").toLowerCase().includes(query)))
-      .sort(sortNotes);
+    const subjects = noteSubjectsForNotes(baseNotes);
+    const activeSubject = normalizedNoteSubjectFilter(subjects);
+    const notes = filteredNotesForBase(baseNotes, activeSubject);
     const nb = data.notebooks.find((item) => item.id === notebookId);
     const unassignedCount = baseNotes.filter((note) => !String(note.subject || "").trim()).length;
     const noteCounts = ["Low", "Medium", "High", "Critical"].reduce((counts, level) => {
@@ -3291,14 +3289,23 @@
             ["newest", "Newest"],
             ["oldest", "Oldest"],
             ["important", "Important"],
+            ["subject", "Subject"],
             ["title", "Title"]
           ].map(([sort, label]) => `<button class="${ui.notesSort === sort ? "active" : ""}" data-action="set-tab" data-key="notesSort" data-value="${sort}">${label}</button>`).join("")}
         </div>
+        <label class="notes-subject-select">
+          <span>Subject</span>
+          <select id="notesSubjectFilter">
+            <option value="all" ${activeSubject === "all" ? "selected" : ""}>All subjects</option>
+            <option value="none" ${activeSubject === "none" ? "selected" : ""}>No subject</option>
+            ${subjects.map((subject) => `<option value="${esc(subject)}" ${activeSubject === subject ? "selected" : ""}>${esc(subject)}</option>`).join("")}
+          </select>
+        </label>
       </div>
       <div class="filter-row notes-importance-filters" style="margin-bottom:14px;">
         <button class="${ui.notesFilter === "all" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="all">All</button>
-        <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned">No Subject <span class="status muted">${unassignedCount}</span></button>
-        ${["Low", "Medium", "High", "Critical"].map((level) => `<button class="${ui.notesFilter === level ? "active" : ""}" style="--importance-color:${noteImportanceColor(level)}" data-action="set-tab" data-key="notesFilter" data-value="${level}">${level} <span class="status muted">${noteCounts[level]}</span></button>`).join("")}
+        <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned" title="No Subject">None <span class="filter-count">${unassignedCount}</span></button>
+        ${["Low", "Medium", "High", "Critical"].map((level) => `<button class="${ui.notesFilter === level ? "active" : ""}" style="--importance-color:${noteImportanceColor(level)}" data-action="set-tab" data-key="notesFilter" data-value="${level}" title="${esc(level)}">${esc(noteImportanceShortLabel(level))} <span class="filter-count">${noteCounts[level]}</span></button>`).join("")}
       </div>
       <div class="note-action-bar">
         <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate or delete"}</span>
@@ -3340,8 +3347,44 @@
   function sortNotes(a, b) {
     if (ui.notesSort === "oldest") return String(a.date || "").localeCompare(String(b.date || ""));
     if (ui.notesSort === "important") return noteImportanceRank(b.importance) - noteImportanceRank(a.importance) || String(b.date || "").localeCompare(String(a.date || ""));
+    if (ui.notesSort === "subject") return String(a.subject || "").localeCompare(String(b.subject || "")) || String(a.title || "").localeCompare(String(b.title || ""));
     if (ui.notesSort === "title") return String(a.title || "").localeCompare(String(b.title || ""));
     return String(b.date || "").localeCompare(String(a.date || ""));
+  }
+
+  function noteSubjectsForNotes(notes) {
+    return Array.from(new Set(notes
+      .map((note) => String(note.subject || "").trim())
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  function normalizedNoteSubjectFilter(subjects) {
+    const filter = ui.notesSubjectFilter || "all";
+    if (filter === "all" || filter === "none" || subjects.includes(filter)) return filter;
+    ui.notesSubjectFilter = "all";
+    return "all";
+  }
+
+  function noteMatchesSubjectFilter(note, subjectFilter = normalizedNoteSubjectFilter(noteSubjectsForNotes(data.notes))) {
+    const subject = String(note.subject || "").trim();
+    if (subjectFilter === "all") return true;
+    if (subjectFilter === "none") return !subject;
+    return subject === subjectFilter;
+  }
+
+  function filteredNotesForBase(baseNotes, subjectFilter = normalizedNoteSubjectFilter(noteSubjectsForNotes(baseNotes))) {
+    const query = ui.notesQuery.trim().toLowerCase();
+    return baseNotes
+      .filter((note) => noteMatchesSubjectFilter(note, subjectFilter))
+      .filter((note) => ui.notesFilter !== "unassigned" || !String(note.subject || "").trim())
+      .filter((note) => ["all", "unassigned"].includes(ui.notesFilter) || note.importance === ui.notesFilter)
+      .filter((note) => !query || [note.title, note.content, note.subject, note.importance].some((part) => String(part || "").toLowerCase().includes(query)))
+      .sort(sortNotes);
+  }
+
+  function noteImportanceShortLabel(level) {
+    return { Low: "Low", Medium: "Med", High: "High", Critical: "Crit" }[level] || level;
   }
 
   function renderContacts() {
@@ -5797,6 +5840,11 @@
       if (panel) panel.hidden = target.value !== ADD_NOTEBOOK_VALUE;
       if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("noteNewNotebookTitle")?.focus();
     }
+    if (target && target.id === "notesSubjectFilter") {
+      ui.notesSubjectFilter = target.value || "all";
+      ui.selectedNotes = [];
+      render();
+    }
     if (target && target.id === "loanContact") {
       const contact = data.contacts.find((item) => item.id === target.value);
       if (!contact) return;
@@ -7765,12 +7813,7 @@
   function visibleNotesForCurrentView() {
     const notebookId = ui.notebookId;
     const baseNotes = notebookId ? data.notes.filter((note) => note.notebookId === notebookId) : data.notes;
-    const query = ui.notesQuery.trim().toLowerCase();
-    return baseNotes
-      .filter((note) => ui.notesFilter !== "unassigned" || !String(note.subject || "").trim())
-      .filter((note) => ["all", "unassigned"].includes(ui.notesFilter) || note.importance === ui.notesFilter)
-      .filter((note) => !query || [note.title, note.content, note.subject, note.importance].some((part) => String(part || "").toLowerCase().includes(query)))
-      .sort(sortNotes);
+    return filteredNotesForBase(baseNotes);
   }
 
   function toggleNoteSelect(noteId) {
