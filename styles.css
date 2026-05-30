@@ -3451,6 +3451,7 @@ canvas {
   color: #b45309;
   background: #fff2bf;
   border-color: #101828;
+  isolation: isolate;
 }
 
 .time-period-chip.night {
@@ -3479,24 +3480,24 @@ canvas {
   color: #d97706;
   background: #fff2bf;
   border-color: #101828;
+  isolation: isolate;
   animation: noon-glow 2.2s ease-in-out infinite;
 }
 
 .time-period-chip.afternoon::after,
 .time-of-day-badge.afternoon::after {
   position: absolute;
-  inset: 3px;
+  inset: -1px;
   content: "";
-  border: 2px solid transparent;
-  border-top-color: #b45309;
-  border-right-color: #f59e0b;
+  padding: 2px;
+  background: conic-gradient(from 0deg, transparent 0 74%, #b45309 79%, #f59e0b 85%, transparent 91% 100%);
   border-radius: inherit;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
   pointer-events: none;
-  animation: afternoon-orbit 2.35s linear infinite;
-}
-
-.time-period-chip.afternoon::after {
-  inset: 4px 6px;
+  animation: afternoon-orbit 4.2s linear infinite;
 }
 
 .time-of-day-badge.night {
