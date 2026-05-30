@@ -2959,9 +2959,13 @@
 
   function taskBoardCard(task) {
     const media = entityImage(task);
-    return `<article class="task-card ${task.status === "Completed" ? "complete" : ""}">
+    return `<article class="task-card task-board-card ${task.status === "Completed" ? "complete" : ""}" data-action="open-modal" data-modal="editTask" data-id="${task.id}" role="button" tabindex="0" title="Edit ${esc(task.title)}">
       <div class="card-row">
-        <div style="display:flex;gap:12px;align-items:flex-start;">${media ? `<span class="media-thumb small" ${imageStyleAttr(task)}><img src="${esc(media)}" alt=""></span>` : `<span class="dot" style="width:24px;height:24px;background:${priorityColor(task.priority)};"></span>`}<div><h2 class="entity-title">${esc(task.title)}</h2><div class="entity-subtitle">${esc(task.description)}</div><div class="task-meta">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}<span class="status warn">${icon("calendar")} ${shortDate(task.date)} ${timeLabel(task.start)} - ${shortDate(taskEndDate(task))} ${timeLabel(task.end)}</span>${taskProjectBadge(task)}${task.repeat !== "None" ? `<span class="status info">${esc(task.repeat)}</span>` : ""}</div></div></div>
+        <div class="task-board-main">
+          ${taskStartDateBadge(task)}
+          ${media ? `<span class="media-thumb small" ${imageStyleAttr(task)}><img src="${esc(media)}" alt=""></span>` : `<span class="dot task-board-priority-dot" style="background:${priorityColor(task.priority)};"></span>`}
+          <div class="task-board-copy"><h2 class="entity-title">${esc(task.title)}</h2><div class="entity-subtitle">${esc(task.description)}</div><div class="task-meta">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}<span class="status warn">${icon("calendar")} ${shortDate(task.date)} ${timeLabel(task.start)} - ${shortDate(taskEndDate(task))} ${timeLabel(task.end)}</span>${taskProjectBadge(task)}${task.repeat !== "None" ? `<span class="status info">${esc(task.repeat)}</span>` : ""}</div></div>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="icon-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${icon("edit")}</button>
           <button class="icon-btn danger-text" data-action="delete-task" data-id="${task.id}" aria-label="Delete task">${icon("trash")}</button>
@@ -2969,6 +2973,12 @@
       </div>
       ${taskChecklistPreview(task)}
     </article>`;
+  }
+
+  function taskStartDateBadge(task) {
+    if (!task?.date) return `<span class="task-start-date-badge"><strong>--</strong><small>No date</small></span>`;
+    const d = new Date(`${task.date}T12:00:00`);
+    return `<span class="task-start-date-badge" title="Starts ${esc(dateLabel(task.date))}"><strong>${d.getDate()}</strong><small>${esc(d.toLocaleDateString("en-US", { month: "short" }))}</small></span>`;
   }
 
   function renderProjects() {
