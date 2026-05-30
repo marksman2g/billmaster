@@ -2407,8 +2407,19 @@
     const selectedDayCanRoute = selectedDayCount > 0 && selectedDayAddresses.length === selectedDayCount;
     return `<div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
       <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="duplicate-selected-tasks">${icon("note")} Duplicate selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
+      ${dayTimeOfDayLegend()}
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit. Press and hold for duplicate/time actions. Drag one event onto another to swap times.</p>
       <div class="list day-task-grid">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
+  }
+
+  function dayTimeOfDayLegend() {
+    const items = [
+      { key: "morning", label: "Morning", iconName: "morning" },
+      { key: "afternoon", label: "Afternoon", iconName: "afternoon" },
+      { key: "night", label: "Night", iconName: "night" },
+      { key: "late-night", label: "Late Night", iconName: "late-night" }
+    ];
+    return `<div class="time-of-day-legend">${items.map((item) => `<span class="time-period-chip ${item.key}">${icon(item.iconName)} ${item.label}</span>`).join("")}</div>`;
   }
 
   function tasksForDay(iso) {
@@ -2474,9 +2485,9 @@
 
   function taskTimeOfDay(task) {
     const startMinutes = minutes(task?.start || "");
-    if (!task?.start) return { key: "noon", label: "No time set", iconName: "noon" };
+    if (!task?.start) return { key: "afternoon", label: "No time set", iconName: "afternoon" };
     if (startMinutes >= 5 * 60 && startMinutes < 12 * 60) return { key: "morning", label: "Morning task", iconName: "morning" };
-    if (startMinutes >= 12 * 60 && startMinutes < 18 * 60) return { key: "noon", label: "Lunch / afternoon task", iconName: "noon" };
+    if (startMinutes >= 12 * 60 && startMinutes < 18 * 60) return { key: "afternoon", label: "Afternoon task", iconName: "afternoon" };
     if (startMinutes >= 23 * 60 || startMinutes < 5 * 60) return { key: "late-night", label: "Late night task", iconName: "late-night" };
     return { key: "night", label: "Night task", iconName: "night" };
   }
