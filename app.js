@@ -229,7 +229,9 @@
   let dayDragState = null;
   let voiceRecognition = null;
   let voiceStopRequested = false;
-  const blockHoldDelay = 520;
+  const dayHoldDelay = 520;
+  const blockHoldDelay = 950;
+  const blockHoldMoveTolerance = 8;
   const singleSubmitActions = new Set([
     "save-bill",
     "save-transaction",
@@ -4847,7 +4849,7 @@
       state.card.releasePointerCapture?.(state.pointerId);
       dayDragState = null;
       openModal("dayEventActions", state.taskId);
-    }, blockHoldDelay);
+    }, dayHoldDelay);
   }
 
   function clearDayHoldTimer(state) {
@@ -5332,7 +5334,7 @@
     const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
     const minuteDelta = blockMinuteDelta(dy);
     const range = state.range || blockFocusRange();
-    state.moved = state.moved || Math.abs(dx) > 4 || Math.abs(dy) > 4;
+    state.moved = state.moved || Math.abs(dx) > blockHoldMoveTolerance || Math.abs(dy) > blockHoldMoveTolerance;
     if (state.moved) clearBlockHoldTimer(state);
     if (state.mode === "top") {
       const newStart = clamp(state.originalStart + minuteDelta, range.start, state.originalEnd - 15);
