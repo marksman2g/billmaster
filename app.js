@@ -4670,7 +4670,17 @@
         ${field("contactEmail", "Email", contact.email || "", "email@example.com", "email")}
         ${field("contactPhone", "Phone", contact.phone || "", "Phone number", "tel")}
         ${field("contactGroups", "Groups", contactGroupsForContact(contact.id).map((group) => group.name).join(", "), groupOptions || "BM, Family, Work")}
-        ${selectField("contactAddress", "Address", ["", ...data.addresses.map((addr) => addr.id)], contact.addressId || "", (value) => value ? data.addresses.find((addr) => addr.id === value).label : "No address")}
+        ${selectField("contactAddress", "Address", [ADD_TASK_ADDRESS_VALUE, "", ...data.addresses.map((addr) => addr.id)], contact.addressId || "", contactAddressLabel)}
+        <div id="contactNewAddressPanel" class="inline-add-panel" hidden>
+          <div class="inline-add-heading">${icon("plus")} New contact address</div>
+          <div class="field-grid">
+            ${field("contactNewAddrLabel", "Address Label", "", "Home, Work, Office")}
+            ${field("contactNewAddrStreet", "Street Address", "", "Street Address")}
+            ${field("contactNewAddrUnit", "Apartment / Unit", "", "Apt, Unit, Suite")}
+            <div class="field-row">${field("contactNewAddrCity", "City", "", "City")}${field("contactNewAddrState", "State", "", "State")}</div>
+            <div class="field-row">${field("contactNewAddrZip", "ZIP Code", "", "ZIP Code")}${field("contactNewAddrCountry", "Country", "USA", "Country")}</div>
+          </div>
+        </div>
       </div>
       <div class="sheet-actions"><button class="primary-btn" data-action="save-contact" data-id="${contact.id || ""}">Save Contact</button></div>`;
   }
@@ -4948,6 +4958,12 @@
   function taskAddressLabel(value) {
     if (value === ADD_TASK_ADDRESS_VALUE) return "+ Add new address";
     if (!value) return "No location";
+    return data.addresses.find((address) => address.id === value)?.label || "Saved address";
+  }
+
+  function contactAddressLabel(value) {
+    if (value === ADD_TASK_ADDRESS_VALUE) return "+ Add new address";
+    if (!value) return "No address";
     return data.addresses.find((address) => address.id === value)?.label || "Saved address";
   }
 
@@ -5889,6 +5905,7 @@
     if (target && target.id === "taskAddress") toggleTaskAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.id === "taskCategory") toggleTaskCategoryPanel(target.value === ADD_TASK_CATEGORY_VALUE);
     if (target && target.id === "habitAddress") toggleHabitAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
+    if (target && target.id === "contactAddress") toggleContactAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
     if (target && target.dataset.action === "image-upload") handleImageUpload(target);
   });
@@ -6352,6 +6369,13 @@
     const panel = document.getElementById("habitNewAddressPanel");
     if (!panel) return;
     panel.hidden = !show;
+  }
+
+  function toggleContactAddressPanel(show) {
+    const panel = document.getElementById("contactNewAddressPanel");
+    if (!panel) return;
+    panel.hidden = !show;
+    if (show) document.getElementById("contactNewAddrLabel")?.focus();
   }
 
   function parseMoneyInput(rawValue) {
@@ -8338,19 +8362,26 @@
     return createInlineAddressFromForm("habit", value("habitTitle") || "Habit Location", "habit");
   }
 
+  function createContactAddressFromForm(contactName) {
+    if (value("contactAddress") !== ADD_TASK_ADDRESS_VALUE) return "";
+    return createInlineAddressFromForm("contact", contactName ? `${contactName} Address` : "Contact Address", "contact");
+  }
+
   function createInlineAddressFromForm(prefix, fallbackLabel, entity) {
-    const hasAddress = [`${prefix}NewAddrLabel`, `${prefix}NewAddrStreet`, `${prefix}NewAddrCity`, `${prefix}NewAddrState`, `${prefix}NewAddrZip`]
+    const hasAddress = [`${prefix}NewAddrLabel`, `${prefix}NewAddrStreet`, `${prefix}NewAddrUnit`, `${prefix}NewAddrCity`, `${prefix}NewAddrState`, `${prefix}NewAddrZip`]
       .some((fieldId) => value(fieldId).trim());
     if (!hasAddress) return "";
     const payload = {
       label: value(`${prefix}NewAddrLabel`) || fallbackLabel || "Location",
       street: value(`${prefix}NewAddrStreet`),
+      unit: value(`${prefix}NewAddrUnit`),
       city: value(`${prefix}NewAddrCity`),
       state: value(`${prefix}NewAddrState`),
       zip: value(`${prefix}NewAddrZip`),
       country: value(`${prefix}NewAddrCountry`) || "USA",
       entity
     };
+    normalizeAddressUnit(payload);
     const duplicate = data.addresses.find((item) => addressKey(item) === addressKey(payload));
     if (duplicate) return duplicate.id;
     const newAddress = { id: id("addr"), ...payload };
@@ -9418,11 +9449,19 @@
     const contact = data.contacts.find((item) => item.id === contactId);
     const groupNames = value("contactGroups").split(",").map((name) => name.trim()).filter(Boolean);
     const savedId = contact?.id || id("contact");
+    const contactName = value("contactName") || "Contact";
+    const selectedAddressId = value("contactAddress");
+    const wantsNewAddress = selectedAddressId === ADD_TASK_ADDRESS_VALUE;
+    const newAddressId = wantsNewAddress ? createContactAddressFromForm(contactName) : "";
+    if (wantsNewAddress && !newAddressId) {
+      showToast("Enter the new contact address details first.", "danger");
+      return;
+    }
     const payload = {
-      name: value("contactName") || "Contact",
+      name: contactName,
       email: value("contactEmail"),
       phone: value("contactPhone"),
-      addressId: value("contactAddress") || null,
+      addressId: newAddressId || (selectedAddressId === ADD_TASK_ADDRESS_VALUE ? null : selectedAddressId || null),
       groupIds: [],
       photo: "profile"
     };
@@ -9431,6 +9470,7 @@
     syncContactGroups(savedId, groupNames);
     saveData();
     closeModal();
+    if (newAddressId) showToast("Contact saved with new address.");
   }
 
   function syncContactGroups(contactId, groupNames) {
