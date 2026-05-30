@@ -3262,7 +3262,7 @@ canvas {
   background: rgba(255, 255, 255, 0.66);
 }
 
-.compact-day-task > :not(.day-task-picture) {
+.compact-day-task > :not(.day-task-picture):not(.time-of-day-badge) {
   position: relative;
   z-index: 1;
 }
@@ -3281,7 +3281,7 @@ canvas {
 .day-task-body {
   flex: 1 1 auto;
   min-width: 0;
-  padding-right: 36px;
+  padding-right: 48px;
 }
 
 .compact-day-task .entity-title {
@@ -3408,6 +3408,11 @@ canvas {
   pointer-events: none;
 }
 
+.compact-day-task > .time-of-day-badge {
+  position: absolute;
+  z-index: 2;
+}
+
 .time-of-day-legend {
   display: flex;
   flex-wrap: wrap;
@@ -3487,7 +3492,7 @@ canvas {
   border-right-color: #f59e0b;
   border-radius: inherit;
   pointer-events: none;
-  animation: afternoon-orbit 1.35s linear infinite;
+  animation: afternoon-orbit 2.35s linear infinite;
 }
 
 .time-period-chip.afternoon::after {
