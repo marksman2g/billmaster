@@ -46,6 +46,10 @@
     voiceListening: false,
     voiceCorrectionListening: false,
     voiceError: "",
+    habitVoiceTranscript: "",
+    habitVoiceParsedHabit: null,
+    habitVoiceListening: false,
+    habitVoiceError: "",
     habitTemplateDraft: null,
     selectedHabits: [],
     lastSaveError: "",
@@ -274,6 +278,7 @@
     "jump-calendar-date",
     "jump-calendar-month",
     "save-voice-task",
+    "save-voice-habit",
     "complete-task",
     "complete-selected-tasks",
     "priority-selected",
@@ -1454,7 +1459,7 @@
     const selectedVisible = filtered.filter((habit) => ui.selectedHabits.includes(habit.id)).length;
     const selectedCount = ui.selectedHabits.length;
     return `<section class="screen">
-      ${header("Habit Tracker", `<button class="icon-btn" data-action="navigate" data-view="calendar" title="Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="editHabit" title="Add habit">${icon("plus")}</button>`)}
+      ${header("Habit Tracker", `<button class="icon-btn" data-action="navigate" data-view="calendar" title="Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="voiceHabit" title="Add habit by voice">${icon("mic")}</button><button class="icon-btn" data-action="open-modal" data-modal="editHabit" title="Add habit">${icon("plus")}</button>`)}
       <section class="habit-hero">
         <div>
           <span class="status info">${icon("calendar")} First-class calendar habits</span>
@@ -1481,7 +1486,7 @@
         ${selectedCount ? `<button class="outline-btn" data-action="copy-selected-habits">${icon("note")} Copy selected</button><button class="danger-btn" data-action="delete-selected-habits">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-habits">Clear</button>` : ""}
       </div>
       <div class="habit-grid habits-${esc(ui.habitView)}">
-        ${filtered.map((habit) => habitCard(habit, today)).join("") || `<div class="empty-state"><div><h2>No habits here yet</h2><button class="primary-btn" data-action="open-modal" data-modal="editHabit">${icon("plus")} Add Habit</button></div></div>`}
+        ${filtered.map((habit) => habitCard(habit, today)).join("") || `<div class="empty-state"><div><h2>No habits here yet</h2><button class="primary-btn" data-action="open-modal" data-modal="voiceHabit">${icon("mic")} Add By Voice</button><button class="outline-btn" data-action="open-modal" data-modal="editHabit">${icon("plus")} Add Habit</button></div></div>`}
       </div>
     </section>`;
   }
@@ -3494,6 +3499,7 @@
     if (type === "editHabit") content = modalHabit(modalId);
     if (type === "saveHabitTemplate") content = modalSaveHabitTemplate(modalId);
     if (type === "voiceTask") content = modalVoiceTask();
+    if (type === "voiceHabit") content = modalVoiceHabit();
     if (type === "blockTaskMenu") content = modalBlockTaskMenu(modalId);
     if (type === "blockStatus") content = modalBlockStatus(modalId);
     if (type === "dayEventActions") content = modalDayEventActions(modalId);
@@ -4063,6 +4069,52 @@
       </div>
       ${parsed ? voiceTaskPreview(parsed) : ""}
       <div class="sheet-actions"><button class="secondary-btn" data-action="save-voice-task">${icon("check")} Save Voice Task</button></div>`;
+  }
+
+  function modalVoiceHabit() {
+    const transcript = ui.habitVoiceTranscript || "";
+    const parsed = ui.habitVoiceParsedHabit || (transcript ? parseVoiceHabit(transcript) : null);
+    const speechAvailable = Boolean(speechRecognitionCtor());
+    const listenAction = ui.habitVoiceListening ? "stop-voice-habit" : "start-voice-habit";
+    const listenClass = ui.habitVoiceListening ? "danger-btn" : "primary-btn";
+    const listenLabel = ui.habitVoiceListening ? "Stop Listening" : "Listen";
+    const statusHelp = ui.habitVoiceListening
+      ? "Microphone is active. Speak the habit, then tap Stop Listening."
+      : transcript
+        ? "Captured text is below. Tap Parse Details to review it before saving."
+        : speechAvailable
+          ? "Tap Listen, say the habit setup, then stop when you are done."
+          : "Voice capture is unavailable here. Type or paste the habit sentence.";
+    const example = `<div class="voice-example">
+        <span class="voice-example-label">Example voice memo</span>
+        <span>Add habit: Morning planning</span>
+        <span>Weekdays</span>
+        <span>From 8 AM to 8:30 AM</span>
+        <span>Work category</span>
+        <span>At 217 Alexander Avenue, Bronx, NY</span>
+        <span>Notes: Review the day before work starts</span>
+      </div>`;
+    return `${modalHeader("Add Habit By Voice", speechAvailable ? "Speak the habit name, schedule, days, time, location, category, or notes." : "Voice capture may be blocked here. Type or paste the sentence, then parse it.")}
+      <section class="voice-panel">
+        <div class="voice-status ${ui.habitVoiceListening ? "listening" : ""}">
+          <span class="round-icon">${icon(ui.habitVoiceListening ? "ai" : "mic")}</span>
+          <div>
+            <strong>${ui.habitVoiceListening ? "Listening..." : speechAvailable ? "Ready for habit voice input" : "Typed fallback ready"}</strong>
+            <div class="subtle">${esc(statusHelp)}</div>
+          </div>
+        </div>
+        ${ui.habitVoiceError ? `<div class="voice-message">${esc(ui.habitVoiceError)}</div>` : example}
+        <div class="sheet-actions" style="grid-template-columns:1fr 1fr;margin-top:12px;">
+          <button class="${listenClass}" data-action="${listenAction}" ${!ui.habitVoiceListening && !speechAvailable ? "disabled" : ""}>${icon(ui.habitVoiceListening ? "close" : "mic")} ${listenLabel}</button>
+          <button class="outline-btn" data-action="parse-voice-habit">${icon("search")} Parse Details</button>
+        </div>
+      </section>
+      <div class="field" style="margin-top:16px;">
+        <label for="habitVoiceTranscript">Habit sentence</label>
+        <textarea id="habitVoiceTranscript" placeholder="Add habit..." autocomplete="off">${esc(transcript)}</textarea>
+      </div>
+      ${parsed ? voiceHabitPreview(parsed) : ""}
+      <div class="sheet-actions"><button class="secondary-btn" data-action="save-voice-habit">${icon("check")} Save Voice Habit</button></div>`;
   }
 
   function modalBlockTaskMenu(taskId) {
@@ -5602,6 +5654,11 @@
     if (target && target.id === "voiceCorrection") {
       ui.voiceCorrectionDraft = target.value;
     }
+    if (target && target.id === "habitVoiceTranscript") {
+      ui.habitVoiceTranscript = target.value;
+      ui.habitVoiceParsedHabit = null;
+      ui.habitVoiceError = "";
+    }
     if (target && target.dataset.action === "image-url") {
       const hidden = document.getElementById(target.dataset.target);
       const preview = document.getElementById(target.dataset.preview);
@@ -5724,6 +5781,10 @@
     if (action === "stop-voice-correction") return stopVoiceCorrection();
     if (action === "apply-voice-correction") return applyVoiceCorrection();
     if (action === "save-voice-task") return saveVoiceTask();
+    if (action === "start-voice-habit") return startVoiceHabit();
+    if (action === "stop-voice-habit") return stopVoiceHabit();
+    if (action === "parse-voice-habit") return parseVoiceHabitFromInput();
+    if (action === "save-voice-habit") return saveVoiceHabit();
     if (action === "apply-habit-template") return applyHabitTemplate(Number(el.dataset.slot || 1));
     if (action === "save-habit-template-slot") return saveHabitTemplateSlot(el.dataset.id, Number(el.dataset.slot || 1));
     if (action === "skip-habit-template") return closeModal();
@@ -5975,6 +6036,10 @@
       ui.voiceParsedTask = ui.voiceTranscript ? parseVoiceTask(ui.voiceTranscript) : null;
       ui.voiceError = "";
     }
+    if (type === "voiceHabit") {
+      ui.habitVoiceParsedHabit = ui.habitVoiceTranscript ? parseVoiceHabit(ui.habitVoiceTranscript) : null;
+      ui.habitVoiceError = "";
+    }
     render();
   }
 
@@ -6117,6 +6182,10 @@
       stopVoiceCorrection();
       return;
     }
+    if (voiceRecognition && ui.habitVoiceListening) {
+      stopVoiceHabit();
+      return;
+    }
     const recognition = new Recognition();
     voiceRecognition = recognition;
     voiceStopRequested = false;
@@ -6215,6 +6284,10 @@
       stopVoiceTask();
       return;
     }
+    if (voiceRecognition && ui.habitVoiceListening) {
+      stopVoiceHabit();
+      return;
+    }
     const recognition = new Recognition();
     voiceRecognition = recognition;
     voiceStopRequested = false;
@@ -6282,6 +6355,105 @@
     ui.voiceError = ui.voiceCorrectionDraft
       ? "Correction listening stopped. Review the correction below or tap Apply."
       : "Correction listening stopped. If no text appears, type the correction or tap Listen Correction again.";
+    try {
+      voiceRecognition.stop();
+    } catch (error) {
+      voiceRecognition = null;
+      voiceStopRequested = false;
+    }
+    render();
+  }
+
+  function startVoiceHabit() {
+    const Recognition = speechRecognitionCtor();
+    if (!Recognition) {
+      ui.habitVoiceError = "Voice capture is not available in this browser. Type or paste the habit sentence instead.";
+      showToast("Voice capture is not available here.", "danger");
+      return;
+    }
+    if (voiceRecognition && ui.habitVoiceListening) {
+      stopVoiceHabit();
+      return;
+    }
+    if (voiceRecognition && ui.voiceListening) {
+      stopVoiceTask();
+      return;
+    }
+    if (voiceRecognition && ui.voiceCorrectionListening) {
+      stopVoiceCorrection();
+      return;
+    }
+    const recognition = new Recognition();
+    voiceRecognition = recognition;
+    voiceStopRequested = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    ui.habitVoiceListening = true;
+    ui.habitVoiceError = "";
+    render();
+    recognition.onresult = (event) => {
+      const transcript = collectSpeechTranscript(event) || ui.habitVoiceTranscript;
+      ui.habitVoiceTranscript = transcript;
+      ui.habitVoiceParsedHabit = transcript ? parseVoiceHabit(transcript) : null;
+      ui.habitVoiceListening = false;
+      ui.voiceListening = false;
+      ui.voiceCorrectionListening = false;
+      ui.habitVoiceError = "";
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      render();
+    };
+    recognition.onerror = (event) => {
+      ui.habitVoiceListening = false;
+      voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        ui.habitVoiceError = "Listening stopped. Review the text below, type anything missing, or tap Listen again.";
+        render();
+        showToast("Habit listening stopped.");
+        return;
+      }
+      ui.habitVoiceError = voiceErrorMessage(event?.error);
+      render();
+      showToast(ui.habitVoiceError, "danger");
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      if (ui.habitVoiceListening) {
+        ui.habitVoiceListening = false;
+        if (voiceStopRequested) ui.habitVoiceError = "Listening stopped. Review the text below, type anything missing, or tap Listen again.";
+        render();
+      }
+      voiceStopRequested = false;
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      ui.habitVoiceListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      ui.habitVoiceError = "Could not start habit voice capture. Try typing the habit sentence.";
+      render();
+      showToast(ui.habitVoiceError, "danger");
+    }
+  }
+
+  function stopVoiceHabit() {
+    if (!voiceRecognition) {
+      ui.habitVoiceListening = false;
+      ui.habitVoiceError = ui.habitVoiceTranscript
+        ? "Listening stopped. Review the text below or tap Parse Details."
+        : "Listening stopped. No habit text was captured yet.";
+      render();
+      return;
+    }
+    voiceStopRequested = true;
+    ui.habitVoiceListening = false;
+    ui.habitVoiceError = ui.habitVoiceTranscript
+      ? "Listening stopped. Review the text below or tap Parse Details."
+      : "Listening stopped. If no text appears, type the habit sentence or tap Listen again.";
     try {
       voiceRecognition.stop();
     } catch (error) {
@@ -6411,6 +6583,102 @@
     showToast(addressId ? "Voice task saved with address." : "Voice task saved.");
   }
 
+  function parseVoiceHabitFromInput() {
+    const transcript = value("habitVoiceTranscript") || ui.habitVoiceTranscript;
+    if (!transcript) {
+      showToast("Add a habit sentence first.", "danger");
+      return;
+    }
+    ui.habitVoiceTranscript = transcript;
+    ui.habitVoiceParsedHabit = parseVoiceHabit(transcript);
+    ui.habitVoiceListening = false;
+    ui.habitVoiceError = "";
+    render();
+    showToast("Habit details parsed.");
+  }
+
+  function saveVoiceHabit() {
+    const transcript = value("habitVoiceTranscript") || ui.habitVoiceTranscript;
+    if (!transcript) {
+      showToast("Add a habit sentence first.", "danger");
+      return;
+    }
+    const parsed = ui.habitVoiceParsedHabit?.source === transcript ? ui.habitVoiceParsedHabit : parseVoiceHabit(transcript);
+    const title = parsed.title || "Voice Habit";
+    const writeKey = `voice-habit:${title.toLowerCase()}:${parsed.startDate}:${parsed.start}:${parsed.end}:${parsed.schedule}:${parsed.address ? addressKey(parsed.address) : ""}`;
+    if (shouldSkipRecentWrite(writeKey)) {
+      showToast("That voice habit was already saved.", "danger");
+      return;
+    }
+    const addressId = createAddressFromVoice(parsed.address, title, "habit");
+    const habit = {
+      id: id("habit"),
+      title,
+      description: parsed.description || "",
+      type: parsed.type || "Personal",
+      schedule: parsed.schedule || "Daily",
+      days: parsed.days?.length ? parsed.days : [parseLocalDate(parsed.startDate).getDay()],
+      startDate: parsed.startDate,
+      endDate: parsed.endDate || "",
+      start: parsed.start,
+      end: parsed.end,
+      priority: parsed.priority || "Medium",
+      status: parsed.status || "Active",
+      includeHours: parsed.includeHours !== false,
+      targetCount: Math.max(1, Number(parsed.targetCount || 1)),
+      addressId,
+      color: parsed.color || taskCategoryColor("Habit"),
+      image: "",
+      imageZoom: 1,
+      imageX: 0,
+      imageY: 0,
+      imageFit: "cover",
+      imageOpacity: 1,
+      completions: [],
+      skippedDates: []
+    };
+    data.habits.unshift(habit);
+    const saved = saveData();
+    ui.habitVoiceTranscript = "";
+    ui.habitVoiceParsedHabit = null;
+    ui.habitVoiceListening = false;
+    ui.habitVoiceError = "";
+    ui.habitFilter = "all";
+    ui.view = "habits";
+    syncHash("habits");
+    ui.modal = saved ? { type: "saveHabitTemplate", id: habit.id } : null;
+    render();
+    showToast(saved ? (addressId ? "Voice habit saved with address." : "Voice habit saved.") : ui.lastSaveError, saved ? "success" : "danger");
+  }
+
+  function voiceHabitPreview(parsed) {
+    const rows = [
+      ["Habit Name", parsed.title || "Voice Habit"],
+      ["Start Date", dateLabel(parsed.startDate)],
+      ["Start Time", timeLabel(parsed.start)],
+      ["End Time", timeLabel(parsed.end)],
+      ["Schedule", parsed.schedule],
+      ["Days", habitDaysLabel(parsed)],
+      ["Type", parsed.type],
+      ["Status", parsed.status],
+      ["Target", `${parsed.targetCount || 1}x per day`],
+      ["Hour Totals", parsed.includeHours === false ? "Not counted" : "Counted"],
+      ["Address", parsed.address ? addressText(parsed.address) : "No address"],
+      ["Notes", parsed.description || "No notes"]
+    ];
+    return `<section class="voice-preview section-card">
+      <div class="section-title"><h2>${icon("check")} Parsed Habit</h2><span class="status ${parsed.address ? "success" : "muted"}">${parsed.address ? "address ready" : "no address"}</span></div>
+      <div class="voice-preview-grid">${rows.map(([label, text]) => `<div><span>${esc(label)}</span><strong>${esc(text)}</strong></div>`).join("")}</div>
+    </section>`;
+  }
+
+  function habitDaysLabel(habit) {
+    if (habit.schedule === "Daily") return "Every day";
+    if (habit.schedule === "Weekdays") return "Mon-Fri";
+    if (habit.schedule === "Monthly") return `Monthly on day ${Number(habit.startDate.slice(-2))}`;
+    return (habit.days || []).map((day) => weekdayLabels[day]).filter(Boolean).join(", ") || "Weekly";
+  }
+
   function voiceTaskPreview(parsed) {
     const project = data.projects.find((item) => item.id === parsed.projectId);
     const rows = [
@@ -6441,7 +6709,7 @@
     </section>`;
   }
 
-  function createAddressFromVoice(address, title) {
+  function createAddressFromVoice(address, title, entity = "task") {
     if (!address || !address.street) return null;
     const payload = {
       label: address.label || `${title} Location`,
@@ -6450,7 +6718,7 @@
       state: address.state || "",
       zip: address.zip || "",
       country: address.country || "USA",
-      entity: "task"
+      entity
     };
     const duplicate = data.addresses.find((item) => addressKey(item) === addressKey(payload));
     if (duplicate) return duplicate.id;
@@ -6484,6 +6752,39 @@
       projectId: parseVoiceProject(normalized),
       address,
       bgColor: defaultTaskBgColor()
+    };
+  }
+
+  function parseVoiceHabit(rawText) {
+    const source = String(rawText || "").trim();
+    const normalized = normalizeVoiceText(source);
+    const startDate = parseVoiceDate(normalized);
+    const range = parseVoiceTimeRange(source);
+    const start = range.start || "08:00";
+    const duration = parseVoiceDuration(source) || 30;
+    let end = range.end || timeFromMinutes(minutes(start) + duration);
+    if (minutes(end) <= minutes(start)) end = timeFromMinutes(Math.min(minutes(start) + Math.max(duration, 30), 23 * 60 + 59));
+    const address = parseVoiceAddress(source);
+    const schedule = parseVoiceHabitSchedule(normalized);
+    const days = parseVoiceHabitDays(normalized, startDate, schedule);
+    const type = parseVoiceHabitType(normalized);
+    return {
+      source,
+      title: extractVoiceHabitTitle(source, address?.raw || ""),
+      description: parseVoiceHabitNotes(source),
+      type,
+      schedule,
+      days,
+      startDate,
+      endDate: parseVoiceHabitEndDate(normalized, startDate),
+      start,
+      end,
+      priority: parseVoicePriority(normalized),
+      status: parseVoiceHabitStatus(normalized),
+      includeHours: !/\b(do not count|don't count|dont count|not counted|exclude hours|no hours|no time total)\b/.test(normalized),
+      targetCount: parseVoiceHabitTargetCount(normalized),
+      address,
+      color: taskCategoryColor("Habit")
     };
   }
 
@@ -6644,6 +6945,71 @@
     if (/\b(no project|remove project|clear project)\b/.test(text)) return null;
     if (!/\bproject\b/.test(text)) return undefined;
     return parseVoiceProject(text) || undefined;
+  }
+
+  function parseVoiceHabitSchedule(text) {
+    if (/\b(weekdays|weekday|workdays|monday through friday|mon through fri|mon to fri)\b/.test(text)) return "Weekdays";
+    if (/\b(monthly|every month|once a month)\b/.test(text)) return "Monthly";
+    if (/\b(weekly|every week|once a week|on sundays|on mondays|on tuesdays|on wednesdays|on thursdays|on fridays|on saturdays)\b/.test(text)) return "Weekly";
+    if (/\b(daily|every day|each day)\b/.test(text)) return "Daily";
+    return "Daily";
+  }
+
+  function parseVoiceHabitDays(text, startDate, schedule) {
+    if (schedule === "Daily") return [0, 1, 2, 3, 4, 5, 6];
+    if (schedule === "Weekdays") return [1, 2, 3, 4, 5];
+    if (/\b(weekends|saturday and sunday|sunday and saturday)\b/.test(text)) return [0, 6];
+    const dayMap = {
+      sunday: 0, sundays: 0, sun: 0,
+      monday: 1, mondays: 1, mon: 1,
+      tuesday: 2, tuesdays: 2, tue: 2, tues: 2,
+      wednesday: 3, wednesdays: 3, wed: 3,
+      thursday: 4, thursdays: 4, thu: 4, thur: 4, thurs: 4,
+      friday: 5, fridays: 5, fri: 5,
+      saturday: 6, saturdays: 6, sat: 6
+    };
+    const days = [];
+    text.replace(/\b(sundays?|sun|mondays?|mon|tuesdays?|tues?|wednesdays?|wed|thursdays?|thurs?|thur|thu|fridays?|fri|saturdays?|sat)\b/g, (match) => {
+      const day = dayMap[match];
+      if (Number.isInteger(day) && !days.includes(day)) days.push(day);
+      return match;
+    });
+    return days.length ? days : [parseLocalDate(startDate || todayIso()).getDay()];
+  }
+
+  function parseVoiceHabitType(text) {
+    const direct = habitTypeOptions.find((type) => new RegExp(`\\b${escapeRegExp(type.toLowerCase())}\\b`).test(text));
+    if (direct) return direct;
+    if (/\b(workout|exercise|gym|run|running|lift|lifting|fitness)\b/.test(text)) return "Fitness";
+    if (/\b(health|medicine|meditation|sleep|water|walk)\b/.test(text)) return "Health";
+    if (/\b(study|learn|learning|class|classes|read|reading|course)\b/.test(text)) return "Learning";
+    if (/\b(budget|bill|money|finance|saving|savings)\b/.test(text)) return "Finance";
+    if (/\b(work|job|career|business)\b/.test(text)) return "Work";
+    if (/\b(home|clean|chores|house)\b/.test(text)) return "Home";
+    return "Personal";
+  }
+
+  function parseVoiceHabitStatus(text) {
+    if (/\b(paused|pause|inactive|archived|archive)\b/.test(text)) return "Paused";
+    return "Active";
+  }
+
+  function parseVoiceHabitTargetCount(text) {
+    const match = text.match(/\b(\d+)\s*(?:times|x|completions?)\s*(?:per|a|each)?\s*(?:day|daily)?\b/);
+    const count = match ? Number(match[1]) : 1;
+    return Number.isFinite(count) && count > 0 ? Math.min(20, Math.round(count)) : 1;
+  }
+
+  function parseVoiceHabitEndDate(text, startDate) {
+    const until = text.match(/\b(?:until|ending|ends on|end date)\s+(.+)$/);
+    if (!until) return "";
+    const parsed = parseVoiceDate(until[1]);
+    return parsed && parsed !== startDate ? parsed : "";
+  }
+
+  function parseVoiceHabitNotes(source) {
+    const match = String(source || "").match(/\b(?:notes?|description|memo)\s*[:\-]?\s*(.+)$/i);
+    return match ? cleanupAddressPart(match[1]) : "";
   }
 
   function normalizeVoiceText(text) {
@@ -6833,6 +7199,54 @@
 
   function cleanupAddressPart(value) {
     return String(value || "").replace(/\s+/g, " ").replace(/[,\s]+$/g, "").replace(/^[,\s]+/g, "").trim();
+  }
+
+  function extractVoiceHabitTitle(source, addressRaw) {
+    let text = String(source || "").trim();
+    text = text.replace(/^(please\s+)?(add|create|make|schedule|set up)\s+(a\s+|new\s+)?(habit|routine|recurring habit)\s*[:\-]?\s*(called|named|for|to)?\s*/i, "");
+    const stopPatterns = [
+      /\btoday\b/i,
+      /\btomorrow\b/i,
+      /\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i,
+      /\bon\s+(\d{1,2}[/-]\d{1,2}|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)\b/i,
+      /\bfrom\s+\d/i,
+      /\bbetween\s+\d/i,
+      /\bat\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+      /\bat\s+\d{1,6}\s+[A-Za-z]/i,
+      /\b(address|location)\b/i,
+      /\b(daily|every day|weekdays?|workdays?|weekly|monthly|every week|every month)\b/i,
+      /\b(low|medium|high|urgent)\s+priority\b/i,
+      /\b(status|type|category|schedule|repeat|notes?|description|memo)\b/i
+    ];
+    if (addressRaw) text = text.replace(addressRaw, "");
+    let endIndex = text.length;
+    stopPatterns.forEach((pattern) => {
+      const match = text.match(pattern);
+      if (match && match.index >= 0) endIndex = Math.min(endIndex, match.index);
+    });
+    let candidate = text.slice(0, endIndex).trim();
+    if (!candidate || candidate.length < 2) candidate = stripVoiceHabitFragments(source, addressRaw);
+    return cleanupHabitTitle(candidate);
+  }
+
+  function stripVoiceHabitFragments(source, addressRaw) {
+    return String(source || "")
+      .replace(/^(please\s+)?(add|create|make|schedule|set up)\s+(a\s+|new\s+)?(habit|routine|recurring habit)\s*[:\-]?\s*/i, "")
+      .replace(addressRaw || "$^", "")
+      .replace(/\b(today|tomorrow)\b/ig, "")
+      .replace(/\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/ig, "")
+      .replace(/\b(from|between|at|around|to|until|and)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?|am|pm)?\b/ig, "")
+      .replace(/\b(for|duration)\s+\d+(?:\.\d+)?\s*(hours?|hrs?|minutes?|mins?)\b/ig, "")
+      .replace(/\b(daily|every day|weekdays?|workdays?|weekly|monthly|every week|every month)\b/ig, "")
+      .replace(/\b(low|medium|high|urgent)\s+priority\b/ig, "")
+      .replace(/\b(status|type|category|schedule|repeat|notes?|description|memo)\s+.+$/ig, "")
+      .trim();
+  }
+
+  function cleanupHabitTitle(value) {
+    const title = String(value || "").replace(/^[,.:\-\s]+/g, "").replace(/[,.:-]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!title) return "Voice Habit";
+    return title.charAt(0).toUpperCase() + title.slice(1);
   }
 
   function extractVoiceTaskTitle(source, addressRaw) {
