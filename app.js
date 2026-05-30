@@ -64,6 +64,7 @@
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
   const ADD_NOTEBOOK_VALUE = "__add_note_notebook__";
+  const ADD_LOAN_CONTACT_VALUE = "__add_loan_contact__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
@@ -3857,7 +3858,14 @@
     const matchedContact = data.contacts.find((contact) => contact.id === loan.contactId) || data.contacts.find((contact) => contact.name.toLowerCase() === String(loan.borrower || "").toLowerCase());
     return `${modalHeader(editing ? "Edit Loan Transaction" : "Record Loan", editing ? "Borrower name, amount, repayments, forgiveness, and due date can all be corrected here." : "")}
       <div class="field-grid">
-        ${selectField("loanContact", "Borrower From Contacts", ["", ...data.contacts.map((contact) => contact.id)], matchedContact?.id || "", (value) => value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "Manual / not in contacts")}
+        ${selectField("loanContact", "Borrower From Contacts", ["", ADD_LOAN_CONTACT_VALUE, ...data.contacts.map((contact) => contact.id)], matchedContact?.id || "", (value) => {
+          if (value === ADD_LOAN_CONTACT_VALUE) return "+ Add new contact";
+          return value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "Manual / not in contacts";
+        })}
+        <section id="loanNewContactPanel" class="inline-add-panel" hidden>
+          <div class="inline-add-heading">${icon("plus")} New contact will be saved with this loan</div>
+          <p class="subtle">Fill in Borrower Name, Phone, and Email below. When you save, BillMaster will add that person to Contacts and link the loan.</p>
+        </section>
         ${field("loanBorrower", "Borrower Name", loan.borrower || "", "Borrower Name")}
         <div class="field-row">${field("loanPhone", "Phone", loan.borrowerPhone || matchedContact?.phone || "", "Phone", "tel")}${field("loanEmail", "Email", loan.borrowerEmail || matchedContact?.email || "", "Email", "email")}</div>
         ${field("loanAmount", "Original Amount", loan.amount || "", "Amount", "number")}
@@ -5901,6 +5909,12 @@
       render();
     }
     if (target && target.id === "loanContact") {
+      const panel = document.getElementById("loanNewContactPanel");
+      if (panel) panel.hidden = target.value !== ADD_LOAN_CONTACT_VALUE;
+      if (target.value === ADD_LOAN_CONTACT_VALUE) {
+        document.getElementById("loanBorrower")?.focus();
+        return;
+      }
       const contact = data.contacts.find((item) => item.id === target.value);
       if (!contact) return;
       const borrowerEl = document.getElementById("loanBorrower");
@@ -7653,10 +7667,23 @@
     const loan = data.loans.find((item) => item.id === loanId);
     const previousBorrower = loan ? loan.borrower : "";
     const amount = numberValue("loanAmount");
-    const contact = data.contacts.find((item) => item.id === value("loanContact"));
+    const selectedContactId = value("loanContact");
+    let contact = data.contacts.find((item) => item.id === selectedContactId);
     const borrower = value("loanBorrower") || contact?.name || "Borrower";
     const loanDate = value("loanDate") || todayIso();
     const dueDate = value("loanDue") || addDaysIso(loanDate, 14);
+    if (selectedContactId === ADD_LOAN_CONTACT_VALUE) {
+      if (!value("loanBorrower")) {
+        showToast("Enter a borrower name before adding a new contact.", "danger");
+        return;
+      }
+      const existingContact = data.contacts.find((item) => item.name.toLowerCase() === borrower.toLowerCase());
+      contact = existingContact || { id: id("contact"), name: borrower, email: "", phone: "", groupIds: [], addressId: null };
+      contact.name = borrower;
+      contact.phone = value("loanPhone") || contact.phone || "";
+      contact.email = value("loanEmail") || contact.email || "";
+      if (!existingContact) data.contacts.unshift(contact);
+    }
     const payload = {
       contactId: contact?.id || null,
       borrower,
