@@ -3393,15 +3393,17 @@ canvas {
 
 .time-of-day-badge {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 14px;
+  right: 16px;
+  left: auto;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid currentColor;
+  overflow: hidden;
+  border: 1px solid #101828;
   border-radius: 999px;
   pointer-events: none;
 }
@@ -3414,14 +3416,16 @@ canvas {
 }
 
 .time-period-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 30px;
   padding: 5px 10px;
+  overflow: hidden;
   color: var(--text);
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid #101828;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 850;
@@ -3435,54 +3439,72 @@ canvas {
 .time-period-chip.morning {
   color: #00c853;
   background: #edfff5;
-  border-color: #00e676;
+  border-color: #101828;
 }
 
 .time-period-chip.afternoon {
-  color: #9a7a00;
-  background: #fffbe6;
-  border-color: #ffd600;
+  color: #b45309;
+  background: #fff2bf;
+  border-color: #101828;
 }
 
 .time-period-chip.night {
   color: #004bff;
   background: #eaf1ff;
-  border-color: #004bff;
+  border-color: #101828;
 }
 
 .time-period-chip.late-night {
   color: #fff;
   background: repeating-linear-gradient(135deg, #004bff 0 8px, #004bff 8px 16px, #00c853 16px 24px, #00c853 24px 32px);
-  border-color: #00c853;
+  border-color: #101828;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  text-shadow: 0 1px 2px rgba(16, 24, 40, 0.42);
 }
 
 .time-of-day-badge.morning {
   color: #00c853;
   background: #edfff5;
-  border-color: #00e676;
+  border-color: #101828;
   animation: morning-rise 2.8s ease-in-out infinite;
 }
 
 .time-of-day-badge.noon,
 .time-of-day-badge.afternoon {
-  color: #ffd600;
-  background: #fffbe6;
-  border-color: #ffd600;
+  color: #d97706;
+  background: #fff2bf;
+  border-color: #101828;
   animation: noon-glow 2.2s ease-in-out infinite;
+}
+
+.time-period-chip.afternoon::after,
+.time-of-day-badge.afternoon::after {
+  position: absolute;
+  inset: 3px;
+  content: "";
+  border: 2px solid transparent;
+  border-top-color: #b45309;
+  border-right-color: #f59e0b;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: afternoon-orbit 1.35s linear infinite;
+}
+
+.time-period-chip.afternoon::after {
+  inset: 4px 6px;
 }
 
 .time-of-day-badge.night {
   color: #004bff;
   background: #eaf1ff;
-  border-color: #004bff;
+  border-color: #101828;
   animation: night-twinkle 2.6s ease-in-out infinite;
 }
 
 .time-of-day-badge.late-night {
   color: #fff;
   background: repeating-linear-gradient(135deg, #004bff 0 7px, #004bff 7px 14px, #00c853 14px 21px, #00c853 21px 28px);
-  border-color: #00c853;
+  border-color: #101828;
   box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.15);
   animation: late-night-float 3s ease-in-out infinite;
 }
@@ -3493,8 +3515,12 @@ canvas {
 }
 
 @keyframes noon-glow {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 214, 0, 0.24); }
-  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(255, 214, 0, 0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.22); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(217, 119, 6, 0); }
+}
+
+@keyframes afternoon-orbit {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes night-twinkle {
