@@ -3222,11 +3222,49 @@ canvas {
 }
 
 .compact-day-task {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 274px;
   padding: 10px;
+  overflow: hidden;
+}
+
+.compact-day-task.has-task-picture {
+  isolation: isolate;
+}
+
+.day-task-picture {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.day-task-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--media-fit, cover);
+  opacity: var(--day-picture-opacity, 0.28);
+  transform: translate(var(--media-x, 0), var(--media-y, 0)) scale(var(--media-zoom, 1));
+  transform-origin: center;
+  filter: saturate(0.95) contrast(0.92);
+}
+
+.compact-day-task.has-task-picture::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.compact-day-task > :not(.day-task-picture) {
+  position: relative;
+  z-index: 1;
 }
 
 .day-task-card > .card-row {
@@ -3386,6 +3424,12 @@ canvas {
   animation: night-twinkle 2.6s ease-in-out infinite;
 }
 
+.time-of-day-badge.late-night {
+  color: #8b5cf6;
+  background: #f5f0ff;
+  animation: late-night-float 3s ease-in-out infinite;
+}
+
 @keyframes morning-rise {
   0%, 100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.18); }
   50% { transform: translateY(-2px); box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
@@ -3399,6 +3443,11 @@ canvas {
 @keyframes night-twinkle {
   0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 0 rgba(108, 99, 255, 0)); }
   50% { transform: rotate(-6deg); filter: drop-shadow(0 0 6px rgba(108, 99, 255, 0.35)); }
+}
+
+@keyframes late-night-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 0 rgba(139, 92, 246, 0)); }
+  50% { transform: translateY(-2px) rotate(5deg); filter: drop-shadow(0 0 7px rgba(139, 92, 246, 0.32)); }
 }
 
 .compact-card-actions {
@@ -3633,6 +3682,17 @@ canvas {
   box-shadow: inset 0 -3px 0 rgba(33, 150, 243, 0.36);
 }
 
+.block-head-button.is-selected-day {
+  color: #fff;
+  background: linear-gradient(180deg, #2e9df5, #177bd1);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.16), 0 10px 22px rgba(33, 150, 243, 0.22);
+}
+
+.block-head-button.is-selected-day .block-head-date,
+.block-head-button.is-selected-day .block-head-hours {
+  color: #fff;
+}
+
 .block-head span {
   font-weight: 850;
 }
@@ -3662,6 +3722,14 @@ canvas {
     linear-gradient(to bottom, var(--line) 1px, transparent 1px) 0 0 / 100% var(--block-hour-height, 60px),
     linear-gradient(to bottom, rgba(223, 230, 238, 0.55) 1px, transparent 1px) 0 0 / 100% var(--block-quarter-height, 15px);
   box-shadow: inset 0 0 0 2px rgba(33, 150, 243, 0.08);
+}
+
+.block-col.is-selected-day {
+  background:
+    linear-gradient(180deg, rgba(33, 150, 243, 0.13), rgba(33, 150, 243, 0.04)),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px) 0 0 / 100% var(--block-hour-height, 60px),
+    linear-gradient(to bottom, rgba(223, 230, 238, 0.62) 1px, transparent 1px) 0 0 / 100% var(--block-quarter-height, 15px);
+  box-shadow: inset 0 0 0 2px rgba(33, 150, 243, 0.28);
 }
 
 .event-block {
@@ -4294,6 +4362,9 @@ canvas {
 }
 
 .handle-style-picker button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 30px;
   padding: 0 9px;
   color: var(--muted);
@@ -4308,6 +4379,15 @@ canvas {
   color: #fff;
   background: var(--navy-2);
   border-color: var(--navy-2);
+}
+
+.focus-picker button {
+  gap: 5px;
+}
+
+.focus-picker button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .calendar-summary {

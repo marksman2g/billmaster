@@ -2472,7 +2472,8 @@
     const startMinutes = minutes(task?.start || "");
     if (!task?.start) return { key: "noon", label: "No time set", iconName: "noon" };
     if (startMinutes >= 5 * 60 && startMinutes < 12 * 60) return { key: "morning", label: "Morning task", iconName: "morning" };
-    if (startMinutes >= 12 * 60 && startMinutes < 18 * 60) return { key: "noon", label: "Afternoon task", iconName: "noon" };
+    if (startMinutes >= 12 * 60 && startMinutes < 18 * 60) return { key: "noon", label: "Lunch / afternoon task", iconName: "noon" };
+    if (startMinutes >= 23 * 60 || startMinutes < 5 * 60) return { key: "late-night", label: "Late night task", iconName: "late-night" };
     return { key: "night", label: "Night task", iconName: "night" };
   }
 
@@ -2483,11 +2484,13 @@
 
   function taskDayCard(task) {
     const selected = ui.selectedTasks.includes(task.id);
+    const taskImage = entityImage(task);
     const editModal = task.isHabit ? "editHabit" : "editTask";
     const editId = task.isHabit ? task.habitId : task.id;
     const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
     const doneLabel = task.isHabit && task.status === "Completed" ? "Done" : "Done";
-    return `<article class="task-card day-task-card compact-day-task ${task.status === "Completed" ? "complete" : ""}" data-task-id="${task.id}" style="${selected ? "background:#eaf4ff;border-color:#8dc8ff;" : ""}">
+    return `<article class="task-card day-task-card compact-day-task ${taskImage ? "has-task-picture" : ""} ${task.status === "Completed" ? "complete" : ""}" data-task-id="${task.id}" style="${selected ? "background:#eaf4ff;border-color:#8dc8ff;" : ""}">
+      ${taskImage ? `<span class="day-task-picture" ${dayTaskPictureStyle(task)}><img src="${esc(taskImage)}" alt=""></span>` : ""}
       ${taskTimeOfDayBadge(task)}
       <div class="card-row">
         <div class="day-task-main">
@@ -2518,6 +2521,11 @@
     </article>`;
   }
 
+  function dayTaskPictureStyle(task) {
+    const opacity = task?.imageOpacity === undefined ? 0.28 : task.imageOpacity;
+    return `style="--media-zoom:${imageZoom(task?.imageZoom || 1)};--media-x:${imagePan(task?.imageX || 0)}%;--media-y:${imagePan(task?.imageY || 0)}%;--media-fit:${imageFit(task?.imageFit || "cover")};--day-picture-opacity:${imageOpacity(opacity)};"`;
+  }
+
   function calendarBlock() {
     const weekdays = weekDates();
     const tasks = calendarItemsForRange(weekdays[0], weekdays[6]).filter((task) => task.start && task.end);
@@ -2528,23 +2536,27 @@
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
     const heads = `<div class="block-head time-head">AM/PM</div>${weekdays.map((iso) => {
       const dayTasks = calendarItemsForDay(iso);
-      return `<button class="block-head block-head-button ${iso === todayIso() ? "is-today" : ""}" data-action="open-day" data-date="${iso}" title="Open ${dateFull(iso)} in Day View"><span class="block-head-date">${dayName(iso)} ${Number(iso.slice(-2))}${weatherChip(iso, "block")}</span><span class="block-head-hours">${round1(totalTaskHours(dayTasks))}h</span></button>`;
+      const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
+      return `<button class="block-head block-head-button ${stateClass}" data-action="open-day" data-date="${iso}" title="Open ${dateFull(iso)} in Day View"><span class="block-head-date">${dayName(iso)} ${Number(iso.slice(-2))}${weatherChip(iso, "block")}</span><span class="block-head-hours">${round1(totalTaskHours(dayTasks))}h</span></button>`;
     }).join("")}<div class="block-head time-head">24h</div>`;
     const leftLabels = blockHourLabels(range, "left");
     const rightLabels = blockHourLabels(range, "right");
     const cols = weekdays.map((iso) => {
       const dayTasks = tasks.filter((task) => task.date === iso);
-      return `<div class="block-col ${iso === todayIso() ? "is-today" : ""}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
+      const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
+      return `<div class="block-col ${stateClass}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
-    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${(ui.blockTimeFocus || "full") === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
+    const focusKey = normalizedBlockFocusKey();
+    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
       <div class="block-scroll"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
   function blockEvent(task, dayTasks = []) {
     const range = blockFocusRange();
     const scale = blockMinuteScale();
-    const start = minutes(task.start);
-    const end = minutes(task.end);
+    const window = blockEventWindow(task, range);
+    const start = window.start;
+    const end = window.end;
     if (end <= range.start || start >= range.end) return "";
     const visibleStart = clamp(start, range.start, range.end);
     const visibleEnd = clamp(end, range.start, range.end);
@@ -2558,7 +2570,7 @@
     const selected = ui.selectedTasks.includes(task.id);
     const short = duration < 120;
     const micro = duration <= 30;
-    const boundary = blockBoundaryInfo(task, dayTasks);
+    const boundary = blockBoundaryInfo(task, dayTasks, range);
     return `<div class="event-block ${task.includeHours ? "" : "not-counted"} ${selected ? "is-selected" : ""} ${short ? "short-block" : ""} ${micro ? "micro-block" : ""} ${boundary.startsHere ? "has-start-boundary" : ""} ${boundary.endsHere ? "has-end-boundary" : ""} status-${statusSlug(task.status)}" style="top:${top}px;height:${height}px;--event-bg:${bg};--top-handle:${topHandle};--bottom-handle:${bottomHandle};--task-font:${taskFontFamily(task)};" data-title="${esc(task.title)}" title="${short ? esc(task.title) : ""}" data-task-id="${task.id}" role="button" tabindex="0" aria-label="${esc(`${task.title}, ${durationLabel(duration)}`)}">
       ${boundary.startsHere ? `<span class="block-boundary block-boundary-start">Start ${esc(timeLabel(task.start))}</span>` : ""}
       ${boundary.endsHere ? `<span class="block-boundary block-boundary-end">End ${esc(timeLabel(task.end))}</span>` : ""}
@@ -2584,13 +2596,15 @@
     return `${startLabel}-${endLabel}`;
   }
 
-  function blockBoundaryInfo(task, dayTasks) {
-    const start = minutes(task.start);
-    const end = minutes(task.end);
+  function blockBoundaryInfo(task, dayTasks, range = blockFocusRange()) {
+    const current = blockEventWindow(task, range);
+    const start = current.start;
+    const end = current.end;
     return dayTasks.reduce((info, other) => {
       if (!other || other.id === task.id || !other.start || !other.end) return info;
-      const otherStart = minutes(other.start);
-      const otherEnd = minutes(other.end);
+      const otherWindow = blockEventWindow(other, range);
+      const otherStart = otherWindow.start;
+      const otherEnd = otherWindow.end;
       if (otherEnd === start) info.startsHere = true;
       if (otherStart === end) info.endsHere = true;
       return info;
@@ -2610,23 +2624,45 @@
   function blockFocusOptions() {
     return [
       { value: "full", label: "Full" },
-      { value: "3-9", label: "3-9 AM" },
-      { value: "6-12", label: "6 AM-12 PM" },
-      { value: "work", label: "8 AM-5 PM" },
-      { value: "evening", label: "5 PM-12 AM" }
+      { value: "morning", label: "Morning 5-11:59", title: "Morning: 5:00 AM to 11:59 AM", iconName: "morning" },
+      { value: "lunch", label: "Lunch 12-5:59", title: "Lunch: 12:00 PM to 5:59 PM", iconName: "noon" },
+      { value: "night", label: "Night 6-10", title: "Night: 6:00 PM to 10:59 PM", iconName: "night" },
+      { value: "late", label: "Late 11-4:59", title: "Late Night: 11:00 PM to 4:59 AM", iconName: "late-night" }
     ];
+  }
+
+  function normalizedBlockFocusKey() {
+    const aliases = { "3-9": "morning", "6-12": "morning", work: "lunch", evening: "night" };
+    const key = ui.blockTimeFocus || "full";
+    return ["full", "morning", "lunch", "night", "late"].includes(key) ? key : aliases[key] || "full";
   }
 
   function blockFocusRange() {
     const ranges = {
       full: [0, 24 * 60],
-      "3-9": [3 * 60, 9 * 60],
-      "6-12": [6 * 60, 12 * 60],
-      work: [8 * 60, 17 * 60],
-      evening: [17 * 60, 24 * 60]
+      morning: [5 * 60, 12 * 60],
+      lunch: [12 * 60, 18 * 60],
+      night: [18 * 60, 23 * 60],
+      late: [23 * 60, 29 * 60]
     };
-    const [start, end] = ranges[ui.blockTimeFocus || "full"] || ranges.full;
+    const [start, end] = ranges[normalizedBlockFocusKey()] || ranges.full;
     return { start, end };
+  }
+
+  function blockEventWindow(task, range = blockFocusRange()) {
+    let start = minutes(task?.start || "");
+    let end = minutes(task?.end || "");
+    if (end <= start) end += 24 * 60;
+    const wrapEnd = range.end - 24 * 60;
+    if (range.end > 24 * 60 && start < range.start && start < wrapEnd) {
+      start += 24 * 60;
+      end += 24 * 60;
+    }
+    return { start, end };
+  }
+
+  function blockEndDateFor(date, startMinute, endMinute) {
+    return startMinute < 24 * 60 && endMinute >= 24 * 60 ? addDaysIso(date, 1) : date;
   }
 
   function blockMinuteScale() {
@@ -2643,7 +2679,7 @@
   function blockHourLabels(range, side) {
     const labels = [];
     for (let minute = range.start; minute < range.end; minute += 60) {
-      const hour = Math.floor(minute / 60);
+      const hour = ((Math.floor(minute / 60) % 24) + 24) % 24;
       const right = side === "right";
       labels.push(`<div class="time-label ${right ? "right" : ""}">${right ? `${String(hour).padStart(2, "0")}:00` : ampmHourLabel(hour)}</div>`);
     }
@@ -2665,6 +2701,7 @@
   }
 
   function ampmHourLabel(hour) {
+    hour = ((hour % 24) + 24) % 24;
     if (hour === 0) return "12 AM";
     if (hour < 12) return `${hour} AM`;
     if (hour === 12) return "12 PM";
@@ -2680,7 +2717,7 @@
   function totalTaskHours(tasks) {
     return tasks.reduce((total, task) => {
       if (!task.start || !task.end || !task.includeHours) return total;
-      return total + Math.max(0, minutes(task.end) - minutes(task.start)) / 60;
+      return total + taskDurationMinutes(task) / 60;
     }, 0);
   }
 
@@ -2696,8 +2733,16 @@
 
   function durationText(task) {
     if (!task.start || !task.end) return `${icon("bell")} Set duration`;
-    const diff = Math.max(0, minutes(task.end) - minutes(task.start));
+    const diff = taskDurationMinutes(task);
     return `${icon("bell")} ${durationLabel(diff)}`;
+  }
+
+  function taskDurationMinutes(task) {
+    if (!task?.start || !task?.end) return 0;
+    let start = minutes(task.start);
+    let end = minutes(task.end);
+    if (end <= start) end += 24 * 60;
+    return Math.max(0, end - start);
   }
 
   function taskEndDate(task) {
@@ -3799,7 +3844,7 @@
           ${task.id ? `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}" data-return-modal="editTask">${icon("plus")} Select contacts or groups</button>` : `<p class="subtle">Save this task first, then select contacts or groups to notify.</p>`}
         </section>
         ${textArea("taskSubtasks", "Checklist Items", taskChecklistText(task), "One item per line. Use [x] to mark something done.")}
-        ${imageAttachmentField("task", task.image || "", "Task Picture / Graphic", task.imageZoom, task.imageX, task.imageY, task.imageFit, task.imageOpacity)}
+        ${imageAttachmentField("task", task.image || "", "Task Picture / Graphic", task.imageZoom, task.imageX, task.imageY, task.imageFit, task.imageOpacity === undefined ? 0.28 : task.imageOpacity)}
         <label class="section-card" style="box-shadow:none;background:#f0f7ff;display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <span><strong>Include in hour totals</strong><br><span class="subtle">Count this task's hours in daily, weekly and monthly totals</span></span>
           <input id="taskIncludeHours" type="checkbox" ${task.includeHours ? "checked" : ""} style="width:24px;height:24px;">
@@ -4869,6 +4914,7 @@
     event.stopPropagation();
     block.setPointerCapture?.(event.pointerId);
     const colRect = column.getBoundingClientRect();
+    const eventWindow = blockEventWindow(task, blockFocusRange());
     blockDragState = {
       taskId: task.id,
       mode: resize ? resize.dataset.resize : "move",
@@ -4877,8 +4923,9 @@
       pointerId: event.pointerId,
       colWidth: colRect.width,
       originalDate: task.date,
-      originalStart: minutes(task.start),
-      originalEnd: minutes(task.end),
+      originalStart: eventWindow.start,
+      originalEnd: eventWindow.end,
+      range: blockFocusRange(),
       block,
       moved: false,
       holdOpened: false,
@@ -4995,7 +5042,7 @@
       preview.className = "block-create-preview";
       preview.style.top = `${blockMinuteToPixel(selection.startMinute)}px`;
       preview.style.height = `${Math.max(15, (selection.endMinute - selection.startMinute) * blockMinuteScale())}px`;
-      preview.textContent = `${timeLabel(timeFromMinutes(selection.startMinute))} - ${timeLabel(timeFromMinutes(selection.endMinute))}`;
+      preview.textContent = `${timeLabel(timeFromBlockMinute(selection.startMinute))} - ${timeLabel(timeFromBlockMinute(selection.endMinute))}`;
       selection.columns[index].appendChild(preview);
       state.previews.push(preview);
     }
@@ -5024,8 +5071,8 @@
         days: Array.from(new Set(days)),
         startDate: dates[0],
         endDate: "",
-        start: timeFromMinutes(selection.startMinute),
-        end: timeFromMinutes(selection.endMinute),
+        start: timeFromBlockMinute(selection.startMinute),
+        end: timeFromBlockMinute(selection.endMinute),
         priority: "Medium",
         status: "Active",
         includeHours: true,
@@ -5047,9 +5094,9 @@
         title: selection.endIndex > selection.startIndex ? "New habit block" : "New timed task",
         description: "",
         date,
-        endDate: date,
-        start: timeFromMinutes(selection.startMinute),
-        end: timeFromMinutes(selection.endMinute),
+        endDate: blockEndDateFor(date, selection.startMinute, selection.endMinute),
+        start: timeFromBlockMinute(selection.startMinute),
+        end: timeFromBlockMinute(selection.endMinute),
         priority: "Medium",
         status: "Not Started",
         repeat: "None",
@@ -5078,6 +5125,7 @@
     const columns = Array.from(calendar?.querySelectorAll(".block-col") || []);
     const startIndex = columns.indexOf(column);
     if (startIndex < 0) return;
+    const eventWindow = blockEventWindow(task, blockFocusRange());
     blockRepeatState = {
       taskId: task.id,
       block,
@@ -5087,8 +5135,9 @@
       startY: event.clientY,
       pointerId: event.pointerId,
       colWidth: Math.max(1, column.getBoundingClientRect().width),
-      originalStart: minutes(task.start),
-      originalEnd: minutes(task.end),
+      originalStart: eventWindow.start,
+      originalEnd: eventWindow.end,
+      range: blockFocusRange(),
       previews: [],
       moved: false
     };
@@ -5160,8 +5209,9 @@
   }
 
   function shiftedBlockWindow(state, minuteDelta = 0) {
+    const range = state.range || blockFocusRange();
     const duration = Math.max(15, state.originalEnd - state.originalStart || 60);
-    const start = clamp(state.originalStart + minuteDelta, 0, 24 * 60 - duration);
+    const start = clamp(state.originalStart + minuteDelta, range.start, range.end - duration);
     return { start, end: start + duration };
   }
 
@@ -5171,7 +5221,7 @@
     preview.style.top = `${blockMinuteToPixel(window.start)}px`;
     preview.style.height = `${Math.max(24, (window.end - window.start) * blockMinuteScale())}px`;
     preview.style.setProperty("--event-bg", blockTaskColor(task));
-    preview.innerHTML = `<strong>${esc(task.title)}</strong><span>${timeLabel(timeFromMinutes(window.start))} - ${timeLabel(timeFromMinutes(window.end))}</span>`;
+    preview.innerHTML = `<strong>${esc(task.title)}</strong><span>${timeLabel(timeFromBlockMinute(window.start))} - ${timeLabel(timeFromBlockMinute(window.end))}</span>`;
     return preview;
   }
 
@@ -5202,29 +5252,34 @@
 
   function repeatedTaskCopies(source, dates, minuteDelta = 0) {
     const span = dateSpanDays(source.date, taskEndDate(source));
-    const start = source.start ? minutes(source.start) : 9 * 60;
-    const end = source.end ? minutes(source.end) : start + 60;
+    const range = blockFocusRange();
+    const sourceWindow = source.start && source.end ? blockEventWindow(source, range) : null;
+    const start = sourceWindow ? sourceWindow.start : 9 * 60;
+    const end = sourceWindow ? sourceWindow.end : start + 60;
     const duration = Math.max(15, end - start || 60);
-    const shiftedStart = clamp(start + minuteDelta, 0, 24 * 60 - duration);
+    const shiftedStart = clamp(start + minuteDelta, range.start, range.end - duration);
     const shiftedEnd = shiftedStart + duration;
     return dates.map((date) => taskCopyFromCalendarItem(source, {
       date,
-      endDate: addDaysIso(date, span),
-      start: timeFromMinutes(shiftedStart),
-      end: timeFromMinutes(shiftedEnd)
+      endDate: shiftedStart < 24 * 60 && shiftedEnd >= 24 * 60 ? addDaysIso(date, 1) : addDaysIso(date, span),
+      start: timeFromBlockMinute(shiftedStart),
+      end: timeFromBlockMinute(shiftedEnd)
     }));
   }
 
   function shiftCalendarItemFromHandle(taskId, minuteDelta) {
     const item = findCalendarItemById(taskId);
     if (!item || !minuteDelta) return;
-    const start = item.start ? minutes(item.start) : 9 * 60;
-    const end = item.end ? minutes(item.end) : start + 60;
+    const range = blockFocusRange();
+    const sourceWindow = item.start && item.end ? blockEventWindow(item, range) : null;
+    const start = sourceWindow ? sourceWindow.start : 9 * 60;
+    const end = sourceWindow ? sourceWindow.end : start + 60;
     const duration = Math.max(15, end - start || 60);
-    const shiftedStart = clamp(start + minuteDelta, 0, 24 * 60 - duration);
+    const shiftedStart = clamp(start + minuteDelta, range.start, range.end - duration);
     updateCalendarItemSchedule(item, {
-      start: timeFromMinutes(shiftedStart),
-      end: timeFromMinutes(shiftedStart + duration)
+      start: timeFromBlockMinute(shiftedStart),
+      end: timeFromBlockMinute(shiftedStart + duration),
+      endDate: blockEndDateFor(item.date, shiftedStart, shiftedStart + duration)
     });
     saveData();
     render();
@@ -5276,16 +5331,17 @@
     const dy = event.clientY - state.startY;
     const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
     const minuteDelta = blockMinuteDelta(dy);
+    const range = state.range || blockFocusRange();
     state.moved = state.moved || Math.abs(dx) > 4 || Math.abs(dy) > 4;
     if (state.moved) clearBlockHoldTimer(state);
     if (state.mode === "top") {
-      const newStart = clamp(state.originalStart + minuteDelta, 0, state.originalEnd - 15);
+      const newStart = clamp(state.originalStart + minuteDelta, range.start, state.originalEnd - 15);
       state.block.style.top = `${blockMinuteToPixel(newStart)}px`;
       state.block.style.height = `${Math.max(34, (state.originalEnd - newStart) * blockMinuteScale())}px`;
       return;
     }
     if (state.mode === "bottom") {
-      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, 24 * 60);
+      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, range.end);
       state.block.style.height = `${Math.max(34, (newEnd - state.originalStart) * blockMinuteScale())}px`;
       return;
     }
@@ -5308,22 +5364,24 @@
     const dy = event.clientY - state.startY;
     const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
     const minuteDelta = blockMinuteDelta(dy);
+    const range = state.range || blockFocusRange();
     if (!state.moved) {
       if (state.mode === "bottom") openModal("blockStatus", state.taskId);
       blockDragState = null;
       return;
     }
     if (state.mode === "top") {
-      const newStart = clamp(state.originalStart + minuteDelta, 0, state.originalEnd - 15);
-      updateCalendarItemSchedule(task, { start: timeFromMinutes(newStart) });
+      const newStart = clamp(state.originalStart + minuteDelta, range.start, state.originalEnd - 15);
+      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(newStart), endDate: blockEndDateFor(task.date, newStart, state.originalEnd) });
     } else if (state.mode === "bottom") {
-      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, 24 * 60);
-      updateCalendarItemSchedule(task, { end: timeFromMinutes(newEnd) });
+      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, range.end);
+      updateCalendarItemSchedule(task, { end: timeFromBlockMinute(newEnd), endDate: blockEndDateFor(task.date, state.originalStart, newEnd) });
     } else {
       const duration = state.originalEnd - state.originalStart;
-      const newStart = clamp(state.originalStart + minuteDelta, 0, 24 * 60 - duration);
+      const newStart = clamp(state.originalStart + minuteDelta, range.start, range.end - duration);
+      const newEnd = newStart + duration;
       const nextDate = addDaysIso(state.originalDate, dayDelta);
-      updateCalendarItemSchedule(task, { start: timeFromMinutes(newStart), end: timeFromMinutes(newStart + duration), date: nextDate, endDate: nextDate });
+      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(newStart), end: timeFromBlockMinute(newEnd), date: nextDate, endDate: blockEndDateFor(nextDate, newStart, newEnd) });
     }
     saveData();
     blockDragState = null;
@@ -5360,6 +5418,14 @@
 
   function timeFromMinutes(totalMinutes) {
     const normalized = clamp(Math.round(totalMinutes), 0, 23 * 60 + 59);
+    const hour = Math.floor(normalized / 60);
+    const minute = normalized % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  function timeFromBlockMinute(totalMinutes) {
+    const day = 24 * 60;
+    const normalized = ((Math.round(totalMinutes) % day) + day) % day;
     const hour = Math.floor(normalized / 60);
     const minute = normalized % 60;
     return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
