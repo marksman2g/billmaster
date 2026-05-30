@@ -4998,6 +4998,14 @@ canvas {
   overflow: hidden;
   padding: 0;
   border-left: 5px solid var(--importance-color, var(--accent));
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.note-card:hover,
+.note-card:focus-visible {
+  box-shadow: 0 10px 26px rgba(26, 31, 54, 0.13);
+  transform: translateY(-1px);
 }
 
 .note-card .card-row > div:first-child {

@@ -3384,7 +3384,7 @@
     const media = entityImage(note);
     const importanceColor = noteImportanceColor(note.importance);
     const selected = ui.selectedNotes.includes(note.id);
-    return `<article class="note-card note-${String(note.importance || "Low").toLowerCase()} ${selected ? "selected" : ""}" style="--importance-color:${importanceColor};">
+    return `<article class="note-card note-${String(note.importance || "Low").toLowerCase()} ${selected ? "selected" : ""}" style="--importance-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}" role="button" tabindex="0" aria-label="Open note ${esc(note.title)}">
       ${media ? `<div class="cover-frame" ${imageStyleAttr(note)}><img class="cover" src="${esc(media)}" alt=""></div>` : ""}
       <div class="note-body">
         <div class="card-row"><div style="display:flex;gap:10px;align-items:center;"><button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button><span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span><h2 class="entity-title">${esc(note.title)}</h2></div><div style="display:flex;gap:6px;"><button class="icon-btn" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}" aria-label="Duplicate note">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-note" data-id="${note.id}" aria-label="Delete note">${icon("trash")}</button></div></div>
@@ -5810,6 +5810,11 @@
   });
 
   document.addEventListener("keydown", (event) => {
+    const noteCardEl = event.target.closest?.(".note-card[data-action='open-modal']");
+    if (noteCardEl && (event.key === "Enter" || event.key === " ") && !event.target.closest("button,input,select,textarea,a")) {
+      event.preventDefault();
+      return handleAction(noteCardEl);
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "t") {
       event.preventDefault();
       const input = document.getElementById("quickTaskInput");
