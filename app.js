@@ -9811,6 +9811,10 @@
         showToast("Supabase reached, but the BillMaster SQL table is missing. Run supabase/schema.sql first.", "danger");
         return;
       }
+      if (/permission denied|insufficient privilege|not exposed|schema cache/i.test(message)) {
+        showToast("Supabase reached, but the Data API grants are missing. Run the latest supabase/schema.sql again.", "danger");
+        return;
+      }
       if (tableProbe.ok || [401, 403].includes(tableProbe.status)) {
         showToast("Supabase reached. If it says protected until sign-in, that is normal.");
         return;

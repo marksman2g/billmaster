@@ -11,6 +11,12 @@ create table if not exists public.billmaster_workspaces (
 
 alter table public.billmaster_workspaces enable row level security;
 
+-- Supabase projects with "Automatically expose new tables" disabled need explicit API grants.
+-- RLS policies below still decide which rows are actually visible or writable.
+grant usage on schema public to anon, authenticated;
+grant select on table public.billmaster_workspaces to anon;
+grant select, insert, update on table public.billmaster_workspaces to authenticated;
+
 drop policy if exists "Users can read their own BillMaster workspace" on public.billmaster_workspaces;
 create policy "Users can read their own BillMaster workspace"
 on public.billmaster_workspaces

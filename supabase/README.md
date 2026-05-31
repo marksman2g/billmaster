@@ -25,6 +25,8 @@ This folder is the first practical move toward cross-device sync.
 
 After that, open BillMaster on another device, use the same setup values, sign in, and click Pull cloud.
 
+If the setup test says the Data API grants are missing, run `supabase/schema.sql` again. It is safe to rerun because the table, bucket, and policies are written with `if not exists` / `drop policy if exists`.
+
 ## Why One Workspace Table First
 
 BillMaster is currently a large local prototype. A single `billmaster_workspaces` JSON payload gives us the fastest useful cross-device sync without risking weeks of relational migration work up front.
