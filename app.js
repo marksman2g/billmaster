@@ -4294,18 +4294,18 @@
 
   function modalCloudAuth() {
     const profile = activeProfile();
-    return `${modalHeader("Cloud Sign In", "Use Supabase Auth for the real account that will sync this workspace across devices.")}
+    return `${modalHeader("Cloud Sign In", "Create or sign into the BillMaster user account that will own this synced workspace.")}
       <section class="section-card" style="box-shadow:none;background:#fff8e5;margin-bottom:14px;">
-        <div class="section-title"><h2>Before You Sign In</h2><span class="status warn">Beta</span></div>
-        <p class="muted">Run the SQL in supabase/schema.sql first. Then create an account or sign in and use Push local to upload this device's workspace.</p>
+        <div class="section-title"><h2>Use App Credentials</h2><span class="status warn">Beta</span></div>
+        <p class="muted">This is not your Supabase dashboard password, database password, API URL, or publishable key. First time here? Enter your email and a new BillMaster password, then choose Create account.</p>
       </section>
       <div class="field-grid">
         ${field("cloudDisplayName", "Display Name", profile?.displayName || "", "Your name")}
         ${field("cloudEmail", "Email", profile?.username?.includes("@") ? profile.username : "", "you@example.com", "email")}
-        ${field("cloudPassword", "Password", "", "Supabase password", "password")}
+        ${field("cloudPassword", "BillMaster Cloud Password", "", "Create or enter your app password", "password")}
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
-        <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account</button>
+        <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account first</button>
         <button class="secondary-btn" data-action="cloud-sign-in">${icon("check")} Sign in</button>
       </div>`;
   }
