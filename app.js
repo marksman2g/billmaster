@@ -433,8 +433,11 @@
   }
 
   function normalizeCloudConfig(config) {
+    const rawUrl = String(config?.url || "").trim();
+    let url = rawUrl.replace(/\/+$/, "");
+    url = url.replace(/\/(rest|auth|storage|graphql)\/v1\/?$/i, "");
     return {
-      url: String(config?.url || "").trim().replace(/\/+$/, ""),
+      url,
       anonKey: String(config?.anonKey || "").trim()
     };
   }
@@ -524,6 +527,25 @@
       throw new Error(message);
     }
     return body;
+  }
+
+  async function cloudProbe(path, options = {}) {
+    const response = await fetch(`${cloudConfig.url}${path}`, {
+      method: "GET",
+      ...options,
+      headers: cloudHeaders(false, options.headers || {})
+    });
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        body = text;
+      }
+    }
+    const message = body?.msg || body?.message || body?.error_description || body?.error || text || response.statusText || "";
+    return { ok: response.ok, status: response.status, message, body };
   }
 
   function saveProfiles() {
@@ -4258,11 +4280,11 @@
     return `${modalHeader("Supabase Setup", "Paste the four values from your Supabase project when you are ready. This prototype stores the public URL and anon key in this browser only.")}
       <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="section-title"><h2>First Cloud Table</h2><span class="status info">billmaster_workspaces</span></div>
-        <p class="muted">This starts with one private workspace payload per user so phone, iPad, and desktop can sync quickly. Later we can split the payload into full relational tables.</p>
+        <p class="muted">Use the Supabase API URL that ends in <strong>.supabase.co</strong>. If you paste a REST/Auth URL, BillMaster will clean it up. Use the publishable/anon public key, never the service role key.</p>
       </section>
       <div class="field-grid">
         ${field("cloudUrl", "Supabase Project URL", cloudConfig.url || "", "https://your-project.supabase.co", "url")}
-        ${field("cloudAnonKey", "Supabase Public Anon Key", cloudConfig.anonKey || "", "eyJhbGciOi...", "password")}
+        ${field("cloudAnonKey", "Supabase Public Anon / Publishable Key", cloudConfig.anonKey || "", "sb_publishable_... or eyJhbGciOi...", "password")}
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="test-cloud-config">${icon("search")} Test</button>
@@ -9768,11 +9790,34 @@
       return;
     }
     saveCloudConfigLocal({ url, anonKey });
+    if (!/^https:\/\/.+\.supabase\.co$/i.test(cloudConfig.url)) {
+      showToast("Check the Project URL. It should look like https://your-project.supabase.co", "danger");
+      return;
+    }
     try {
-      await cloudFetch("/auth/v1/health", { method: "GET", headers: { "Content-Type": "application/json" } }, false);
-      showToast("Supabase responded. Setup looks ready.");
+      const authProbe = await cloudProbe("/auth/v1/health");
+      if (authProbe.ok) {
+        showToast("Supabase Auth responded. Setup looks ready.");
+        return;
+      }
+
+      const tableProbe = await cloudProbe("/rest/v1/billmaster_workspaces?select=user_id&limit=1");
+      const message = String(tableProbe.message || authProbe.message || "");
+      if (/invalid api key|no api key|apikey|jwt malformed/i.test(message)) {
+        showToast("The key was rejected. Use the publishable/anon public key, not the service role key.", "danger");
+        return;
+      }
+      if (/relation .*billmaster_workspaces.*does not exist|could not find .*billmaster_workspaces/i.test(message)) {
+        showToast("Supabase reached, but the BillMaster SQL table is missing. Run supabase/schema.sql first.", "danger");
+        return;
+      }
+      if (tableProbe.ok || [401, 403].includes(tableProbe.status)) {
+        showToast("Supabase reached. If it says protected until sign-in, that is normal.");
+        return;
+      }
+      showToast(`Supabase test failed: ${message || `status ${tableProbe.status || authProbe.status}`}`, "danger");
     } catch (error) {
-      showToast(`Supabase test failed: ${error.message}`, "danger");
+      showToast(`Supabase test failed. Check the URL/key and internet connection. ${error.message}`, "danger");
     }
   }
 
