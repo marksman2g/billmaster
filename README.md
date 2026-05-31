@@ -38,6 +38,7 @@ Phase 0 cloud-readiness files:
 - `service-worker.js` - adds a small PWA shell cache for hosted installs and reload resilience.
 - `netlify.toml` - static publish config for Netlify.
 - `vercel.json` - static publish config for Vercel.
+- `supabase/schema.sql` - first private workspace sync table and media bucket policies.
 
 GitHub Pages is enough for a public prototype link. Vercel or Netlify is the better next host for private beta previews, especially once Supabase environment values are added.
 
@@ -65,3 +66,13 @@ Use the dashboard data tools button to download a JSON backup or reset the demo 
 You can use this prototype on Android, iPad, and desktop through a browser if the files are hosted or served from the computer. Until Supabase is connected, each browser/device saves its own local data. To use the same personal data across phone, iPad, and Windows, the next step is real cloud auth and database storage.
 
 When hosted over `https`, the app can be installed from supported mobile browsers as a PWA-style shortcut. True cross-device sync still requires Supabase Auth, database tables, storage, and Row Level Security.
+
+## Supabase Phase 1 Starter
+
+The Sync Center now has a Supabase Cloud Workspace panel. After running `supabase/schema.sql` in Supabase and pasting the Project URL plus anon key, you can:
+
+- create or sign into a Supabase account,
+- push the current local workspace to Supabase,
+- pull that workspace on another device.
+
+This is the fastest path to real cross-device testing. It stores the full prototype workspace as one private JSON payload first; later migrations can split the data into dedicated relational tables.

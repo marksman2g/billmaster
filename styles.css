@@ -1731,6 +1731,67 @@ button.round-icon {
   margin-bottom: 14px;
 }
 
+.cloud-workspace-panel {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 14px;
+  border-color: #b7d7ff;
+  background: linear-gradient(135deg, #f8fbff, #eef6ff);
+}
+
+.cloud-workspace-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.compact-title {
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.compact-title h2 {
+  margin: 0;
+}
+
+.cloud-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cloud-facts span {
+  min-width: 0;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.cloud-facts strong,
+.cloud-facts small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-facts strong {
+  color: var(--navy-2);
+  font-size: 0.78rem;
+}
+
+.cloud-facts small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cloud-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .sync-card {
   display: grid;
   gap: 10px;
@@ -6331,6 +6392,11 @@ canvas {
 @media (max-width: 640px) {
   .prism-hero,
   .sync-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .cloud-facts,
+  .cloud-actions {
     grid-template-columns: 1fr;
   }
 

@@ -5,6 +5,8 @@
   const PROFILES_KEY = "billmaster-web-profiles-v1";
   const ACTIVE_PROFILE_KEY = "billmaster-web-active-profile-v1";
   const SESSION_FALLBACK_PREFIX = "billmaster-session-fallback:";
+  const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
+  const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
 
   const ui = {
@@ -230,6 +232,8 @@
   let profiles = loadProfiles();
   let currentProfileId = loadActiveProfileId(profiles);
   let data = loadData();
+  let cloudConfig = loadCloudConfig();
+  let cloudSession = loadCloudSession();
   let lastSavedSnapshot = JSON.stringify(data);
   const undoStack = [];
   const app = document.getElementById("app");
@@ -316,6 +320,13 @@
     "save-profile",
     "login-profile",
     "delete-profile",
+    "save-cloud-config",
+    "test-cloud-config",
+    "cloud-sign-in",
+    "cloud-sign-up",
+    "cloud-sign-out",
+    "cloud-push-workspace",
+    "cloud-pull-workspace",
     "simulate-detect",
     "simulate-import",
     "run-smart-sync",
@@ -409,6 +420,110 @@
       // Fall back below.
     }
     return profileList[0]?.id || "";
+  }
+
+  function loadCloudConfig() {
+    try {
+      const raw = localStorage.getItem(CLOUD_CONFIG_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return normalizeCloudConfig(parsed);
+    } catch (error) {
+      return normalizeCloudConfig({});
+    }
+  }
+
+  function normalizeCloudConfig(config) {
+    return {
+      url: String(config?.url || "").trim().replace(/\/+$/, ""),
+      anonKey: String(config?.anonKey || "").trim()
+    };
+  }
+
+  function saveCloudConfigLocal(config) {
+    cloudConfig = normalizeCloudConfig(config);
+    localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+  }
+
+  function loadCloudSession() {
+    try {
+      const raw = localStorage.getItem(CLOUD_SESSION_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed?.accessToken || !parsed?.user?.id) return null;
+      return parsed;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveCloudSession(session) {
+    cloudSession = session || null;
+    if (cloudSession) localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+    else localStorage.removeItem(CLOUD_SESSION_KEY);
+  }
+
+  function cloudConfigured() {
+    return Boolean(cloudConfig.url && cloudConfig.anonKey);
+  }
+
+  function cloudSignedIn() {
+    return Boolean(cloudConfigured() && cloudSession?.accessToken && cloudSession?.user?.id);
+  }
+
+  function cloudStatusLabel() {
+    if (!cloudConfigured()) return "Needs keys";
+    if (!cloudSignedIn()) return "Keys saved";
+    return "Signed in";
+  }
+
+  function cloudStatusClass() {
+    if (!cloudConfigured()) return "warn";
+    if (!cloudSignedIn()) return "info";
+    return "success";
+  }
+
+  function cloudSafeEmail() {
+    return cloudSession?.user?.email || activeProfile()?.username || "Not signed in";
+  }
+
+  function cloudProjectHost() {
+    if (!cloudConfig.url) return "";
+    try {
+      return new URL(cloudConfig.url).host;
+    } catch (error) {
+      return cloudConfig.url;
+    }
+  }
+
+  function cloudHeaders(authenticated = true, extra = {}) {
+    const headers = {
+      apikey: cloudConfig.anonKey,
+      "Content-Type": "application/json",
+      ...extra
+    };
+    if (authenticated && cloudSession?.accessToken) headers.Authorization = `Bearer ${cloudSession.accessToken}`;
+    return headers;
+  }
+
+  async function cloudFetch(path, options = {}, authenticated = true) {
+    if (!cloudConfigured()) throw new Error("Supabase is not configured.");
+    const response = await fetch(`${cloudConfig.url}${path}`, {
+      ...options,
+      headers: cloudHeaders(authenticated, options.headers || {})
+    });
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        body = text;
+      }
+    }
+    if (!response.ok) {
+      const message = body?.msg || body?.message || body?.error_description || body?.error || `Supabase request failed (${response.status}).`;
+      throw new Error(message);
+    }
+    return body;
   }
 
   function saveProfiles() {
@@ -1811,6 +1926,7 @@
         </div>
         <div class="balance-meta"><span>${icon("wallet")} Bank/Card sync</span><span>${icon("receipt")} Biller sync</span><span>${icon("note")} Import inbox</span></div>
       </section>
+      ${cloudWorkspacePanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       <section class="section-card">
         <div class="section-title"><h2>Production Integration Plan</h2><span class="status info">Staged</span></div>
@@ -1821,6 +1937,32 @@
           ${syncRoadmapStep("4", "Cancellation", "Start with guided workflows, provider links, email templates, and confirmation capture before direct APIs.")}
         </div>
       </section>
+    </section>`;
+  }
+
+  function cloudWorkspacePanel() {
+    const configured = cloudConfigured();
+    const signedIn = cloudSignedIn();
+    const lastSync = data.settings?.cloudLastSyncAt ? `${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))} ${new Date(data.settings.cloudLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Not synced yet";
+    return `<section class="section-card cloud-workspace-panel">
+      <div class="cloud-workspace-head">
+        <span class="round-icon" style="color:${signedIn ? "var(--green)" : configured ? "var(--blue)" : "var(--amber)"};background:${signedIn ? "#e9f8ef" : configured ? "#eaf4ff" : "#fff5d6"}">${icon(signedIn ? "check" : configured ? "settings" : "alert")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Supabase Cloud Workspace</h2><span class="status ${cloudStatusClass()}">${cloudStatusLabel()}</span></div>
+          <p class="muted">First cloud-sync step: save this full BillMaster workspace to your private Supabase account, then pull it on another device.</p>
+        </div>
+      </div>
+      <div class="cloud-facts">
+        <span><strong>Project</strong><small>${configured ? esc(cloudProjectHost()) : "Add Supabase URL"}</small></span>
+        <span><strong>Account</strong><small>${esc(cloudSafeEmail())}</small></span>
+        <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
+      </div>
+      <div class="sheet-actions cloud-actions">
+        <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Setup</button>
+        ${signedIn ? `<button class="outline-btn" data-action="cloud-sign-out">${icon("close")} Sign out</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${configured ? "" : "disabled"}>${icon("home")} Sign in</button>`}
+        <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
+        <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
+      </div>
     </section>`;
   }
 
@@ -3705,6 +3847,8 @@
     if (type === "taskDefaults") content = modalTaskDefaults();
     if (type === "profiles") content = modalProfiles();
     if (type === "profileLogin") content = modalProfileLogin(modalId);
+    if (type === "cloudSetup") content = modalCloudSetup();
+    if (type === "cloudAuth") content = modalCloudAuth();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
     if (type === "addSubscription") content = modalAddSubscription();
@@ -4107,6 +4251,40 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="open-modal" data-modal="profiles">Back</button>
         <button class="secondary-btn" data-action="login-profile" data-id="${profile.id}">${icon("check")} Sign In</button>
+      </div>`;
+  }
+
+  function modalCloudSetup() {
+    return `${modalHeader("Supabase Setup", "Paste the four values from your Supabase project when you are ready. This prototype stores the public URL and anon key in this browser only.")}
+      <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="section-title"><h2>First Cloud Table</h2><span class="status info">billmaster_workspaces</span></div>
+        <p class="muted">This starts with one private workspace payload per user so phone, iPad, and desktop can sync quickly. Later we can split the payload into full relational tables.</p>
+      </section>
+      <div class="field-grid">
+        ${field("cloudUrl", "Supabase Project URL", cloudConfig.url || "", "https://your-project.supabase.co", "url")}
+        ${field("cloudAnonKey", "Supabase Public Anon Key", cloudConfig.anonKey || "", "eyJhbGciOi...", "password")}
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="test-cloud-config">${icon("search")} Test</button>
+        <button class="secondary-btn" data-action="save-cloud-config">${icon("check")} Save Setup</button>
+      </div>`;
+  }
+
+  function modalCloudAuth() {
+    const profile = activeProfile();
+    return `${modalHeader("Cloud Sign In", "Use Supabase Auth for the real account that will sync this workspace across devices.")}
+      <section class="section-card" style="box-shadow:none;background:#fff8e5;margin-bottom:14px;">
+        <div class="section-title"><h2>Before You Sign In</h2><span class="status warn">Beta</span></div>
+        <p class="muted">Run the SQL in supabase/schema.sql first. Then create an account or sign in and use Push local to upload this device's workspace.</p>
+      </section>
+      <div class="field-grid">
+        ${field("cloudDisplayName", "Display Name", profile?.displayName || "", "Your name")}
+        ${field("cloudEmail", "Email", profile?.username?.includes("@") ? profile.username : "", "you@example.com", "email")}
+        ${field("cloudPassword", "Password", "", "Supabase password", "password")}
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account</button>
+        <button class="secondary-btn" data-action="cloud-sign-in">${icon("check")} Sign in</button>
       </div>`;
   }
 
@@ -6159,6 +6337,13 @@
     if (action === "login-profile") return loginProfile(el.dataset.id);
     if (action === "lock-profile") return lockProfile();
     if (action === "delete-profile") return deleteProfile(el.dataset.id);
+    if (action === "save-cloud-config") return saveCloudConfig();
+    if (action === "test-cloud-config") return testCloudConfig();
+    if (action === "cloud-sign-in") return cloudSignIn();
+    if (action === "cloud-sign-up") return cloudSignUp();
+    if (action === "cloud-sign-out") return cloudSignOut();
+    if (action === "cloud-push-workspace") return cloudPushWorkspace();
+    if (action === "cloud-pull-workspace") return cloudPullWorkspace();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
     if (action === "simulate-import") return simulateImport();
@@ -9561,6 +9746,158 @@
     ui.modal = null;
     render();
     showToast("Profile deleted.");
+  }
+
+  async function saveCloudConfig() {
+    const url = value("cloudUrl");
+    const anonKey = value("cloudAnonKey");
+    if (!url || !anonKey) {
+      showToast("Add your Supabase URL and anon key first.", "danger");
+      return;
+    }
+    saveCloudConfigLocal({ url, anonKey });
+    ui.modal = null;
+    showToast("Supabase setup saved for this browser.");
+  }
+
+  async function testCloudConfig() {
+    const url = value("cloudUrl") || cloudConfig.url;
+    const anonKey = value("cloudAnonKey") || cloudConfig.anonKey;
+    if (!url || !anonKey) {
+      showToast("Add your Supabase URL and anon key first.", "danger");
+      return;
+    }
+    saveCloudConfigLocal({ url, anonKey });
+    try {
+      await cloudFetch("/auth/v1/health", { method: "GET", headers: { "Content-Type": "application/json" } }, false);
+      showToast("Supabase responded. Setup looks ready.");
+    } catch (error) {
+      showToast(`Supabase test failed: ${error.message}`, "danger");
+    }
+  }
+
+  async function cloudSignUp() {
+    const email = value("cloudEmail");
+    const password = value("cloudPassword");
+    const displayName = value("cloudDisplayName") || activeProfile()?.displayName || "";
+    if (!email || !password) {
+      showToast("Enter an email and password for Supabase.", "danger");
+      return;
+    }
+    try {
+      const result = await cloudFetch("/auth/v1/signup", {
+        method: "POST",
+        body: JSON.stringify({ email, password, data: { display_name: displayName } })
+      }, false);
+      if (result?.access_token) {
+        saveCloudSession(sessionFromAuthResult(result));
+        ui.modal = null;
+        showToast("Cloud account created and signed in.");
+      } else {
+        showToast("Cloud account created. Check email confirmation if Supabase requires it.");
+      }
+    } catch (error) {
+      showToast(`Could not create cloud account: ${error.message}`, "danger");
+    }
+  }
+
+  async function cloudSignIn() {
+    const email = value("cloudEmail");
+    const password = value("cloudPassword");
+    if (!email || !password) {
+      showToast("Enter your Supabase email and password.", "danger");
+      return;
+    }
+    try {
+      const result = await cloudFetch("/auth/v1/token?grant_type=password", {
+        method: "POST",
+        body: JSON.stringify({ email, password })
+      }, false);
+      saveCloudSession(sessionFromAuthResult(result));
+      ui.modal = null;
+      showToast("Signed in to Supabase cloud sync.");
+    } catch (error) {
+      showToast(`Cloud sign in failed: ${error.message}`, "danger");
+    }
+  }
+
+  function sessionFromAuthResult(result) {
+    return {
+      accessToken: result.access_token || "",
+      refreshToken: result.refresh_token || "",
+      expiresAt: Date.now() + Number(result.expires_in || 3600) * 1000,
+      user: {
+        id: result.user?.id || "",
+        email: result.user?.email || ""
+      }
+    };
+  }
+
+  async function cloudSignOut() {
+    try {
+      if (cloudSignedIn()) {
+        await cloudFetch("/auth/v1/logout", { method: "POST", body: "{}" }, true);
+      }
+    } catch (error) {
+      // Local sign out should still happen if Supabase is unreachable.
+    }
+    saveCloudSession(null);
+    showToast("Signed out of cloud sync.");
+  }
+
+  async function cloudPushWorkspace() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before pushing this workspace.", "danger");
+      return;
+    }
+    try {
+      data.settings.cloudLastSyncAt = new Date().toISOString();
+      data.settings.cloudLastDirection = "push";
+      saveData({ undo: false });
+      const profile = activeProfile();
+      const workspace = {
+        user_id: cloudSession.user.id,
+        profile_id: currentProfileId,
+        profile_name: profile?.displayName || "BillMaster User",
+        payload: data,
+        updated_at: data.settings.cloudLastSyncAt
+      };
+      await cloudFetch("/rest/v1/billmaster_workspaces?on_conflict=user_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(workspace)
+      });
+      showToast("Local workspace pushed to Supabase.");
+    } catch (error) {
+      showToast(`Cloud push failed: ${error.message}`, "danger");
+    }
+  }
+
+  async function cloudPullWorkspace() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before pulling cloud data.", "danger");
+      return;
+    }
+    try {
+      const rows = await cloudFetch(`/rest/v1/billmaster_workspaces?select=payload,updated_at&user_id=eq.${encodeURIComponent(cloudSession.user.id)}&limit=1`, {
+        method: "GET"
+      });
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row?.payload) {
+        showToast("No cloud workspace found yet. Push local first.", "danger");
+        return;
+      }
+      data = normalizeData(mergeSeed(clone(seed), row.payload));
+      data.settings.cloudLastSyncAt = new Date().toISOString();
+      data.settings.cloudLastDirection = "pull";
+      resetUndoBaseline();
+      saveData({ undo: false });
+      ui.modal = null;
+      render();
+      showToast("Cloud workspace pulled into this device.");
+    } catch (error) {
+      showToast(`Cloud pull failed: ${error.message}`, "danger");
+    }
   }
 
   function simulateBillScan() {
