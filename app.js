@@ -9900,24 +9900,29 @@
       return;
     }
     try {
-      data.settings.cloudLastSyncAt = new Date().toISOString();
-      data.settings.cloudLastDirection = "push";
-      saveData({ undo: false });
+      const pushedAt = new Date().toISOString();
       const profile = activeProfile();
       const workspace = {
         user_id: cloudSession.user.id,
         profile_id: currentProfileId,
         profile_name: profile?.displayName || "BillMaster User",
         payload: data,
-        updated_at: data.settings.cloudLastSyncAt
+        updated_at: pushedAt
       };
       await cloudFetch("/rest/v1/billmaster_workspaces?on_conflict=user_id", {
         method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify(workspace)
       });
+      data.settings.cloudLastSyncAt = pushedAt;
+      data.settings.cloudLastDirection = "push";
+      saveData({ undo: false });
       showToast("Local workspace pushed to Supabase.");
     } catch (error) {
+      if (/permission denied|insufficient privilege|not exposed|schema cache/i.test(error.message)) {
+        showToast("Cloud push failed: run the latest Supabase grants SQL, then try Push local again.", "danger");
+        return;
+      }
       showToast(`Cloud push failed: ${error.message}`, "danger");
     }
   }
