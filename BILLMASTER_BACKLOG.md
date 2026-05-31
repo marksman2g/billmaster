@@ -4,6 +4,7 @@ This file keeps the running product requests in one place so ideas do not get lo
 
 ## Current Focus
 
+- Phase 0 cloud foundation: hosting config, PWA shell, cloud setup documentation, and Supabase migration preparation. Started.
 - First-class habit tracker that ties into Month, Week, Day, and Block calendar views. Done in prototype.
 - Project detail workflow fixes: project back behavior, project picture editing, project-scoped task creation, task checklist items, image positioning. Done in prototype.
 - User/profile separation so friends can eventually use their own private data. Local prototype done; real Supabase Auth remains.
@@ -41,6 +42,8 @@ This file keeps the running product requests in one place so ideas do not get lo
 
 ## Next Architecture Steps
 
+- Choose first production-style host: keep GitHub Pages for the public demo, then connect Vercel or Netlify for beta previews.
+- Collect Supabase project URL, anon key, storage bucket name, and migration access.
 - Move from localStorage prototype data to Supabase tables.
 - Add Supabase Auth for real usernames/passwords.
 - Add row-level security policies so users only see their own data.

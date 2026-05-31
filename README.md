@@ -23,6 +23,24 @@ Open `index.html` in a browser.
 
 No build step is required.
 
+## Cloud / Deployment
+
+Current live prototype:
+
+```text
+https://marksman2g.github.io/billmaster/
+```
+
+Phase 0 cloud-readiness files:
+
+- `CLOUD_FOUNDATION.md` - the practical setup checklist for hosting, Supabase, cloud access, and picture storage.
+- `.nojekyll` - keeps GitHub Pages serving the static files directly.
+- `service-worker.js` - adds a small PWA shell cache for hosted installs and reload resilience.
+- `netlify.toml` - static publish config for Netlify.
+- `vercel.json` - static publish config for Vercel.
+
+GitHub Pages is enough for a public prototype link. Vercel or Netlify is the better next host for private beta previews, especially once Supabase environment values are added.
+
 ## Test
 
 If Node.js is installed:
@@ -45,3 +63,5 @@ Use the dashboard data tools button to download a JSON backup or reset the demo 
 ## Mobile Today
 
 You can use this prototype on Android, iPad, and desktop through a browser if the files are hosted or served from the computer. Until Supabase is connected, each browser/device saves its own local data. To use the same personal data across phone, iPad, and Windows, the next step is real cloud auth and database storage.
+
+When hosted over `https`, the app can be installed from supported mobile browsers as a PWA-style shortcut. True cross-device sync still requires Supabase Auth, database tables, storage, and Row Level Security.
