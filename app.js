@@ -87,7 +87,8 @@
       taskDefaultBgColor: DEFAULT_TASK_BG,
       categoryColors: { ...defaultCategoryColors },
       customTaskCategories: [],
-      interfaceMode: "power"
+      interfaceMode: "power",
+      cloudAutoSync: false
     },
     accounts: [
       { id: "acct_1", name: "Chase Checking", type: "Checking", last4: "4521", balance: 3245.67, color: "teal" },
@@ -238,6 +239,9 @@
   const undoStack = [];
   const app = document.getElementById("app");
   let toastTimer = null;
+  let cloudAutoPushTimer = null;
+  let cloudPushInFlight = false;
+  let cloudPushQueued = false;
   const recentWrites = new Map();
   const pendingActions = new Set();
   let blockDragState = null;
@@ -472,6 +476,10 @@
     return Boolean(cloudConfigured() && cloudSession?.accessToken && cloudSession?.user?.id);
   }
 
+  function cloudAutoSyncEnabled() {
+    return Boolean(cloudSignedIn() && data.settings?.cloudAutoSync);
+  }
+
   function cloudStatusLabel() {
     if (!cloudConfigured()) return "Needs keys";
     if (!cloudSignedIn()) return "Keys saved";
@@ -486,6 +494,11 @@
 
   function cloudSafeEmail() {
     return cloudSession?.user?.email || activeProfile()?.username || "Not signed in";
+  }
+
+  function cloudAutoSyncLabel() {
+    if (!cloudSignedIn()) return "Sign in first";
+    return cloudAutoSyncEnabled() ? "Auto after changes" : "Manual only";
   }
 
   function cloudProjectHost() {
@@ -611,6 +624,7 @@
     nextData.settings.customTaskCategories = normalizeCustomTaskCategories(nextData.settings.customTaskCategories);
     nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
     if (!["simple", "power"].includes(nextData.settings.interfaceMode)) nextData.settings.interfaceMode = "power";
+    nextData.settings.cloudAutoSync = Boolean(nextData.settings.cloudAutoSync);
     if (!taskBackgrounds.includes(nextData.settings.taskDefaultBgColor)) nextData.settings.taskDefaultBgColor = DEFAULT_TASK_BG;
     taskCategories.forEach((category) => {
       if (!isHexColor(nextData.settings.categoryColors[category])) nextData.settings.categoryColors[category] = defaultCategoryColors[category];
@@ -983,6 +997,7 @@
       clearSessionFallback();
       lastSavedSnapshot = serialized;
       ui.lastSaveError = "";
+      if (options.cloudSync !== false) scheduleCloudAutoPush();
       return true;
     } catch (error) {
       console.warn("BillMaster could not save local data.", error);
@@ -1978,12 +1993,14 @@
         <span><strong>Project</strong><small>${configured ? esc(cloudProjectHost()) : "Add Supabase URL"}</small></span>
         <span><strong>Account</strong><small>${esc(cloudSafeEmail())}</small></span>
         <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
+        <span><strong>Mode</strong><small>${esc(cloudAutoSyncLabel())}</small></span>
       </div>
       <div class="sheet-actions cloud-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Setup</button>
         ${signedIn ? `<button class="outline-btn" data-action="cloud-sign-out">${icon("close")} Sign out</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${configured ? "" : "disabled"}>${icon("home")} Sign in</button>`}
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
+        <button class="outline-btn" data-action="toggle-cloud-auto-sync" ${signedIn ? "" : "disabled"}>${icon(cloudAutoSyncEnabled() ? "check" : "settings")} Auto ${cloudAutoSyncEnabled() ? "On" : "Off"}</button>
       </div>
     </section>`;
   }
@@ -6366,6 +6383,7 @@
     if (action === "cloud-sign-out") return cloudSignOut();
     if (action === "cloud-push-workspace") return cloudPushWorkspace();
     if (action === "cloud-pull-workspace") return cloudPullWorkspace();
+    if (action === "toggle-cloud-auto-sync") return toggleCloudAutoSync();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
     if (action === "simulate-import") return simulateImport();
@@ -9894,30 +9912,77 @@
     showToast("Signed out of cloud sync.");
   }
 
-  async function cloudPushWorkspace() {
+  function scheduleCloudAutoPush(delay = 1800) {
+    if (!cloudAutoSyncEnabled()) return;
+    clearTimeout(cloudAutoPushTimer);
+    cloudAutoPushTimer = setTimeout(() => {
+      performCloudAutoPush();
+    }, delay);
+  }
+
+  async function performCloudAutoPush() {
+    if (!cloudAutoSyncEnabled()) return;
+    if (cloudPushInFlight) {
+      cloudPushQueued = true;
+      return;
+    }
+    cloudPushInFlight = true;
+    try {
+      await pushWorkspaceToCloud("auto");
+      if (ui.view === "sync") render();
+    } catch (error) {
+      console.warn("BillMaster auto sync failed.", error);
+      data.settings.cloudSyncError = error.message || "Auto sync failed.";
+      saveData({ undo: false, cloudSync: false });
+      showToast("Auto sync paused by an error. Open Sync Center to retry.", "danger");
+    } finally {
+      cloudPushInFlight = false;
+      if (cloudPushQueued) {
+        cloudPushQueued = false;
+        scheduleCloudAutoPush(600);
+      }
+    }
+  }
+
+  async function pushWorkspaceToCloud(direction = "push") {
+    const pushedAt = new Date().toISOString();
+    const profile = activeProfile();
+    const payload = normalizeData(clone(data));
+    payload.settings = {
+      ...(payload.settings || {}),
+      cloudLastSyncAt: pushedAt,
+      cloudLastDirection: direction,
+      cloudSyncError: ""
+    };
+    const workspace = {
+      user_id: cloudSession.user.id,
+      profile_id: currentProfileId,
+      profile_name: profile?.displayName || "BillMaster User",
+      payload,
+      updated_at: pushedAt
+    };
+    await cloudFetch("/rest/v1/billmaster_workspaces?on_conflict=user_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(workspace)
+    });
+    data.settings.cloudLastSyncAt = pushedAt;
+    data.settings.cloudLastDirection = direction;
+    data.settings.cloudSyncError = "";
+    saveData({ undo: false, cloudSync: false });
+  }
+
+  async function cloudPushWorkspace(options = {}) {
     if (!cloudSignedIn()) {
       showToast("Sign in to Supabase before pushing this workspace.", "danger");
       return;
     }
     try {
-      const pushedAt = new Date().toISOString();
-      const profile = activeProfile();
-      const workspace = {
-        user_id: cloudSession.user.id,
-        profile_id: currentProfileId,
-        profile_name: profile?.displayName || "BillMaster User",
-        payload: data,
-        updated_at: pushedAt
-      };
-      await cloudFetch("/rest/v1/billmaster_workspaces?on_conflict=user_id", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(workspace)
-      });
-      data.settings.cloudLastSyncAt = pushedAt;
-      data.settings.cloudLastDirection = "push";
-      saveData({ undo: false });
-      showToast("Local workspace pushed to Supabase.");
+      await pushWorkspaceToCloud("push");
+      data.settings.cloudAutoSync = true;
+      saveData({ undo: false, cloudSync: false });
+      if (!options.silent) showToast("Local workspace pushed to Supabase. Auto sync is now on.");
+      if (ui.view === "sync") render();
     } catch (error) {
       if (/permission denied|insufficient privilege|not exposed|schema cache/i.test(error.message)) {
         showToast("Cloud push failed: run the latest Supabase grants SQL, then try Push local again.", "danger");
@@ -9925,6 +9990,24 @@
       }
       showToast(`Cloud push failed: ${error.message}`, "danger");
     }
+  }
+
+  function toggleCloudAutoSync() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in before enabling auto sync.", "danger");
+      return;
+    }
+    data.settings.cloudAutoSync = !cloudAutoSyncEnabled();
+    saveData({ undo: false, cloudSync: false });
+    if (data.settings.cloudAutoSync) {
+      showToast("Auto sync is on. BillMaster will push changes after you save.");
+      scheduleCloudAutoPush(300);
+    } else {
+      clearTimeout(cloudAutoPushTimer);
+      cloudPushQueued = false;
+      showToast("Auto sync is off. Use Push local or Pull cloud manually.");
+    }
+    render();
   }
 
   async function cloudPullWorkspace() {
@@ -9944,11 +10027,13 @@
       data = normalizeData(mergeSeed(clone(seed), row.payload));
       data.settings.cloudLastSyncAt = new Date().toISOString();
       data.settings.cloudLastDirection = "pull";
+      data.settings.cloudAutoSync = true;
+      data.settings.cloudSyncError = "";
       resetUndoBaseline();
-      saveData({ undo: false });
+      saveData({ undo: false, cloudSync: false });
       ui.modal = null;
       render();
-      showToast("Cloud workspace pulled into this device.");
+      showToast("Cloud workspace pulled into this device. Auto sync is now on.");
     } catch (error) {
       showToast(`Cloud pull failed: ${error.message}`, "danger");
     }

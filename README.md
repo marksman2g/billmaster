@@ -74,5 +74,6 @@ The Sync Center now has a Supabase Cloud Workspace panel. After running `supabas
 - create or sign into a Supabase account,
 - push the current local workspace to Supabase,
 - pull that workspace on another device.
+- turn on auto sync after the first successful push or pull so future saves are pushed automatically.
 
 This is the fastest path to real cross-device testing. It stores the full prototype workspace as one private JSON payload first; later migrations can split the data into dedicated relational tables.

@@ -24,6 +24,7 @@ This folder is the first practical move toward cross-device sync.
 10. Click Push local.
 
 After that, open BillMaster on another device, use the same setup values, sign in, and click Pull cloud.
+After the first successful push or pull, BillMaster enables auto sync on that device so later saved changes push to Supabase automatically.
 
 If the setup test says the Data API grants are missing, run `supabase/schema.sql` again. It is safe to rerun because the table, bucket, and policies are written with `if not exists` / `drop policy if exists`.
 

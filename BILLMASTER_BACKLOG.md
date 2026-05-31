@@ -9,7 +9,7 @@ This file keeps the running product requests in one place so ideas do not get lo
 - Project detail workflow fixes: project back behavior, project picture editing, project-scoped task creation, task checklist items, image positioning. Done in prototype.
 - User/profile separation so friends can eventually use their own private data. Local prototype done; real Supabase Auth remains.
 - Product structure pass: Today Briefing, grouped command center actions, Review Inbox naming, one Subscription Hub, and visible launch roadmap. Done in prototype.
-- Phase 1 cloud starter: Supabase setup modal, Auth sign-in/sign-up hooks, private workspace push/pull flow, and starter SQL schema. Started.
+- Phase 1 cloud starter: Supabase setup modal, Auth sign-in/sign-up hooks, private workspace push/pull flow, starter SQL schema, and post-push/pull auto sync. Started.
 
 ## Recently Completed
 
