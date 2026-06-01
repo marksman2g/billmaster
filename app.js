@@ -6867,6 +6867,7 @@
     ui.selectedDate = date || ui.selectedDate;
     ui.calendarView = view;
     ui.selectedTasks = [];
+    if (ui.view !== "calendar") return navigate("calendar");
     render();
   }
 
