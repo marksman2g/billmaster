@@ -1108,6 +1108,7 @@
       trigger: String(notice.trigger || "status"),
       createdAt: String(notice.createdAt || new Date().toISOString()),
       openedAt: String(notice.openedAt || ""),
+      openedBy: String(notice.openedBy || ""),
       copiedAt: String(notice.copiedAt || ""),
       sentAt: String(notice.sentAt || ""),
       error: String(notice.error || "")
@@ -2331,21 +2332,22 @@
         <h2>Notification Outbox</h2>
         <span class="status ${queued.length ? "warning" : "success"}">${queued.length} ready to send</span>
       </div>
-      <p class="muted">Free mode opens an email draft using your device's mail app. Email-to-text works the same way when a contact has a carrier gateway address. Automatic background sending comes later with a server email provider.</p>
+      <p class="muted">Free mode opens a draft in Gmail or your device mail app. Gmail sends from whichever Google account the user is already signed into. Automatic background sending comes later with a server email provider.</p>
       <div class="notification-stats">
         <span><strong>${queued.length}</strong><small>Queued</small></span>
         <span><strong>${opened.length}</strong><small>Opened</small></span>
         <span><strong>${sent.length}</strong><small>Sent</small></span>
       </div>
       <div class="sheet-actions notification-actions">
-        <button class="primary-btn" data-action="send-next-notification" ${queued.length ? "" : "disabled"}>${icon("mail")} Send next queued</button>
+        <button class="primary-btn" data-action="send-next-notification-gmail" ${queued.length ? "" : "disabled"}>${icon("mail")} Open next in Gmail</button>
+        <button class="outline-btn" data-action="send-next-notification" ${queued.length ? "" : "disabled"}>${icon("bell")} Device mail</button>
         <button class="outline-btn" data-action="copy-notification-outbox" ${latest.length ? "" : "disabled"}>${icon("note")} Copy outbox</button>
         <button class="outline-btn" data-action="clear-sent-notifications" ${sent.length ? "" : "disabled"}>${icon("trash")} Clear sent</button>
       </div>
       <div class="roadmap-grid compact-roadmap">
-        ${syncRoadmapStep("1", "Email first", "Use contact email addresses and open/copy alert drafts today.")}
+        ${syncRoadmapStep("1", "Gmail first", "Open prefilled Gmail drafts from the signed-in user's Gmail account.")}
         ${syncRoadmapStep("2", "Email-to-text", "Store carrier gateway addresses for free text-style alerts where available.")}
-        ${syncRoadmapStep("3", "Google contacts", "Read contacts and groups first; create/update comes later.")}
+        ${syncRoadmapStep("3", "Server send later", "Use Resend/SendGrid or Gmail API after OAuth and consent are ready.")}
       </div>
       ${latest.length ? `<div class="notification-list">${latest.map((notice) => notificationNoticeRow(notice)).join("")}</div>` : `<div class="empty-state compact-empty">${icon("bell")}<h3>No alerts yet</h3><p>When a watched task changes status, BillMaster will place the email here.</p></div>`}
     </section>`;
@@ -2365,6 +2367,7 @@
         <div class="subtle">${esc(recipients.slice(0, 3).join(", ") || "No recipients")}${recipients.length > 3 ? ` +${recipients.length - 3} more` : ""}</div>
       </div>
       <div class="notification-row-actions">
+        <button class="primary-btn" data-action="send-notification-gmail" data-id="${esc(notice.id)}" ${recipients.length ? "" : "disabled"}>${icon("mail")} Gmail</button>
         <button class="outline-btn" data-action="send-notification" data-id="${esc(notice.id)}" ${recipients.length ? "" : "disabled"}>${icon("mail")} Open</button>
         <button class="outline-btn" data-action="copy-notification" data-id="${esc(notice.id)}">${icon("note")} Copy</button>
         <button class="success-btn" data-action="mark-notification-sent" data-id="${esc(notice.id)}">${icon("check")} Sent</button>
@@ -5190,7 +5193,7 @@
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${icon("bell")} Alert preview</strong><span class="status muted">${esc(task.status)}</span></div>
         <p class="muted">${esc(message)}</p>
-        <p class="subtle">Pick contacts or groups, then open an email draft or copy the full alert. Email works first; email-to-text works when a contact has a carrier gateway address.</p>
+        <p class="subtle">Pick contacts or groups, then open a Gmail draft, device email draft, or copy the full alert. Gmail sends from whichever Google account is signed in on that device.</p>
       </div>
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="inline-add-heading">${icon("settings")} When to notify</div>
@@ -5222,10 +5225,11 @@
         ${field("taskNotifyRecipient", "Extra Email or Email-to-Text Address", recipient, "person@example.com")}
         ${textArea("taskNotifyMessage", "Message", message, "Alert message")}
       </div>
-      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+      <div class="sheet-actions notify-task-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="editContact">${icon("plus")} New Contact</button>
         <button class="success-btn" data-action="save-task-notify" data-id="${task.id}">${icon("check")} Save Selection</button>
         <button class="outline-btn" data-action="copy-task-alert" data-id="${task.id}">${icon("note")} Copy Alert</button>
+        <button class="primary-btn" data-action="open-task-alert-gmail" data-id="${task.id}">${icon("mail")} Open Gmail</button>
         <button class="primary-btn" data-action="open-task-alert" data-id="${task.id}">${icon("bell")} Open Email</button>
       </div>`;
   }
@@ -6842,9 +6846,12 @@
     if (action === "copy-selected-tomorrow") return copySelectedTomorrow();
     if (action === "copy-selected-to-date") return copySelectedToDate();
     if (action === "open-task-alert") return openTaskAlert(el.dataset.id);
+    if (action === "open-task-alert-gmail") return openTaskAlertGmail(el.dataset.id);
     if (action === "copy-task-alert") return copyTaskAlert(el.dataset.id);
     if (action === "send-next-notification") return sendNextNotification();
+    if (action === "send-next-notification-gmail") return sendNextNotification("gmail");
     if (action === "send-notification") return sendNotificationNotice(el.dataset.id);
+    if (action === "send-notification-gmail") return sendNotificationNotice(el.dataset.id, "gmail");
     if (action === "copy-notification") return copyNotificationNotice(el.dataset.id);
     if (action === "mark-notification-sent") return markNotificationSent(el.dataset.id);
     if (action === "copy-notification-outbox") return copyNotificationOutbox();
@@ -9847,6 +9854,24 @@
     return `mailto:${encodeURIComponent(recipient || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message || taskAlertMessage(task))}`;
   }
 
+  function gmailComposeUrl(recipients, subject, body) {
+    const to = Array.isArray(recipients) ? recipients.join(",") : String(recipients || "");
+    const params = new URLSearchParams({
+      view: "cm",
+      fs: "1",
+      to,
+      su: subject || "BillMaster alert",
+      body: body || ""
+    });
+    return `https://mail.google.com/mail/?${params.toString()}`;
+  }
+
+  function openGmailCompose(recipients, subject, body) {
+    const url = gmailComposeUrl(recipients, subject, body);
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.href = url;
+  }
+
   function notificationStatusLabel(status) {
     if (status === "sent") return "Sent";
     if (status === "opened") return "Opened";
@@ -9883,16 +9908,16 @@
     ].join("\n");
   }
 
-  function sendNextNotification() {
+  function sendNextNotification(mode = "mail") {
     const nextNotice = safeArray(data.notificationLog).find((notice) => notice.deliveryStatus === "queued");
     if (!nextNotice) {
       showToast("No queued notifications to send.");
       return;
     }
-    sendNotificationNotice(nextNotice.id);
+    sendNotificationNotice(nextNotice.id, mode);
   }
 
-  function sendNotificationNotice(noticeId) {
+  function sendNotificationNotice(noticeId, mode = "mail") {
     const notice = notificationNoticeById(noticeId);
     if (!notice) return;
     if (!safeArray(notice.recipients).length) {
@@ -9904,10 +9929,12 @@
     }
     notice.deliveryStatus = "opened";
     notice.openedAt = new Date().toISOString();
+    notice.openedBy = mode === "gmail" ? "gmail" : "device-mail";
     notice.error = "";
     saveData();
-    window.location.href = notificationMailto(notice);
-    showToast("Email draft opened. Tap Sent after you send it.");
+    if (mode === "gmail") openGmailCompose(notice.recipients, notificationSubject(notice), notice.message || "");
+    else window.location.href = notificationMailto(notice);
+    showToast(mode === "gmail" ? "Gmail draft opened. Tap Sent after you send it." : "Email draft opened. Tap Sent after you send it.");
   }
 
   async function copyNotificationNotice(noticeId) {
@@ -10032,6 +10059,19 @@
     }
     const message = value("taskNotifyMessage") || task.notifyMessage || taskAlertMessage(task);
     window.location.href = taskAlertMailto(task, recipient, message);
+  }
+
+  function openTaskAlertGmail(taskId) {
+    const task = data.tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const recipients = taskAlertRecipientsFromModal(task);
+    if (!recipients.length) {
+      showToast("Select a contact with email/phone or enter an address first.", "danger");
+      return;
+    }
+    const message = value("taskNotifyMessage") || task.notifyMessage || taskAlertMessage(task);
+    openGmailCompose(recipients, `BillMaster task alert: ${task.title}`, message);
+    showToast("Gmail draft opened. Tap Sent after you send it.");
   }
 
   async function copyTaskAlert(taskId) {
