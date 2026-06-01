@@ -3436,6 +3436,82 @@ button.round-icon {
   font-size: 0.76rem;
 }
 
+.notification-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.notification-stats span {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.notification-stats strong {
+  color: var(--navy);
+  font-size: 1.1rem;
+}
+
+.notification-stats small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.notification-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.notification-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.notification-main {
+  min-width: 0;
+}
+
+.notification-main strong,
+.notification-main .subtle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-row-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  gap: 8px;
+}
+
+.notification-row-actions .outline-btn,
+.notification-row-actions .success-btn {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.compact-empty {
+  min-height: 130px;
+  padding: 18px;
+}
+
 .subscription-card {
   display: grid;
   gap: 10px;
@@ -6691,6 +6767,17 @@ canvas {
 
   .contacts-grid {
     grid-template-columns: 1fr;
+  }
+
+  .notification-actions,
+  .notification-stats,
+  .notification-row,
+  .notification-row-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-row {
+    align-items: stretch;
   }
 
   .loan-actions {

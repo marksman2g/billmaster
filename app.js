@@ -1106,7 +1106,11 @@
       message: String(notice.message || ""),
       deliveryStatus: String(notice.deliveryStatus || "queued"),
       trigger: String(notice.trigger || "status"),
-      createdAt: String(notice.createdAt || new Date().toISOString())
+      createdAt: String(notice.createdAt || new Date().toISOString()),
+      openedAt: String(notice.openedAt || ""),
+      copiedAt: String(notice.copiedAt || ""),
+      sentAt: String(notice.sentAt || ""),
+      error: String(notice.error || "")
     }));
   }
 
@@ -2319,17 +2323,53 @@
 
   function notificationFoundationPanel() {
     const queued = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued");
-    const latest = safeArray(data.notificationLog).slice(0, 3);
+    const opened = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "opened");
+    const sent = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "sent");
+    const latest = safeArray(data.notificationLog).slice(0, 8);
     return `<section class="section-card notification-foundation-panel">
-      <div class="section-title"><h2>Notifications Foundation</h2><span class="status ${queued.length ? "warning" : "success"}">${queued.length} queued</span></div>
-      <p class="muted">BillMaster can now remember who should be notified, when status alerts should fire, and whether to use email or email-to-text. Browser-only sending is staged until the email provider is connected.</p>
+      <div class="section-title">
+        <h2>Notification Outbox</h2>
+        <span class="status ${queued.length ? "warning" : "success"}">${queued.length} ready to send</span>
+      </div>
+      <p class="muted">Free mode opens an email draft using your device's mail app. Email-to-text works the same way when a contact has a carrier gateway address. Automatic background sending comes later with a server email provider.</p>
+      <div class="notification-stats">
+        <span><strong>${queued.length}</strong><small>Queued</small></span>
+        <span><strong>${opened.length}</strong><small>Opened</small></span>
+        <span><strong>${sent.length}</strong><small>Sent</small></span>
+      </div>
+      <div class="sheet-actions notification-actions">
+        <button class="primary-btn" data-action="send-next-notification" ${queued.length ? "" : "disabled"}>${icon("mail")} Send next queued</button>
+        <button class="outline-btn" data-action="copy-notification-outbox" ${latest.length ? "" : "disabled"}>${icon("note")} Copy outbox</button>
+        <button class="outline-btn" data-action="clear-sent-notifications" ${sent.length ? "" : "disabled"}>${icon("trash")} Clear sent</button>
+      </div>
       <div class="roadmap-grid compact-roadmap">
         ${syncRoadmapStep("1", "Email first", "Use contact email addresses and open/copy alert drafts today.")}
         ${syncRoadmapStep("2", "Email-to-text", "Store carrier gateway addresses for free text-style alerts where available.")}
         ${syncRoadmapStep("3", "Google contacts", "Read contacts and groups first; create/update comes later.")}
       </div>
-      ${latest.length ? `<div class="list" style="margin-top:12px;">${latest.map((notice) => `<div class="data-row"><span class="round-icon">${icon("bell")}</span><div><strong>${esc(notice.taskTitle)}</strong><div class="subtle">${esc(notice.previousStatus || "Unknown")} -> ${esc(notice.status || "Updated")} - ${esc((notice.channels || []).join(" + "))}</div></div><span class="status muted">${esc(notice.deliveryStatus)}</span></div>`).join("")}</div>` : ""}
+      ${latest.length ? `<div class="notification-list">${latest.map((notice) => notificationNoticeRow(notice)).join("")}</div>` : `<div class="empty-state compact-empty">${icon("bell")}<h3>No alerts yet</h3><p>When a watched task changes status, BillMaster will place the email here.</p></div>`}
     </section>`;
+  }
+
+  function notificationNoticeRow(notice) {
+    const recipients = safeArray(notice.recipients);
+    const statusClass = notice.deliveryStatus === "sent" ? "success" : notice.deliveryStatus === "opened" ? "info" : notice.deliveryStatus === "error" ? "danger" : "warning";
+    return `<article class="notification-row">
+      <span class="round-icon">${icon("bell")}</span>
+      <div class="notification-main">
+        <div class="card-row">
+          <strong>${esc(notice.taskTitle)}</strong>
+          <span class="status ${statusClass}">${esc(notificationStatusLabel(notice.deliveryStatus))}</span>
+        </div>
+        <div class="subtle">${esc(notice.previousStatus || "Unknown")} -> ${esc(notice.status || "Updated")} | ${esc(notificationChannelLabel(notice.channels))}</div>
+        <div class="subtle">${esc(recipients.slice(0, 3).join(", ") || "No recipients")}${recipients.length > 3 ? ` +${recipients.length - 3} more` : ""}</div>
+      </div>
+      <div class="notification-row-actions">
+        <button class="outline-btn" data-action="send-notification" data-id="${esc(notice.id)}" ${recipients.length ? "" : "disabled"}>${icon("mail")} Open</button>
+        <button class="outline-btn" data-action="copy-notification" data-id="${esc(notice.id)}">${icon("note")} Copy</button>
+        <button class="success-btn" data-action="mark-notification-sent" data-id="${esc(notice.id)}">${icon("check")} Sent</button>
+      </div>
+    </article>`;
   }
 
   function cloudWorkspacePanel() {
@@ -6803,6 +6843,12 @@
     if (action === "copy-selected-to-date") return copySelectedToDate();
     if (action === "open-task-alert") return openTaskAlert(el.dataset.id);
     if (action === "copy-task-alert") return copyTaskAlert(el.dataset.id);
+    if (action === "send-next-notification") return sendNextNotification();
+    if (action === "send-notification") return sendNotificationNotice(el.dataset.id);
+    if (action === "copy-notification") return copyNotificationNotice(el.dataset.id);
+    if (action === "mark-notification-sent") return markNotificationSent(el.dataset.id);
+    if (action === "copy-notification-outbox") return copyNotificationOutbox();
+    if (action === "clear-sent-notifications") return clearSentNotifications();
     if (action === "toggle-notify-group") return toggleNotifyGroup(el.dataset.id, el);
     if (action === "save-task-notify") return saveTaskNotify(el.dataset.id);
     if (action === "open-task-route") return openSelectedTaskRoute();
@@ -9799,6 +9845,118 @@
   function taskAlertMailto(task, recipient, message) {
     const subject = `BillMaster task alert: ${task.title}`;
     return `mailto:${encodeURIComponent(recipient || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message || taskAlertMessage(task))}`;
+  }
+
+  function notificationStatusLabel(status) {
+    if (status === "sent") return "Sent";
+    if (status === "opened") return "Opened";
+    if (status === "error") return "Needs fix";
+    return "Queued";
+  }
+
+  function notificationChannelLabel(channels) {
+    return normalizeNotifyChannels(channels)
+      .map((channel) => channel === "emailToText" ? "email-to-text" : "email")
+      .join(" + ");
+  }
+
+  function notificationNoticeById(noticeId) {
+    return safeArray(data.notificationLog).find((notice) => notice.id === noticeId);
+  }
+
+  function notificationSubject(notice) {
+    return `BillMaster task alert: ${notice.taskTitle || "Task"}`;
+  }
+
+  function notificationMailto(notice) {
+    return `mailto:${encodeURIComponent(safeArray(notice.recipients).join(","))}?subject=${encodeURIComponent(notificationSubject(notice))}&body=${encodeURIComponent(notice.message || "")}`;
+  }
+
+  function notificationCopyText(notice) {
+    return [
+      `To: ${safeArray(notice.recipients).join(", ") || "No recipients"}`,
+      `Subject: ${notificationSubject(notice)}`,
+      "",
+      notice.message || "",
+      "",
+      `Queued: ${notice.createdAt || ""}`
+    ].join("\n");
+  }
+
+  function sendNextNotification() {
+    const nextNotice = safeArray(data.notificationLog).find((notice) => notice.deliveryStatus === "queued");
+    if (!nextNotice) {
+      showToast("No queued notifications to send.");
+      return;
+    }
+    sendNotificationNotice(nextNotice.id);
+  }
+
+  function sendNotificationNotice(noticeId) {
+    const notice = notificationNoticeById(noticeId);
+    if (!notice) return;
+    if (!safeArray(notice.recipients).length) {
+      notice.deliveryStatus = "error";
+      notice.error = "No recipients";
+      saveData();
+      showToast("This notification has no email or email-to-text recipient.", "danger");
+      return;
+    }
+    notice.deliveryStatus = "opened";
+    notice.openedAt = new Date().toISOString();
+    notice.error = "";
+    saveData();
+    window.location.href = notificationMailto(notice);
+    showToast("Email draft opened. Tap Sent after you send it.");
+  }
+
+  async function copyNotificationNotice(noticeId) {
+    const notice = notificationNoticeById(noticeId);
+    if (!notice) return;
+    try {
+      await copyText(notificationCopyText(notice));
+      notice.copiedAt = new Date().toISOString();
+      saveData();
+      showToast("Notification copied.");
+    } catch (error) {
+      showToast("Could not copy that notification.", "danger");
+    }
+  }
+
+  function markNotificationSent(noticeId) {
+    const notice = notificationNoticeById(noticeId);
+    if (!notice) return;
+    notice.deliveryStatus = "sent";
+    notice.sentAt = new Date().toISOString();
+    notice.error = "";
+    saveData();
+    showToast("Notification marked sent.");
+  }
+
+  async function copyNotificationOutbox() {
+    const notices = safeArray(data.notificationLog).slice(0, 20);
+    if (!notices.length) {
+      showToast("No notifications to copy.");
+      return;
+    }
+    try {
+      await copyText(notices.map(notificationCopyText).join("\n\n---\n\n"));
+      notices.forEach((notice) => {
+        notice.copiedAt = new Date().toISOString();
+      });
+      saveData();
+      showToast("Notification outbox copied.");
+    } catch (error) {
+      showToast("Could not copy the notification outbox.", "danger");
+    }
+  }
+
+  function clearSentNotifications() {
+    const before = safeArray(data.notificationLog).length;
+    data.notificationLog = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus !== "sent");
+    const removed = before - data.notificationLog.length;
+    saveData();
+    showToast(removed ? `Cleared ${removed} sent notification${removed === 1 ? "" : "s"}.` : "No sent notifications to clear.");
   }
 
   function selectedNotifyContactIds() {
