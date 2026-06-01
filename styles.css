@@ -3385,6 +3385,28 @@ button.round-icon {
   margin-bottom: 12px;
 }
 
+.notify-status-grid,
+.notify-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.compact-check {
+  min-height: 42px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.compact-check input,
+.notify-channel-grid input {
+  width: 18px;
+  height: 18px;
+}
+
 .notify-contact-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

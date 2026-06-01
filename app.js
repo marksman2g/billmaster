@@ -141,6 +141,7 @@
       { id: "inbox_2", type: "subscription", status: "pending", source: "Card statement", title: "Adobe Creative Cloud", merchant: "Adobe", category: "Software", amount: 54.99, projected: 49.99, dueDate: "2026-05-30", confidence: 88, notes: "Recurring monthly charge detected from imported statement." }
     ],
     dismissedInboxIds: [],
+    notificationLog: [],
     cancellations: [],
     subscriptionHistory: [
       { id: "sth_1", subId: "sub_1", name: "Netflix", date: "2026-04-30", amount: 15.99, status: "Paid", code: "CONF-NF-20240402" },
@@ -741,6 +742,7 @@
     normalizeHabitTemplates(nextData);
     normalizeContacts(nextData);
     normalizeTasks(nextData);
+    normalizeNotificationLog(nextData);
     nextData.transactions = dedupeLendingTransactions(nextData.transactions || []);
     return nextData;
   }
@@ -987,6 +989,9 @@
       name: String(contact.name || "Contact"),
       email: String(contact.email || ""),
       phone: String(contact.phone || ""),
+      textEmail: String(contact.textEmail || contact.smsEmail || ""),
+      googleId: String(contact.googleId || ""),
+      source: String(contact.source || "local"),
       groupIds: Array.isArray(contact.groupIds) ? contact.groupIds : [],
       addressId: contact.addressId || null
     }));
@@ -1079,8 +1084,36 @@
       task.notifyGroupIds = Array.isArray(task.notifyGroupIds) ? task.notifyGroupIds : [];
       task.notifyExtraRecipient = String(task.notifyExtraRecipient || "");
       task.notifyMessage = String(task.notifyMessage || "");
+      task.notifyChannels = normalizeNotifyChannels(task.notifyChannels);
+      task.notifyOnAnyStatus = task.notifyOnAnyStatus !== false;
+      task.notifyOnStatuses = Array.isArray(task.notifyOnStatuses)
+        ? task.notifyOnStatuses.filter((status) => taskStatusOptions.includes(status))
+        : [];
       task.updatedAt = String(task.updatedAt || "");
     });
+  }
+
+  function normalizeNotificationLog(nextData) {
+    nextData.notificationLog = safeArray(nextData.notificationLog).map((notice) => ({
+      id: notice.id || id("notice"),
+      type: String(notice.type || "task-status-change"),
+      taskId: String(notice.taskId || ""),
+      taskTitle: String(notice.taskTitle || notice.title || "Task"),
+      previousStatus: String(notice.previousStatus || ""),
+      status: String(notice.status || ""),
+      channels: normalizeNotifyChannels(notice.channels),
+      recipients: Array.isArray(notice.recipients) ? notice.recipients.map(String).filter(Boolean) : [],
+      message: String(notice.message || ""),
+      deliveryStatus: String(notice.deliveryStatus || "queued"),
+      trigger: String(notice.trigger || "status"),
+      createdAt: String(notice.createdAt || new Date().toISOString())
+    }));
+  }
+
+  function normalizeNotifyChannels(channels) {
+    const allowed = new Set(["email", "emailToText"]);
+    const normalized = Array.from(new Set((Array.isArray(channels) ? channels : ["email"]).filter((channel) => allowed.has(channel))));
+    return normalized.length ? normalized : ["email"];
   }
 
   function normalizeSubtasks(subtasks) {
@@ -2268,6 +2301,7 @@
       ${cloudWorkspacePanel()}
       ${friendAlphaLaunchPanel()}
       ${mobileCodexAccessPanel()}
+      ${notificationFoundationPanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       <section class="section-card">
         <div class="section-title"><h2>Production Integration Plan</h2><span class="status info">Staged</span></div>
@@ -2276,8 +2310,25 @@
           ${syncRoadmapStep("2", "Liabilities", "Pull credit-card and loan due dates, statement balances, minimum due, and APR where supported.")}
           ${syncRoadmapStep("3", "Bill Pay", "Add a bill-pay rail such as BillGO/Fiserv/Method before moving real money.")}
           ${syncRoadmapStep("4", "Cancellation", "Start with guided workflows, provider links, email templates, and confirmation capture before direct APIs.")}
+          ${syncRoadmapStep("5", "Contacts + Groups", "Read Google Contacts first, then later add create/update access after the privacy and consent flow is stable.")}
+          ${syncRoadmapStep("6", "Notifications", "Queue task status alerts now. Add Resend/SendGrid email next, then SMS as a premium provider feature.")}
         </div>
       </section>
+    </section>`;
+  }
+
+  function notificationFoundationPanel() {
+    const queued = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued");
+    const latest = safeArray(data.notificationLog).slice(0, 3);
+    return `<section class="section-card notification-foundation-panel">
+      <div class="section-title"><h2>Notifications Foundation</h2><span class="status ${queued.length ? "warning" : "success"}">${queued.length} queued</span></div>
+      <p class="muted">BillMaster can now remember who should be notified, when status alerts should fire, and whether to use email or email-to-text. Browser-only sending is staged until the email provider is connected.</p>
+      <div class="roadmap-grid compact-roadmap">
+        ${syncRoadmapStep("1", "Email first", "Use contact email addresses and open/copy alert drafts today.")}
+        ${syncRoadmapStep("2", "Email-to-text", "Store carrier gateway addresses for free text-style alerts where available.")}
+        ${syncRoadmapStep("3", "Google contacts", "Read contacts and groups first; create/update comes later.")}
+      </div>
+      ${latest.length ? `<div class="list" style="margin-top:12px;">${latest.map((notice) => `<div class="data-row"><span class="round-icon">${icon("bell")}</span><div><strong>${esc(notice.taskTitle)}</strong><div class="subtle">${esc(notice.previousStatus || "Unknown")} -> ${esc(notice.status || "Updated")} - ${esc((notice.channels || []).join(" + "))}</div></div><span class="status muted">${esc(notice.deliveryStatus)}</span></div>`).join("")}</div>` : ""}
     </section>`;
   }
 
@@ -4624,6 +4675,7 @@
         <section class="inline-add-panel task-notify-panel">
           <div class="inline-add-heading">${icon("bell")} Notify Contacts</div>
           <p class="subtle">${taskNotifySummary(task)}</p>
+          <p class="subtle">${taskNotifyTriggerSummary(task)}</p>
           ${task.id ? `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}" data-return-modal="editTask">${icon("plus")} Select contacts or groups</button>` : `<p class="subtle">Save this task first, then select contacts or groups to notify.</p>`}
         </section>
         ${textArea("taskSubtasks", "Checklist Items", taskChecklistText(task), "One item per line. Use [x] to mark something done.")}
@@ -5091,11 +5143,30 @@
     const selectedGroupIds = new Set(task.notifyGroupIds || []);
     const recipient = task.notifyExtraRecipient || contact?.email || contact?.phone || "";
     const message = task.notifyMessage || taskAlertMessage(task);
+    const channels = taskNotifyChannels(task);
+    const notifyEveryStatus = task.notifyOnAnyStatus !== false;
+    const selectedStatuses = new Set(task.notifyOnStatuses || []);
     return `${modalHeader("Notify About Task", task.title)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${icon("bell")} Alert preview</strong><span class="status muted">${esc(task.status)}</span></div>
         <p class="muted">${esc(message)}</p>
-        <p class="subtle">Pick contacts or groups, then open an email draft or copy the full alert. Phone numbers are stored here for later SMS/email-to-text provider work.</p>
+        <p class="subtle">Pick contacts or groups, then open an email draft or copy the full alert. Email works first; email-to-text works when a contact has a carrier gateway address.</p>
+      </div>
+      <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="inline-add-heading">${icon("settings")} When to notify</div>
+        <label class="check-row"><input id="taskNotifyAnyStatus" type="checkbox" ${notifyEveryStatus ? "checked" : ""}> Every status change</label>
+        <div class="notify-status-grid">
+          ${taskStatusOptions.map((status) => `<label class="check-row compact-check" style="border-left:4px solid ${statusHandleColor(status)};"><input class="taskNotifyStatus" type="checkbox" value="${esc(status)}" ${selectedStatuses.has(status) ? "checked" : ""}> ${esc(status)}</label>`).join("")}
+        </div>
+        <p class="subtle">Leave every status on for full updates, or turn it off and choose only the statuses that should send alerts.</p>
+      </div>
+      <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="inline-add-heading">${icon("mail")} Delivery method</div>
+        <div class="notify-channel-grid">
+          <label class="check-row"><input class="taskNotifyChannel" type="checkbox" value="email" ${channels.includes("email") ? "checked" : ""}> Email</label>
+          <label class="check-row"><input class="taskNotifyChannel" type="checkbox" value="emailToText" ${channels.includes("emailToText") ? "checked" : ""}> Email-to-text</label>
+        </div>
+        <p class="subtle">Free text alerts usually require a carrier email gateway. Direct SMS can be added later as a paid/premium provider feature.</p>
       </div>
       <div class="notify-group-row">
         ${(data.contactGroups || []).map((group) => `<button class="outline-btn ${selectedGroupIds.has(group.id) ? "active" : ""}" data-action="toggle-notify-group" data-id="${group.id}">${icon("home")} ${esc(group.name)}</button>`).join("") || `<span class="subtle">Create groups from the Contacts screen.</span>`}
@@ -5276,6 +5347,7 @@
         ${field("contactName", "Name", contact.name || "", "Contact name")}
         ${field("contactEmail", "Email", contact.email || "", "email@example.com", "email")}
         ${field("contactPhone", "Phone", contact.phone || "", "Phone number", "tel")}
+        ${field("contactTextEmail", "Email-to-Text Address", contact.textEmail || "", "number@carrier-gateway.com", "email")}
         ${field("contactGroups", "Groups", contactGroupsForContact(contact.id).map((group) => group.name).join(", "), groupOptions || "BM, Family, Work")}
         ${selectField("contactAddress", "Address", [ADD_TASK_ADDRESS_VALUE, "", ...data.addresses.map((addr) => addr.id)], contact.addressId || "", contactAddressLabel)}
         <div id="contactNewAddressPanel" class="inline-add-panel" hidden>
@@ -8925,6 +8997,7 @@
 
   function saveTask(taskId) {
     const task = data.tasks.find((item) => item.id === taskId);
+    const previousStatus = task?.status || "";
     const selectedAddressId = value("taskAddress");
     const wantsNewAddress = selectedAddressId === ADD_TASK_ADDRESS_VALUE;
     const newAddressId = wantsNewAddress ? createTaskAddressFromForm() : "";
@@ -8970,11 +9043,17 @@
       subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks),
       updatedAt: new Date().toISOString()
     };
+    let savedTask = task;
     if (task) Object.assign(task, payload);
-    else data.tasks.unshift({ id: id("task"), ...payload });
+    else {
+      savedTask = { id: id("task"), ...payload };
+      data.tasks.unshift(savedTask);
+    }
+    const queuedNotice = task ? queueTaskStatusNotification(savedTask, previousStatus, "task-save") : false;
     saveData();
     closeModal();
     if (newAddressId) showToast("Task saved with new address.");
+    else if (queuedNotice) showToast("Task saved and notification queued.");
   }
 
   function createTaskAddressFromForm() {
@@ -9357,10 +9436,13 @@
     }
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return;
+    const previousStatus = task.status;
     task.status = "Completed";
     task.updatedAt = new Date().toISOString();
+    const queuedNotice = queueTaskStatusNotification(task, previousStatus, "complete-task");
     saveData();
     render();
+    if (queuedNotice) showToast("Task completed and notification queued.");
   }
 
   function editHabitInstance(taskId) {
@@ -9460,12 +9542,14 @@
     }
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task || !taskStatusOptions.includes(status)) return;
+    const previousStatus = task.status;
     task.status = status;
     task.updatedAt = new Date().toISOString();
     ui.taskPicker = null;
     if (ui.modal?.type === "blockStatus") ui.modal = null;
+    const queuedNotice = queueTaskStatusNotification(task, previousStatus, "status-picker");
     saveData();
-    showToast(`Status changed to ${task.status}.`);
+    showToast(queuedNotice ? `Status changed to ${task.status}; notification queued.` : `Status changed to ${task.status}.`);
   }
 
   function toggleSubtask(taskId, subtaskId) {
@@ -9626,6 +9710,83 @@
     return pieces.join("\n");
   }
 
+  function taskNotifyChannels(task) {
+    return normalizeNotifyChannels(task?.notifyChannels);
+  }
+
+  function taskNotifyTriggerSummary(task) {
+    const channels = taskNotifyChannels(task).map((channel) => channel === "emailToText" ? "email-to-text" : "email").join(" + ");
+    if (task?.notifyOnAnyStatus !== false) return `Sends on every status change by ${channels}.`;
+    const statuses = Array.isArray(task?.notifyOnStatuses) ? task.notifyOnStatuses : [];
+    if (statuses.length) return `Sends when status becomes ${statuses.join(", ")} by ${channels}.`;
+    return `Alerts are paused until you choose a status trigger.`;
+  }
+
+  function selectedNotifyChannels() {
+    return normalizeNotifyChannels(Array.from(document.querySelectorAll(".taskNotifyChannel:checked")).map((input) => input.value));
+  }
+
+  function selectedNotifyStatuses() {
+    return Array.from(document.querySelectorAll(".taskNotifyStatus:checked"))
+      .map((input) => input.value)
+      .filter((status) => taskStatusOptions.includes(status));
+  }
+
+  function taskNotificationContacts(task) {
+    const contactIds = new Set(task?.notifyContactIds || []);
+    (task?.notifyGroupIds || []).forEach((groupId) => {
+      const group = (data.contactGroups || []).find((item) => item.id === groupId);
+      (group?.contactIds || []).forEach((contactId) => contactIds.add(contactId));
+    });
+    return Array.from(contactIds)
+      .map((contactId) => data.contacts.find((contact) => contact.id === contactId))
+      .filter(Boolean);
+  }
+
+  function taskNotificationRecipients(task, channels = taskNotifyChannels(task)) {
+    const recipients = [];
+    taskNotificationContacts(task).forEach((contact) => {
+      if (channels.includes("email") && contact.email) recipients.push(contact.email);
+      if (channels.includes("emailToText") && contact.textEmail) recipients.push(contact.textEmail);
+    });
+    if (task?.notifyExtraRecipient) recipients.push(task.notifyExtraRecipient);
+    return Array.from(new Set(recipients.map((recipient) => String(recipient || "").trim()).filter(Boolean)));
+  }
+
+  function taskShouldNotifyForStatus(task, status) {
+    if (!task) return false;
+    if (task.notifyOnAnyStatus !== false) return true;
+    return Array.isArray(task.notifyOnStatuses) && task.notifyOnStatuses.includes(status);
+  }
+
+  function queueTaskStatusNotification(task, previousStatus, trigger = "status") {
+    if (!task || previousStatus === task.status) return false;
+    if (!taskShouldNotifyForStatus(task, task.status)) return false;
+    const channels = taskNotifyChannels(task);
+    const recipients = taskNotificationRecipients(task, channels);
+    if (!recipients.length) return false;
+    const message = [
+      task.notifyMessage || taskAlertMessage(task),
+      "",
+      `Status changed: ${previousStatus || "Unknown"} -> ${task.status}`
+    ].join("\n");
+    data.notificationLog.unshift({
+      id: id("notice"),
+      type: "task-status-change",
+      taskId: task.id,
+      taskTitle: task.title,
+      previousStatus: previousStatus || "",
+      status: task.status,
+      channels,
+      recipients,
+      message,
+      deliveryStatus: "queued",
+      trigger,
+      createdAt: new Date().toISOString()
+    });
+    return true;
+  }
+
   function taskNotifySummary(task) {
     const contactCount = (task.notifyContactIds || []).filter((idValue) => data.contacts.some((contact) => contact.id === idValue)).length;
     const groupCount = (task.notifyGroupIds || []).filter((idValue) => (data.contactGroups || []).some((group) => group.id === idValue)).length;
@@ -9666,6 +9827,9 @@
     task.notifyGroupIds = selectedNotifyGroupIds();
     task.notifyExtraRecipient = value("taskNotifyRecipient");
     task.notifyMessage = value("taskNotifyMessage");
+    task.notifyChannels = selectedNotifyChannels();
+    task.notifyOnAnyStatus = Boolean(document.getElementById("taskNotifyAnyStatus")?.checked);
+    task.notifyOnStatuses = selectedNotifyStatuses();
     if (!task.contactId && task.notifyContactIds.length === 1) task.contactId = task.notifyContactIds[0];
     task.updatedAt = new Date().toISOString();
     saveData();
@@ -9675,6 +9839,7 @@
   }
 
   function taskAlertRecipientsFromModal(task) {
+    const channels = selectedNotifyChannels();
     const contactIds = new Set(selectedNotifyContactIds());
     selectedNotifyGroupIds().forEach((groupId) => {
       const group = (data.contactGroups || []).find((item) => item.id === groupId);
@@ -9686,11 +9851,14 @@
       (group?.contactIds || []).forEach((contactId) => contactIds.add(contactId));
     });
     if (task.contactId) contactIds.add(task.contactId);
-    const recipients = Array.from(contactIds)
+    const recipients = [];
+    Array.from(contactIds)
       .map((contactId) => data.contacts.find((contact) => contact.id === contactId))
       .filter(Boolean)
-      .map((contact) => contact.email || contact.phone)
-      .filter(Boolean);
+      .forEach((contact) => {
+        if (channels.includes("email") && contact.email) recipients.push(contact.email);
+        if (channels.includes("emailToText") && contact.textEmail) recipients.push(contact.textEmail);
+      });
     const extra = value("taskNotifyRecipient") || task.notifyExtraRecipient;
     if (extra) recipients.push(extra);
     return Array.from(new Set(recipients));
@@ -9754,8 +9922,14 @@
   }
 
   function completeSelectedTasks() {
+    let queuedCount = 0;
     data.tasks.forEach((task) => {
-      if (ui.selectedTasks.includes(task.id)) task.status = "Completed";
+      if (ui.selectedTasks.includes(task.id)) {
+        const previousStatus = task.status;
+        task.status = "Completed";
+        task.updatedAt = new Date().toISOString();
+        if (queueTaskStatusNotification(task, previousStatus, "bulk-complete")) queuedCount += 1;
+      }
     });
     ui.selectedTasks.forEach((taskId) => {
       const parsed = parseHabitInstanceId(taskId);
@@ -9764,6 +9938,7 @@
     ui.selectedTasks = [];
     saveData();
     closeModal();
+    if (queuedCount) showToast(`${queuedCount} notification${queuedCount === 1 ? "" : "s"} queued.`);
   }
 
   function prioritySelectedTasks(priority) {
@@ -10094,6 +10269,7 @@
       name: contactName,
       email: value("contactEmail"),
       phone: value("contactPhone"),
+      textEmail: value("contactTextEmail"),
       addressId: newAddressId || (selectedAddressId === ADD_TASK_ADDRESS_VALUE ? null : selectedAddressId || null),
       groupIds: [],
       photo: "profile"
