@@ -1,8 +1,9 @@
-const CACHE_NAME = "billmaster-shell-v2";
+const CACHE_NAME = "billmaster-shell-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./billmaster-config.js",
   "./app.js",
   "./manifest.json",
   "./billmaster-icon.svg"

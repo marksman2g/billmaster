@@ -9,7 +9,7 @@ This file keeps the running product requests in one place so ideas do not get lo
 - Project detail workflow fixes: project back behavior, project picture editing, project-scoped task creation, task checklist items, image positioning. Done in prototype.
 - User/profile separation so friends can eventually use their own private data. Local prototype done; real Supabase Auth remains.
 - Product structure pass: Today Briefing, grouped command center actions, Review Inbox naming, one Subscription Hub, and visible launch roadmap. Done in prototype.
-- Phase 1 cloud starter: Supabase setup modal, Auth sign-in/sign-up hooks, private workspace push/pull flow, starter SQL schema, and post-push/pull auto sync. Started.
+- Phase 1 cloud starter: Supabase setup modal, Auth sign-in/sign-up hooks, private workspace push/pull flow, starter SQL schema, post-push/pull auto sync, and hosted runtime config. Started.
 
 ## Recently Completed
 
@@ -44,7 +44,8 @@ This file keeps the running product requests in one place so ideas do not get lo
 ## Next Architecture Steps
 
 - Choose first production-style host: keep GitHub Pages for the public demo, then connect Vercel or Netlify for beta previews.
-- Collect Supabase project URL, anon key, storage bucket name, and migration access.
+- Paste the full Supabase publishable key into `billmaster-config.js` so hosted users can sign in without manual setup.
+- Collect storage bucket name and migration access.
 - Run `supabase/schema.sql`, then test Sync Center push/pull from two devices.
 - Move from localStorage prototype data to Supabase tables.
 - Add Supabase Auth for real usernames/passwords.

@@ -26,7 +26,7 @@ The expected focused setup time is about 3-5 hours total.
 | Clean deployment files | 45-75 min | Started | Static hosting config exists for GitHub Pages, Netlify, and Vercel. |
 | Choose hosting provider | 20-30 min | Open | GitHub Pages works now; Vercel or Netlify is better for production preview links. |
 | Connect hosting to GitHub | 30-60 min | Open | Every push can publish a live version. |
-| Prepare Supabase project | 45-90 min | Open | Auth, database, storage, and environment keys are ready. |
+| Prepare Supabase project | 45-90 min | Started | Auth, database, storage, and public runtime config are ready. |
 | Document access from another computer | 20-30 min | Started | GitHub plus cloud editor path makes the app reachable away from the main PC. |
 | Prepare phone/iPad testing path | 30-45 min | Started | Hosted app can be opened and installed from a browser. |
 
@@ -64,6 +64,13 @@ Before multi-device sync can be real, collect these four Supabase values:
 - Public anon key
 - Service role key, stored server-side only later
 - Storage bucket name for pictures and graphics
+
+For the hosted static app, put only the browser-safe values in `billmaster-config.js`:
+
+- `url`: the Supabase project URL.
+- `anonKey`: the Supabase publishable/anon key.
+
+Never put the service role key in the web app.
 
 Then build the first cloud-backed tables:
 

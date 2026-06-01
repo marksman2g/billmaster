@@ -8,6 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
+  const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
   const ui = {
     view: "dashboard",
@@ -430,9 +431,9 @@
     try {
       const raw = localStorage.getItem(CLOUD_CONFIG_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
-      return normalizeCloudConfig(parsed);
+      return mergeCloudConfig(parsed);
     } catch (error) {
-      return normalizeCloudConfig({});
+      return mergeCloudConfig({});
     }
   }
 
@@ -444,6 +445,26 @@
       url,
       anonKey: String(config?.anonKey || "").trim()
     };
+  }
+
+  function mergeCloudConfig(config) {
+    const saved = normalizeCloudConfig(config);
+    return normalizeCloudConfig({
+      url: saved.url || hostedCloudConfig.url,
+      anonKey: saved.anonKey || hostedCloudConfig.anonKey
+    });
+  }
+
+  function hostedCloudConfigStarted() {
+    return Boolean(hostedCloudConfig.url || hostedCloudConfig.anonKey);
+  }
+
+  function hostedCloudConfigReady() {
+    return Boolean(hostedCloudConfig.url && hostedCloudConfig.anonKey);
+  }
+
+  function cloudHasProjectUrl() {
+    return Boolean(cloudConfig.url);
   }
 
   function saveCloudConfigLocal(config) {
@@ -481,8 +502,9 @@
   }
 
   function cloudStatusLabel() {
-    if (!cloudConfigured()) return "Needs keys";
-    if (!cloudSignedIn()) return "Keys saved";
+    if (!cloudHasProjectUrl()) return "Needs setup";
+    if (!cloudConfig.anonKey) return "Needs public key";
+    if (!cloudSignedIn()) return "Ready to sign in";
     return "Signed in";
   }
 
@@ -493,11 +515,12 @@
   }
 
   function cloudSafeEmail() {
-    return cloudSession?.user?.email || activeProfile()?.username || "Not signed in";
+    return cloudSession?.user?.email || "No cloud account yet";
   }
 
   function cloudAutoSyncLabel() {
-    if (!cloudSignedIn()) return "Sign in first";
+    if (!cloudConfigured()) return cloudHasProjectUrl() ? "Public key missing" : "Setup needed";
+    if (!cloudSignedIn()) return "Ready after sign-in";
     return cloudAutoSyncEnabled() ? "Auto after changes" : "Manual only";
   }
 
@@ -1349,6 +1372,8 @@
             </div>
           </article>
 
+          ${cloudDashboardPrompt()}
+
           ${todayBriefingCard(today, todayItems, upcomingBills, reviewCount, routeCount)}
 
           <div class="quick-add">
@@ -1446,6 +1471,28 @@
             ${recent.map((tx) => activityRow(tx)).join("")}
           </section>
         </div>
+      </div>
+    </section>`;
+  }
+
+  function cloudDashboardPrompt() {
+    if (!hostedCloudConfigStarted() && !cloudConfigured()) return "";
+    if (cloudSignedIn() && data.settings?.cloudAutoSync) return "";
+    const configured = cloudConfigured();
+    const title = configured ? "Use BillMaster Anywhere" : "Cloud Setup Almost Ready";
+    const copy = configured
+      ? "Create or sign into your BillMaster cloud account so this workspace can follow you from desktop to phone to iPad."
+      : "The Supabase project URL is built in. Add the public publishable key once, then friends can sign in without touching setup.";
+    return `<section class="section-card cloud-start-card">
+      <div class="cloud-start-copy">
+        <span class="round-icon" style="background:${configured ? "#e9f8ef" : "#fff5d6"};color:${configured ? "var(--green)" : "var(--amber)"}">${icon(configured ? "check" : "alert")}</span>
+        <div>
+          <h2>${esc(title)}</h2>
+          <p>${esc(copy)}</p>
+        </div>
+      </div>
+      <div class="cloud-start-actions">
+        <button class="primary-btn" data-action="navigate-root" data-view="sync">${configured ? "Sign in / Sync" : "Finish setup"}</button>
       </div>
     </section>`;
   }
@@ -1980,23 +2027,31 @@
   function cloudWorkspacePanel() {
     const configured = cloudConfigured();
     const signedIn = cloudSignedIn();
+    const hasProject = cloudHasProjectUrl();
     const lastSync = data.settings?.cloudLastSyncAt ? `${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))} ${new Date(data.settings.cloudLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Not synced yet";
+    const setupCopy = signedIn
+      ? "You are connected. Auto sync can push saved changes to your private cloud workspace after you edit."
+      : configured
+        ? "Cloud is ready. Sign in or create an account, then pull your workspace on another device."
+        : hasProject
+          ? "The Supabase project URL is already built in. Add the public publishable key once to unlock friend sign-in."
+          : "First cloud-sync step: save this full BillMaster workspace to your private Supabase account, then pull it on another device.";
     return `<section class="section-card cloud-workspace-panel">
       <div class="cloud-workspace-head">
         <span class="round-icon" style="color:${signedIn ? "var(--green)" : configured ? "var(--blue)" : "var(--amber)"};background:${signedIn ? "#e9f8ef" : configured ? "#eaf4ff" : "#fff5d6"}">${icon(signedIn ? "check" : configured ? "settings" : "alert")}</span>
         <div>
           <div class="section-title compact-title"><h2>Supabase Cloud Workspace</h2><span class="status ${cloudStatusClass()}">${cloudStatusLabel()}</span></div>
-          <p class="muted">First cloud-sync step: save this full BillMaster workspace to your private Supabase account, then pull it on another device.</p>
+          <p class="muted">${esc(setupCopy)}</p>
         </div>
       </div>
       <div class="cloud-facts">
-        <span><strong>Project</strong><small>${configured ? esc(cloudProjectHost()) : "Add Supabase URL"}</small></span>
+        <span><strong>Project</strong><small>${hasProject ? esc(cloudProjectHost()) : "Add Supabase URL"}</small></span>
         <span><strong>Account</strong><small>${esc(cloudSafeEmail())}</small></span>
         <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
         <span><strong>Mode</strong><small>${esc(cloudAutoSyncLabel())}</small></span>
       </div>
       <div class="sheet-actions cloud-actions">
-        <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Setup</button>
+        <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} ${hostedCloudConfigStarted() ? "Advanced setup" : "Setup"}</button>
         ${signedIn ? `<button class="outline-btn" data-action="cloud-sign-out">${icon("close")} Sign out</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${configured ? "" : "disabled"}>${icon("home")} Sign in</button>`}
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
@@ -4294,10 +4349,15 @@
   }
 
   function modalCloudSetup() {
-    return `${modalHeader("Supabase Setup", "Paste the four values from your Supabase project when you are ready. This prototype stores the public URL and anon key in this browser only.")}
+    const hostedStatus = hostedCloudConfigReady()
+      ? `<span class="status success">Hosted config ready</span>`
+      : hostedCloudConfigStarted()
+        ? `<span class="status warn">Publishable key needed</span>`
+        : `<span class="status info">Manual setup</span>`;
+    return `${modalHeader("Supabase Setup", "Advanced setup for the hosted cloud project. Friends should not need this once the public config is complete.")}
       <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
-        <div class="section-title"><h2>First Cloud Table</h2><span class="status info">billmaster_workspaces</span></div>
-        <p class="muted">Use the Supabase API URL that ends in <strong>.supabase.co</strong>. If you paste a REST/Auth URL, BillMaster will clean it up. Use the publishable/anon public key, never the service role key.</p>
+        <div class="section-title"><h2>Hosted Cloud Project</h2>${hostedStatus}</div>
+        <p class="muted">Use the Supabase API URL that ends in <strong>.supabase.co</strong>. Use the publishable/anon public key, never the service role key. The publishable key is browser-safe when Row Level Security is on.</p>
       </section>
       <div class="field-grid">
         ${field("cloudUrl", "Supabase Project URL", cloudConfig.url || "", "https://your-project.supabase.co", "url")}
@@ -4311,15 +4371,16 @@
 
   function modalCloudAuth() {
     const profile = activeProfile();
-    return `${modalHeader("Cloud Sign In", "Create or sign into the BillMaster user account that will own this synced workspace.")}
+    return `${modalHeader("Cloud Sign In", "Create or sign into the BillMaster account that owns this private synced workspace.")}
       <section class="section-card" style="box-shadow:none;background:#fff8e5;margin-bottom:14px;">
         <div class="section-title"><h2>Use App Credentials</h2><span class="status warn">Beta</span></div>
-        <p class="muted">This is not your Supabase dashboard password, database password, API URL, or publishable key. First time here? Enter your email and a new BillMaster password, then choose Create account.</p>
+        <p class="muted">This is not your Supabase dashboard password, database password, API URL, or publishable key. Use the email and password you want for BillMaster itself.</p>
       </section>
       <div class="field-grid">
         ${field("cloudDisplayName", "Display Name", profile?.displayName || "", "Your name")}
         ${field("cloudEmail", "Email", profile?.username?.includes("@") ? profile.username : "", "you@example.com", "email")}
         ${field("cloudPassword", "BillMaster Cloud Password", "", "Create or enter your app password", "password")}
+        <label class="check-row"><input id="cloudStartClean" type="checkbox"> New users: start with a clean cloud workspace after creating account</label>
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account first</button>
@@ -9847,6 +9908,7 @@
     const email = value("cloudEmail");
     const password = value("cloudPassword");
     const displayName = value("cloudDisplayName") || activeProfile()?.displayName || "";
+    const startClean = document.getElementById("cloudStartClean")?.checked === true;
     if (!email || !password) {
       showToast("Enter an email and password for Supabase.", "danger");
       return;
@@ -9858,8 +9920,16 @@
       }, false);
       if (result?.access_token) {
         saveCloudSession(sessionFromAuthResult(result));
+        if (startClean) {
+          data = blankWorkspace();
+          data.settings.cloudAutoSync = true;
+          resetUndoBaseline();
+          saveData({ undo: false, cloudSync: false });
+          await pushWorkspaceToCloud("signup");
+        }
         ui.modal = null;
-        showToast("Cloud account created and signed in.");
+        render();
+        showToast(startClean ? "Cloud account created with a clean workspace. Auto sync is on." : "Cloud account created and signed in. Push local when you are ready.");
       } else {
         showToast("Cloud account created. Check email confirmation if Supabase requires it.");
       }
@@ -9882,7 +9952,14 @@
       }, false);
       saveCloudSession(sessionFromAuthResult(result));
       ui.modal = null;
-      showToast("Signed in to Supabase cloud sync.");
+      try {
+        const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true });
+        render();
+        showToast(loaded ? "Signed in and pulled your cloud workspace. Auto sync is on." : "Signed in. Push local to save this device to the cloud.");
+      } catch (pullError) {
+        render();
+        showToast(`Signed in. Cloud pull needs attention: ${pullError.message}`, "danger");
+      }
     } catch (error) {
       showToast(`Cloud sign in failed: ${error.message}`, "danger");
     }
@@ -9972,6 +10049,22 @@
     saveData({ undo: false, cloudSync: false });
   }
 
+  async function loadCloudWorkspaceIntoLocal(options = {}) {
+    const rows = await cloudFetch(`/rest/v1/billmaster_workspaces?select=payload,updated_at&user_id=eq.${encodeURIComponent(cloudSession.user.id)}&limit=1`, {
+      method: "GET"
+    });
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row?.payload) return false;
+    data = normalizeData(mergeSeed(clone(seed), row.payload));
+    data.settings.cloudLastSyncAt = new Date().toISOString();
+    data.settings.cloudLastDirection = "pull";
+    if (options.enableAutoSync !== false) data.settings.cloudAutoSync = true;
+    data.settings.cloudSyncError = "";
+    resetUndoBaseline();
+    saveData({ undo: false, cloudSync: false });
+    return true;
+  }
+
   async function cloudPushWorkspace(options = {}) {
     if (!cloudSignedIn()) {
       showToast("Sign in to Supabase before pushing this workspace.", "danger");
@@ -10016,21 +10109,11 @@
       return;
     }
     try {
-      const rows = await cloudFetch(`/rest/v1/billmaster_workspaces?select=payload,updated_at&user_id=eq.${encodeURIComponent(cloudSession.user.id)}&limit=1`, {
-        method: "GET"
-      });
-      const row = Array.isArray(rows) ? rows[0] : null;
-      if (!row?.payload) {
+      const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true });
+      if (!loaded) {
         showToast("No cloud workspace found yet. Push local first.", "danger");
         return;
       }
-      data = normalizeData(mergeSeed(clone(seed), row.payload));
-      data.settings.cloudLastSyncAt = new Date().toISOString();
-      data.settings.cloudLastDirection = "pull";
-      data.settings.cloudAutoSync = true;
-      data.settings.cloudSyncError = "";
-      resetUndoBaseline();
-      saveData({ undo: false, cloudSync: false });
       ui.modal = null;
       render();
       showToast("Cloud workspace pulled into this device. Auto sync is now on.");

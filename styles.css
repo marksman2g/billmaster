@@ -1792,6 +1792,42 @@ button.round-icon {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+.cloud-start-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-color: #b7d7ff;
+  background: linear-gradient(135deg, #f8fbff, #eef6ff);
+}
+
+.cloud-start-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+}
+
+.cloud-start-copy h2 {
+  margin: 0 0 3px;
+  color: var(--navy-2);
+  font-size: 1rem;
+}
+
+.cloud-start-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cloud-start-actions {
+  min-width: 150px;
+}
+
+.cloud-start-actions .primary-btn {
+  width: 100%;
+}
+
 .sync-card {
   display: grid;
   gap: 10px;
@@ -6396,8 +6432,13 @@ canvas {
   }
 
   .cloud-facts,
-  .cloud-actions {
+  .cloud-actions,
+  .cloud-start-card {
     grid-template-columns: 1fr;
+  }
+
+  .cloud-start-actions {
+    min-width: 0;
   }
 
   .prism-metrics {

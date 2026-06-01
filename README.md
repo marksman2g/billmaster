@@ -39,6 +39,7 @@ Phase 0 cloud-readiness files:
 - `netlify.toml` - static publish config for Netlify.
 - `vercel.json` - static publish config for Vercel.
 - `supabase/schema.sql` - first private workspace sync table and media bucket policies.
+- `billmaster-config.js` - optional hosted runtime config for the Supabase project URL and publishable key.
 
 GitHub Pages is enough for a public prototype link. Vercel or Netlify is the better next host for private beta previews, especially once Supabase environment values are added.
 
@@ -69,7 +70,9 @@ When hosted over `https`, the app can be installed from supported mobile browser
 
 ## Supabase Phase 1 Starter
 
-The Sync Center now has a Supabase Cloud Workspace panel. After running `supabase/schema.sql` in Supabase and pasting the Project URL plus anon key, you can:
+The Sync Center now has a Supabase Cloud Workspace panel. After running `supabase/schema.sql` in Supabase, BillMaster can use either browser-saved setup values or the hosted `billmaster-config.js` file. The Project URL is already staged there; paste the full public publishable key into `anonKey` before inviting friends so they do not have to touch setup.
+
+After the Project URL plus publishable/anon key are available, you can:
 
 - create or sign into a Supabase account,
 - push the current local workspace to Supabase,
