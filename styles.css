@@ -1892,6 +1892,63 @@ button.round-icon {
   text-decoration: none;
 }
 
+.google-contacts-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  border-color: #b8ebe5;
+  background: linear-gradient(135deg, #ffffff, #f0fffd);
+}
+
+.google-contacts-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+}
+
+.google-contacts-copy h2,
+.google-contacts-copy p {
+  margin: 0;
+}
+
+.google-contact-facts span {
+  border-color: #c9eee9;
+}
+
+.google-contact-actions {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.google-verify-banner {
+  color: #164e63;
+  background: #effcff;
+  border-color: #b8ebe5;
+}
+
+.google-verify-banner strong,
+.google-verify-banner span {
+  color: #164e63;
+}
+
+.google-setup-card {
+  background: #f8fbff;
+  border-color: #d5e5f7;
+}
+
+.setup-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.setup-steps strong {
+  color: var(--navy-2);
+}
+
 .friend-alpha-panel {
   display: grid;
   gap: 14px;

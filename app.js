@@ -80,6 +80,8 @@
   const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
   const taskFonts = ["System", "Rounded", "Serif", "Mono"];
+  const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
+  const GOOGLE_CONTACTS_FIELDS = "names,emailAddresses,phoneNumbers,addresses,memberships";
   const initialView = getHashView();
   if (initialView) ui.view = initialView;
 
@@ -95,6 +97,11 @@
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      googleContactsClientId: "",
+      googleContactsLastSyncAt: "",
+      googleContactsLastImportCount: 0,
+      googleContactsLastGroupImportCount: 0,
+      googleContactsLastStatus: "",
       deletedItems: {}
     },
     accounts: [
@@ -337,6 +344,9 @@
     "delete-profile",
     "save-cloud-config",
     "test-cloud-config",
+    "save-google-contacts-config",
+    "google-contacts-import",
+    "copy-google-contacts-checklist",
     "cloud-sign-in",
     "cloud-sign-up",
     "cloud-sign-out",
@@ -722,6 +732,11 @@
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      googleContactsClientId: "",
+      googleContactsLastSyncAt: "",
+      googleContactsLastImportCount: 0,
+      googleContactsLastGroupImportCount: 0,
+      googleContactsLastStatus: "",
       deletedItems: {},
       ...(nextData.settings || {})
     };
@@ -990,7 +1005,9 @@
       email: String(contact.email || ""),
       phone: String(contact.phone || ""),
       textEmail: String(contact.textEmail || contact.smsEmail || ""),
-      googleId: String(contact.googleId || ""),
+      googleId: String(contact.googleId || contact.googleResourceName || ""),
+      googleResourceName: String(contact.googleResourceName || contact.googleId || ""),
+      googleEtag: String(contact.googleEtag || contact.etag || ""),
       source: String(contact.source || "local"),
       groupIds: Array.isArray(contact.groupIds) ? contact.groupIds : [],
       addressId: contact.addressId || null
@@ -1001,9 +1018,12 @@
       { id: "group_2", name: "TtOneTT", contactIds: [] }
     ];
     nextData.contactGroups = nextData.contactGroups.map((group, index) => ({
+      ...group,
       id: group.id || id("group"),
       name: String(group.name || `Group ${index + 1}`),
-      contactIds: Array.from(new Set(Array.isArray(group.contactIds) ? group.contactIds : []))
+      contactIds: Array.from(new Set(Array.isArray(group.contactIds) ? group.contactIds : [])),
+      googleResourceName: String(group.googleResourceName || ""),
+      source: String(group.source || "local")
     }));
     nextData.contacts.forEach((contact) => {
       const fromGroups = nextData.contactGroups.filter((group) => group.contactIds.includes(contact.id)).map((group) => group.id);
@@ -2306,6 +2326,7 @@
       ${cloudWorkspacePanel()}
       ${friendAlphaLaunchPanel()}
       ${mobileCodexAccessPanel()}
+      ${googleContactsPanel()}
       ${notificationFoundationPanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       <section class="section-card">
@@ -2477,6 +2498,41 @@
         <a class="outline-btn" href="https://github.dev/marksman2g/billmaster" target="_blank" rel="noopener">${icon("settings")} Web editor</a>
         <a class="outline-btn" href="https://github.com/codespaces" target="_blank" rel="noopener">${icon("home")} Codespaces</a>
         <button class="primary-btn" data-action="navigate-root" data-view="dashboard">${icon("playcard")} Use BillMaster</button>
+      </div>
+    </section>`;
+  }
+
+  function googleContactsPanel() {
+    const configured = Boolean(String(data.settings?.googleContactsClientId || "").trim());
+    const imported = Number(data.settings?.googleContactsLastImportCount || 0);
+    const groups = Number(data.settings?.googleContactsLastGroupImportCount || 0);
+    const lastSync = data.settings?.googleContactsLastSyncAt
+      ? `${dateLabel(data.settings.googleContactsLastSyncAt.slice(0, 10))} ${new Date(data.settings.googleContactsLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+      : "Not imported yet";
+    const status = data.settings?.googleContactsLastStatus || (configured ? "Ready for read-only import" : "OAuth Client ID needed");
+    return `<section class="section-card google-contacts-panel">
+      <div class="google-contacts-copy">
+        <span class="round-icon" style="color:${configured ? "var(--green)" : "var(--amber)"};background:${configured ? "#e9f8ef" : "#fff5d6"}">${icon(configured ? "check" : "alert")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Google Contacts</h2><span class="status ${configured ? "success" : "warn"}">Read-only</span></div>
+          <p class="muted">Import names, emails, phone numbers, addresses, and Google contact groups into BillMaster so tasks and loan alerts can use the same people list.</p>
+        </div>
+      </div>
+      <div class="cloud-facts google-contact-facts">
+        <span><strong>OAuth setup</strong><small>${configured ? "Client ID saved" : "Needs Google Cloud"}</small></span>
+        <span><strong>Last import</strong><small>${esc(lastSync)}</small></span>
+        <span><strong>Contacts</strong><small>${imported ? `${imported} imported/updated` : "0 imported"}</small></span>
+        <span><strong>Groups</strong><small>${groups ? `${groups} found` : "Staged"}</small></span>
+      </div>
+      <div class="sync-conflict-banner google-verify-banner">
+        <strong>${icon("alert")} You may need to verify in Google</strong>
+        <span>${esc(status)}. In Google Cloud, enable People API, create a Web OAuth Client ID, and add this site origin before importing.</span>
+      </div>
+      <div class="sheet-actions google-contact-actions">
+        <button class="outline-btn" data-action="open-modal" data-modal="googleContactsSetup">${icon("settings")} Setup Google Contacts</button>
+        <button class="secondary-btn" data-action="google-contacts-import" ${configured ? "" : "disabled"}>${icon("wallet")} Import contacts</button>
+        <button class="outline-btn" data-action="copy-google-contacts-checklist">${icon("note")} Copy setup steps</button>
+        <button class="outline-btn" data-action="navigate" data-view="contacts">${icon("home")} View contacts</button>
       </div>
     </section>`;
   }
@@ -4364,6 +4420,7 @@
     if (type === "profileLogin") content = modalProfileLogin(modalId);
     if (type === "cloudSetup") content = modalCloudSetup();
     if (type === "cloudAuth") content = modalCloudAuth();
+    if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
     if (type === "addSubscription") content = modalAddSubscription();
@@ -4809,6 +4866,31 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account first</button>
         <button class="secondary-btn" data-action="cloud-sign-in">${icon("check")} Sign in</button>
+      </div>`;
+  }
+
+  function modalGoogleContactsSetup() {
+    const origin = typeof window !== "undefined" && window.location ? window.location.origin : "https://marksman2g.github.io";
+    return `${modalHeader("Google Contacts Setup", "This connects BillMaster to your Google Contacts in read-only mode. Use a Web OAuth Client ID, not a client secret.")}
+      <section class="section-card google-setup-card" style="box-shadow:none;margin-bottom:14px;">
+        <div class="section-title"><h2>What You Need To Verify</h2><span class="status info">Google Cloud</span></div>
+        <ol class="setup-steps">
+          <li>Enable the <strong>People API</strong> for your Google Cloud project.</li>
+          <li>Configure the OAuth consent screen and add yourself as a test user if Google asks.</li>
+          <li>Create an <strong>OAuth Client ID</strong> with application type <strong>Web application</strong>.</li>
+          <li>Add authorized JavaScript origins: <strong>https://marksman2g.github.io</strong>, <strong>http://127.0.0.1:4180</strong>, and <strong>http://localhost:4180</strong>.</li>
+          <li>Copy the Client ID that ends with <strong>.apps.googleusercontent.com</strong> and paste it below.</li>
+        </ol>
+      </section>
+      <div class="field-grid">
+        ${field("googleContactsClientId", "Google OAuth Web Client ID", data.settings?.googleContactsClientId || "", "1234567890-abc.apps.googleusercontent.com")}
+        <div class="field"><label>Current Browser Origin</label><input value="${esc(origin)}" readonly></div>
+        <div class="field"><label>Scope BillMaster Requests</label><input value="${esc(GOOGLE_CONTACTS_SCOPE)}" readonly></div>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:repeat(3, minmax(0, 1fr));">
+        <button class="outline-btn" data-action="copy-google-contacts-checklist">${icon("note")} Copy steps</button>
+        <button class="secondary-btn" data-action="save-google-contacts-config">${icon("check")} Save Client ID</button>
+        <button class="primary-btn" data-action="google-contacts-import" ${data.settings?.googleContactsClientId ? "" : "disabled"}>${icon("wallet")} Import now</button>
       </div>`;
   }
 
@@ -6909,6 +6991,9 @@
     if (action === "save-cloud-config") return saveCloudConfig();
     if (action === "test-cloud-config") return testCloudConfig();
     if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
+    if (action === "save-google-contacts-config") return saveGoogleContactsConfig();
+    if (action === "google-contacts-import") return importGoogleContacts();
+    if (action === "copy-google-contacts-checklist") return copyGoogleContactsChecklist();
     if (action === "cloud-sign-in") return cloudSignIn();
     if (action === "cloud-sign-up") return cloudSignUp();
     if (action === "cloud-sign-out") return cloudSignOut();
@@ -10599,6 +10684,321 @@
     } catch (error) {
       showToast("Could not copy the hosted config automatically.", "danger");
     }
+  }
+
+  function googleContactsSetupChecklist() {
+    return [
+      "BillMaster Google Contacts setup",
+      "",
+      "1. Open Google Cloud Console and select/create the BillMaster project.",
+      "2. Enable the People API.",
+      "3. Configure OAuth consent. For testing, add your Google account as a test user.",
+      "4. Create Credentials -> OAuth Client ID -> Web application.",
+      "5. Add Authorized JavaScript origins:",
+      "   - https://marksman2g.github.io",
+      "   - http://127.0.0.1:4180",
+      "   - http://localhost:4180",
+      "6. Copy the Web Client ID ending in .apps.googleusercontent.com.",
+      "7. In BillMaster: Sync Center -> Google Contacts -> Setup Google Contacts -> paste Client ID -> Save Client ID.",
+      "8. Click Import contacts and approve read-only Google Contacts access.",
+      "",
+      `Scope requested: ${GOOGLE_CONTACTS_SCOPE}`,
+      "Do not paste a client secret into BillMaster. Browser apps only use the public Client ID."
+    ].join("\n");
+  }
+
+  async function copyGoogleContactsChecklist() {
+    try {
+      await copyText(googleContactsSetupChecklist());
+      showToast("Google Contacts setup steps copied.");
+    } catch (error) {
+      showToast("Could not copy setup steps automatically.", "danger");
+    }
+  }
+
+  function saveGoogleContactsConfig() {
+    const clientId = value("googleContactsClientId");
+    if (!clientId || !/\.apps\.googleusercontent\.com$/i.test(clientId)) {
+      showToast("Paste the Web OAuth Client ID that ends with .apps.googleusercontent.com.", "danger");
+      return;
+    }
+    data.settings.googleContactsClientId = clientId.trim();
+    data.settings.googleContactsLastStatus = "Client ID saved. Import contacts when you are ready.";
+    saveData();
+    showToast("Google Contacts Client ID saved.");
+  }
+
+  async function importGoogleContacts() {
+    const typedClientId = value("googleContactsClientId");
+    if (typedClientId) data.settings.googleContactsClientId = typedClientId.trim();
+    const clientId = String(data.settings?.googleContactsClientId || "").trim();
+    if (!clientId || !/\.apps\.googleusercontent\.com$/i.test(clientId)) {
+      showToast("Add the Google Web OAuth Client ID first.", "danger");
+      return;
+    }
+    try {
+      await waitForGoogleIdentity();
+      const accessToken = await requestGoogleContactsAccessToken(clientId);
+      const [people, groups] = await Promise.all([
+        fetchGoogleConnections(accessToken),
+        fetchGoogleContactGroups(accessToken).catch((error) => {
+          console.warn("BillMaster could not import Google contact groups.", error);
+          return [];
+        })
+      ]);
+      const result = mergeGoogleContacts(people, groups);
+      data.settings.googleContactsLastSyncAt = new Date().toISOString();
+      data.settings.googleContactsLastImportCount = result.imported;
+      data.settings.googleContactsLastGroupImportCount = result.groups;
+      data.settings.googleContactsLastStatus = `${result.created} new, ${result.updated} updated, ${result.addresses} addresses linked.`;
+      saveData();
+      ui.modal = null;
+      render();
+      showToast(`Google Contacts imported: ${result.imported} people.`);
+    } catch (error) {
+      data.settings.googleContactsLastStatus = error.message || "Google Contacts import failed.";
+      saveData({ undo: false });
+      showToast(`Google Contacts import failed: ${error.message}`, "danger");
+    }
+  }
+
+  function waitForGoogleIdentity(timeoutMs = 5000) {
+    if (typeof window === "undefined") return Promise.reject(new Error("Google sign-in needs a browser window."));
+    if (window.google?.accounts?.oauth2) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (window.google?.accounts?.oauth2) {
+          clearInterval(timer);
+          resolve();
+        } else if (Date.now() - started > timeoutMs) {
+          clearInterval(timer);
+          reject(new Error("Google Identity script is not ready. Refresh the page and try again."));
+        }
+      }, 120);
+    });
+  }
+
+  function requestGoogleContactsAccessToken(clientId) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: GOOGLE_CONTACTS_SCOPE,
+        callback: (response) => {
+          settled = true;
+          if (response?.error) {
+            reject(new Error(response.error_description || response.error));
+            return;
+          }
+          if (!response?.access_token) {
+            reject(new Error("Google did not return an access token."));
+            return;
+          }
+          resolve(response.access_token);
+        },
+        error_callback: (error) => {
+          settled = true;
+          reject(new Error(error?.message || error?.type || "Google sign-in was cancelled."));
+        }
+      });
+      client.requestAccessToken({ prompt: "consent" });
+      setTimeout(() => {
+        if (!settled) reject(new Error("Google Contacts permission timed out."));
+      }, 60000);
+    });
+  }
+
+  async function googlePeopleApi(path, accessToken) {
+    const response = await fetch(`https://people.googleapis.com/v1/${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = body?.error?.message || body?.error_description || `Google People API status ${response.status}`;
+      throw new Error(message);
+    }
+    return body;
+  }
+
+  async function fetchGoogleConnections(accessToken) {
+    const people = [];
+    let pageToken = "";
+    do {
+      const params = new URLSearchParams({
+        pageSize: "1000",
+        personFields: GOOGLE_CONTACTS_FIELDS
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const body = await googlePeopleApi(`people/me/connections?${params}`, accessToken);
+      people.push(...safeArray(body.connections));
+      pageToken = body.nextPageToken || "";
+    } while (pageToken);
+    return people;
+  }
+
+  async function fetchGoogleContactGroups(accessToken) {
+    const groups = [];
+    let pageToken = "";
+    do {
+      const params = new URLSearchParams({
+        pageSize: "200",
+        groupFields: "name,groupType"
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const body = await googlePeopleApi(`contactGroups?${params}`, accessToken);
+      groups.push(...safeArray(body.contactGroups));
+      pageToken = body.nextPageToken || "";
+    } while (pageToken);
+    return groups;
+  }
+
+  function mergeGoogleContacts(people, groups) {
+    const groupIdByResource = upsertGoogleContactGroups(groups);
+    const result = { imported: 0, created: 0, updated: 0, addresses: 0, groups: groupIdByResource.size };
+    people.forEach((person) => {
+      const name = googlePersonName(person);
+      const email = googlePersonValue(person.emailAddresses, "value");
+      const phone = googlePersonValue(person.phoneNumbers, "value");
+      if (!name && !email && !phone) return;
+      const match = findGoogleContactMatch(person, email, phone, name);
+      const addressId = upsertGoogleContactAddress(person, name || email || phone);
+      const groupIds = googlePersonGroupIds(person, groupIdByResource);
+      const payload = {
+        name: name || match?.name || email || phone || "Google Contact",
+        email: email || match?.email || "",
+        phone: phone || match?.phone || "",
+        googleId: person.resourceName || "",
+        googleResourceName: person.resourceName || "",
+        googleEtag: person.etag || "",
+        source: "google",
+        addressId: addressId || match?.addressId || null
+      };
+      let saved = match;
+      if (saved) {
+        Object.assign(saved, payload, {
+          textEmail: saved.textEmail || "",
+          photo: saved.photo || "profile",
+          groupIds: Array.from(new Set([...(saved.groupIds || []), ...groupIds]))
+        });
+        result.updated += 1;
+      } else {
+        saved = { id: id("contact"), ...payload, textEmail: "", photo: "profile", groupIds };
+        data.contacts.unshift(saved);
+        result.created += 1;
+      }
+      if (addressId) result.addresses += 1;
+      groupIds.forEach((groupId) => {
+        const group = data.contactGroups.find((item) => item.id === groupId);
+        if (group) group.contactIds = Array.from(new Set([...(group.contactIds || []), saved.id]));
+      });
+      result.imported += 1;
+    });
+    data.contactGroups = safeArray(data.contactGroups).filter((group) => group.name && (safeArray(group.contactIds).length || group.source !== "google"));
+    syncAllContactGroupIds();
+    return result;
+  }
+
+  function upsertGoogleContactGroups(groups) {
+    const groupIdByResource = new Map();
+    safeArray(groups).forEach((group) => {
+      if (!group?.resourceName || group.groupType === "SYSTEM_CONTACT_GROUP") return;
+      const name = String(group.formattedName || group.name || "").trim();
+      if (!name) return;
+      let local = data.contactGroups.find((item) => item.googleResourceName === group.resourceName)
+        || data.contactGroups.find((item) => item.name.toLowerCase() === name.toLowerCase());
+      if (!local) {
+        local = { id: id("group"), name, contactIds: [], source: "google", googleResourceName: group.resourceName };
+        data.contactGroups.push(local);
+      }
+      local.name = name;
+      local.source = "google";
+      local.googleResourceName = group.resourceName;
+      local.contactIds = safeArray(local.contactIds);
+      groupIdByResource.set(group.resourceName, local.id);
+    });
+    return groupIdByResource;
+  }
+
+  function googlePersonGroupIds(person, groupIdByResource) {
+    return safeArray(person.memberships)
+      .map((membership) => membership?.contactGroupMembership?.contactGroupResourceName || "")
+      .map((resourceName) => groupIdByResource.get(resourceName))
+      .filter(Boolean);
+  }
+
+  function googlePersonName(person) {
+    const name = safeArray(person.names).find((item) => item?.metadata?.primary) || safeArray(person.names)[0] || {};
+    return String(name.displayName || [name.givenName, name.familyName].filter(Boolean).join(" ") || "").trim();
+  }
+
+  function googlePersonValue(items, key) {
+    const item = safeArray(items).find((entry) => entry?.metadata?.primary) || safeArray(items)[0] || {};
+    return String(item[key] || "").trim();
+  }
+
+  function findGoogleContactMatch(person, email, phone, name) {
+    const resourceName = String(person.resourceName || "");
+    const emailKey = String(email || "").toLowerCase();
+    const phoneKey = normalizePhoneKey(phone);
+    const nameKey = String(name || "").toLowerCase();
+    return data.contacts.find((contact) => contact.googleResourceName === resourceName || contact.googleId === resourceName)
+      || (emailKey ? data.contacts.find((contact) => String(contact.email || "").toLowerCase() === emailKey) : null)
+      || (phoneKey ? data.contacts.find((contact) => normalizePhoneKey(contact.phone) === phoneKey) : null)
+      || (nameKey ? data.contacts.find((contact) => String(contact.name || "").toLowerCase() === nameKey) : null)
+      || null;
+  }
+
+  function normalizePhoneKey(phone) {
+    return String(phone || "").replace(/\D+/g, "");
+  }
+
+  function upsertGoogleContactAddress(person, contactName) {
+    const address = safeArray(person.addresses).find((item) => item?.metadata?.primary) || safeArray(person.addresses)[0];
+    if (!address) return "";
+    const parsed = googleAddressPayload(address, contactName);
+    if (!parsed.street && !parsed.city && !parsed.state) return "";
+    const duplicate = data.addresses.find((item) => addressKey(item) === addressKey(parsed));
+    if (duplicate) return duplicate.id;
+    const newAddress = { id: id("addr"), ...parsed };
+    data.addresses.unshift(newAddress);
+    return newAddress.id;
+  }
+
+  function googleAddressPayload(address, contactName) {
+    const formattedLines = String(address.formattedValue || "").split(/\r?\n|,\s*/).map((part) => part.trim()).filter(Boolean);
+    const street = address.streetAddress || formattedLines[0] || "";
+    const unit = address.extendedAddress || "";
+    const city = address.city || "";
+    const state = address.region || "";
+    const zip = address.postalCode || "";
+    const country = address.country || "USA";
+    const payload = {
+      label: contactName ? `${contactName} Address` : (address.type || "Google Contact Address"),
+      street,
+      unit,
+      city,
+      state,
+      zip,
+      country,
+      entity: "contact",
+      source: "google",
+      validationStatus: "unverified",
+      validationProvider: "",
+      validationUrl: "",
+      validationCheckedAt: ""
+    };
+    normalizeAddressUnit(payload);
+    return payload;
+  }
+
+  function syncAllContactGroupIds() {
+    data.contacts.forEach((contact) => {
+      const groupIds = data.contactGroups
+        .filter((group) => safeArray(group.contactIds).includes(contact.id))
+        .map((group) => group.id);
+      contact.groupIds = Array.from(new Set([...(contact.groupIds || []), ...groupIds]));
+    });
   }
 
   async function testCloudConfig() {
