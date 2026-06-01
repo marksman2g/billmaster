@@ -316,6 +316,11 @@ button:disabled {
   gap: 2px;
 }
 
+.nav-section.is-collapsed .nav-section-links,
+.nav-section-links[hidden] {
+  display: none;
+}
+
 .dashboard-grid,
 .two-col,
 .analytics-grid,
