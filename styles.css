@@ -894,6 +894,7 @@ button.round-icon {
 .secondary-btn,
 .outline-btn,
 .danger-btn,
+.danger-soft-btn,
 .success-btn {
   display: inline-flex;
   align-items: center;
@@ -930,6 +931,12 @@ button.round-icon {
 .danger-btn {
   color: var(--red);
   background: #fff;
+  border-color: #ffabab;
+}
+
+.danger-soft-btn {
+  color: var(--red);
+  background: #fff1f1;
   border-color: #ffabab;
 }
 
@@ -1795,6 +1802,28 @@ button.round-icon {
 
 .cloud-actions {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.sync-conflict-banner {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  color: #7f1d1d;
+  background: #fff1f1;
+  border: 1px solid #ffb4b4;
+  border-radius: 8px;
+}
+
+.sync-conflict-banner strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--red);
+}
+
+.sync-conflict-banner span {
+  color: #7f1d1d;
+  line-height: 1.35;
 }
 
 .cloud-start-card {

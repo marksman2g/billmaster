@@ -91,7 +91,10 @@
       interfaceMode: "power",
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
-      cloudLastAutoCheckAt: ""
+      cloudLastAutoCheckAt: "",
+      cloudSyncConflictAt: "",
+      cloudSyncConflictRemoteAt: "",
+      cloudSyncConflictMessage: ""
     },
     accounts: [
       { id: "acct_1", name: "Chase Checking", type: "Checking", last4: "4521", balance: 3245.67, color: "teal" },
@@ -336,6 +339,7 @@
     "cloud-sign-up",
     "cloud-sign-out",
     "cloud-push-workspace",
+    "cloud-force-push-workspace",
     "cloud-pull-workspace",
     "simulate-detect",
     "simulate-import",
@@ -713,6 +717,9 @@
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
       cloudLastAutoCheckAt: "",
+      cloudSyncConflictAt: "",
+      cloudSyncConflictRemoteAt: "",
+      cloudSyncConflictMessage: "",
       ...(nextData.settings || {})
     };
     nextData.settings.categoryColors = { ...defaultCategoryColors, ...(nextData.settings.categoryColors || {}) };
@@ -2105,6 +2112,7 @@
     const configured = cloudConfigured();
     const signedIn = cloudSignedIn();
     const hasProject = cloudHasProjectUrl();
+    const hasConflict = Boolean(data.settings?.cloudSyncConflictAt);
     const lastSync = data.settings?.cloudLastSyncAt ? `${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))} ${new Date(data.settings.cloudLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Not synced yet";
     const setupCopy = signedIn
       ? "You are connected. Auto sync pushes saved changes and checks for updates from your other devices."
@@ -2113,6 +2121,7 @@
         : hasProject
           ? "The Supabase project URL is already built in. Add the public publishable key once to unlock friend sign-in."
           : "First cloud-sync step: save this full BillMaster workspace to your private Supabase account, then pull it on another device.";
+    const conflictCopy = data.settings?.cloudSyncConflictMessage || "This device and the cloud both changed. Pull cloud to keep the cloud version, or force push to overwrite it with this device.";
     return `<section class="section-card cloud-workspace-panel">
       <div class="cloud-workspace-head">
         <span class="round-icon" style="color:${signedIn ? "var(--green)" : configured ? "var(--blue)" : "var(--amber)"};background:${signedIn ? "#e9f8ef" : configured ? "#eaf4ff" : "#fff5d6"}">${icon(signedIn ? "check" : configured ? "settings" : "alert")}</span>
@@ -2127,10 +2136,15 @@
         <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
         <span><strong>Mode</strong><small>${esc(cloudAutoSyncLabel())}</small></span>
       </div>
+      ${hasConflict ? `<div class="sync-conflict-banner">
+        <strong>${icon("alert")} Sync needs your choice</strong>
+        <span>${esc(conflictCopy)}</span>
+      </div>` : ""}
       <div class="sheet-actions cloud-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} ${hostedCloudConfigStarted() ? "Advanced setup" : "Setup"}</button>
         ${signedIn ? `<button class="outline-btn" data-action="cloud-sign-out">${icon("close")} Sign out</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${configured ? "" : "disabled"}>${icon("home")} Sign in</button>`}
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
+        ${hasConflict ? `<button class="danger-soft-btn" data-action="cloud-force-push-workspace" ${signedIn ? "" : "disabled"}>${icon("alert")} Force push</button>` : ""}
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
         <button class="outline-btn" data-action="toggle-cloud-auto-sync" ${signedIn ? "" : "disabled"}>${icon(cloudAutoSyncEnabled() ? "check" : "settings")} Auto ${cloudAutoSyncEnabled() ? "On" : "Off"}</button>
       </div>
@@ -6601,6 +6615,7 @@
     if (action === "cloud-sign-up") return cloudSignUp();
     if (action === "cloud-sign-out") return cloudSignOut();
     if (action === "cloud-push-workspace") return cloudPushWorkspace();
+    if (action === "cloud-force-push-workspace") return cloudPushWorkspace({ force: true });
     if (action === "cloud-pull-workspace") return cloudPullWorkspace();
     if (action === "toggle-cloud-auto-sync") return toggleCloudAutoSync();
     if (action === "simulate-scan") return simulateBillScan();
@@ -10222,7 +10237,8 @@
       console.warn("BillMaster auto sync failed.", error);
       data.settings.cloudSyncError = error.message || "Auto sync failed.";
       saveData({ undo: false, cloudSync: false });
-      showToast("Auto sync paused by an error. Open Sync Center to retry.", "danger");
+      showToast(data.settings.cloudSyncConflictAt ? "Auto sync paused: both devices changed. Open Sync Center to choose." : "Auto sync paused by an error. Open Sync Center to retry.", "danger");
+      if (ui.view === "sync") render();
     } finally {
       cloudPushInFlight = false;
       if (cloudPushQueued) {
@@ -10262,7 +10278,13 @@
     }
   }
 
-  async function pushWorkspaceToCloud(direction = "push") {
+  async function pushWorkspaceToCloud(direction = "push", options = {}) {
+    const remoteRow = await fetchCloudWorkspaceRow();
+    if (remoteRow?.payload && cloudWorkspaceIsNewer(remoteRow) && !options.force) {
+      markCloudConflict(remoteRow);
+      throw new Error("Sync paused: cloud has newer changes from another device.");
+    }
+    if (options.force) clearCloudConflict();
     const pushedAt = new Date().toISOString();
     const profile = activeProfile();
     const payload = normalizeData(clone(data));
@@ -10272,7 +10294,10 @@
       cloudLastDirection: direction,
       cloudRemoteUpdatedAt: pushedAt,
       cloudLastAutoCheckAt: data.settings?.cloudLastAutoCheckAt || "",
-      cloudSyncError: ""
+      cloudSyncError: "",
+      cloudSyncConflictAt: "",
+      cloudSyncConflictRemoteAt: "",
+      cloudSyncConflictMessage: ""
     };
     const workspace = {
       user_id: cloudSession.user.id,
@@ -10291,6 +10316,7 @@
     data.settings.cloudRemoteUpdatedAt = pushedAt;
     data.settings.cloudLastAutoCheckAt = new Date().toISOString();
     data.settings.cloudSyncError = "";
+    clearCloudConflict();
     saveData({ undo: false, cloudSync: false });
   }
 
@@ -10312,6 +10338,29 @@
     return cloudTimeValue(remoteAt) > cloudTimeValue(localAt) + 1000;
   }
 
+  function cloudRemoteTimestamp(row) {
+    return row?.updated_at || row?.payload?.settings?.cloudRemoteUpdatedAt || row?.payload?.settings?.cloudLastSyncAt || "";
+  }
+
+  function clearCloudConflict() {
+    data.settings.cloudSyncConflictAt = "";
+    data.settings.cloudSyncConflictRemoteAt = "";
+    data.settings.cloudSyncConflictMessage = "";
+  }
+
+  function markCloudConflict(row) {
+    const remoteAt = cloudRemoteTimestamp(row);
+    const message = "Cloud changed on another device before this device finished syncing. Pull cloud to keep the other device, or force push to keep this device.";
+    data.settings.cloudSyncConflictAt = new Date().toISOString();
+    data.settings.cloudSyncConflictRemoteAt = remoteAt;
+    data.settings.cloudSyncConflictMessage = message;
+    data.settings.cloudSyncError = message;
+    data.settings.cloudAutoSync = false;
+    stopCloudAutoSync();
+    cloudHasLocalUnsyncedChanges = true;
+    saveData({ undo: false, cloudSync: false });
+  }
+
   async function loadCloudWorkspaceIntoLocal(options = {}) {
     const row = options.row || await fetchCloudWorkspaceRow();
     if (!row?.payload) return false;
@@ -10325,6 +10374,7 @@
     data.settings.cloudLastAutoCheckAt = pulledAt;
     if (options.enableAutoSync !== false) data.settings.cloudAutoSync = true;
     data.settings.cloudSyncError = "";
+    clearCloudConflict();
     cloudHasLocalUnsyncedChanges = false;
     resetUndoBaseline();
     saveData({ undo: false, cloudSync: false });
@@ -10337,13 +10387,18 @@
       return;
     }
     try {
-      await pushWorkspaceToCloud("push");
+      await pushWorkspaceToCloud(options.force ? "force" : "push", { force: Boolean(options.force) });
       data.settings.cloudAutoSync = true;
       saveData({ undo: false, cloudSync: false });
       startCloudAutoSync();
-      if (!options.silent) showToast("Local workspace pushed to Supabase. Auto sync is now on.");
+      if (!options.silent) showToast(options.force ? "This device was force-pushed to the cloud. Auto sync is back on." : "Local workspace pushed to Supabase. Auto sync is now on.");
       if (ui.view === "sync") render();
     } catch (error) {
+      if (/cloud has newer changes|Sync paused/i.test(error.message)) {
+        showToast("Cloud changed on another device. Pull cloud or use Force push from Sync Center.", "danger");
+        if (ui.view === "sync") render();
+        return;
+      }
       if (/permission denied|insufficient privilege|not exposed|schema cache/i.test(error.message)) {
         showToast("Cloud push failed: run the latest Supabase grants SQL, then try Push local again.", "danger");
         return;
