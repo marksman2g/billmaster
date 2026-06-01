@@ -1858,6 +1858,98 @@ button.round-icon {
   text-decoration: none;
 }
 
+.friend-alpha-panel {
+  display: grid;
+  gap: 14px;
+  border-color: #b9e8c8;
+  background: linear-gradient(135deg, #ffffff, #f3fff7);
+}
+
+.friend-alpha-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.friend-alpha-head p {
+  margin: 4px 0 0;
+}
+
+.friend-alpha-score {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  color: var(--green);
+  font-size: 2rem;
+  font-weight: 900;
+  background: #e9f8ef;
+  border: 1px solid #b9e8c8;
+  border-radius: 8px;
+}
+
+.friend-alpha-score span {
+  margin-top: -8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.friend-alpha-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.friend-alpha-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 9px;
+  align-items: center;
+  min-height: 76px;
+  padding: 10px;
+  background: #fff8e5;
+  border: 1px solid #f6d886;
+  border-radius: 8px;
+}
+
+.friend-alpha-check > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--amber);
+  background: #fff5d6;
+  border-radius: 8px;
+}
+
+.friend-alpha-check strong,
+.friend-alpha-check small {
+  min-width: 0;
+}
+
+.friend-alpha-check small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.friend-alpha-check.is-ready {
+  background: #f4fff7;
+  border-color: #b9e8c8;
+}
+
+.friend-alpha-check.is-ready > span {
+  color: var(--green);
+  background: #e9f8ef;
+}
+
+.friend-alpha-actions {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
 .sync-card {
   display: grid;
   gap: 10px;

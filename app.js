@@ -2011,6 +2011,7 @@
         <div class="balance-meta"><span>${icon("wallet")} Bank/Card sync</span><span>${icon("receipt")} Biller sync</span><span>${icon("note")} Import inbox</span></div>
       </section>
       ${cloudWorkspacePanel()}
+      ${friendAlphaLaunchPanel()}
       ${mobileCodexAccessPanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       <section class="section-card">
@@ -2057,6 +2058,44 @@
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
         <button class="outline-btn" data-action="toggle-cloud-auto-sync" ${signedIn ? "" : "disabled"}>${icon(cloudAutoSyncEnabled() ? "check" : "settings")} Auto ${cloudAutoSyncEnabled() ? "On" : "Off"}</button>
+      </div>
+    </section>`;
+  }
+
+  function friendAlphaLaunchPanel() {
+    const checks = [
+      { label: "Supabase project URL", ready: cloudHasProjectUrl(), detail: cloudHasProjectUrl() ? cloudProjectHost() : "Add project URL" },
+      { label: "Publishable key", ready: Boolean(cloudConfig.anonKey), detail: cloudConfig.anonKey ? "Browser can sign in" : "Paste full key into billmaster-config.js" },
+      { label: "BillMaster account", ready: cloudSignedIn(), detail: cloudSignedIn() ? cloudSafeEmail() : "Create or sign in from Sync Center" },
+      { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Push local once, then pull on phone/iPad" },
+      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "On after saves" : "Turn on after first good push/pull" }
+    ];
+    const ready = checks.filter((item) => item.ready).length;
+    const keyMissing = cloudHasProjectUrl() && !cloudConfig.anonKey;
+    const title = ready >= checks.length ? "Ready For Friend Alpha" : "Friend Alpha Launchpad";
+    const copy = keyMissing
+      ? "The only hard blocker is the Supabase publishable key. Once it is in the hosted config, the sign-in flow can be tested from your phone and iPad."
+      : "Use this as the go/no-go board before inviting friends. Every green item means one less thing that can confuse someone testing BillMaster.";
+    return `<section class="section-card friend-alpha-panel">
+      <div class="friend-alpha-head">
+        <div>
+          <div class="section-title compact-title"><h2>${esc(title)}</h2><span class="status ${ready >= checks.length ? "success" : keyMissing ? "warn" : "info"}">${ready}/${checks.length} ready</span></div>
+          <p class="muted">${esc(copy)}</p>
+        </div>
+        <div class="friend-alpha-score">${ready}<span>of ${checks.length}</span></div>
+      </div>
+      <div class="friend-alpha-checks">
+        ${checks.map((item) => `<div class="friend-alpha-check ${item.ready ? "is-ready" : ""}">
+          <span>${icon(item.ready ? "check" : "alert")}</span>
+          <strong>${esc(item.label)}</strong>
+          <small>${esc(item.detail)}</small>
+        </div>`).join("")}
+      </div>
+      <div class="sheet-actions friend-alpha-actions">
+        <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
+        <button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Sign in</button>
+        <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Push local</button>
+        <button class="outline-btn" data-action="cloud-pull-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("note")} Pull cloud</button>
       </div>
     </section>`;
   }
@@ -4383,6 +4422,7 @@
       <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="section-title"><h2>Hosted Cloud Project</h2>${hostedStatus}</div>
         <p class="muted">Use the Supabase API URL that ends in <strong>.supabase.co</strong>. Use the publishable/anon public key, never the service role key. The publishable key is browser-safe when Row Level Security is on.</p>
+        <p class="muted"><strong>Important:</strong> saving here fixes this browser. To make phone/iPad and friends work without manual setup, paste the same publishable key into <strong>billmaster-config.js</strong> and push it to GitHub.</p>
       </section>
       <div class="field-grid">
         ${field("cloudUrl", "Supabase Project URL", cloudConfig.url || "", "https://your-project.supabase.co", "url")}

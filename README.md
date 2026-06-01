@@ -49,6 +49,7 @@ Phase 0 cloud-readiness files:
 - `.devcontainer/devcontainer.json` - GitHub Codespaces setup for cloud editing from another device.
 - `scripts/serve-billmaster.js` - small no-build preview server for Codespaces or local testing.
 - `MOBILE_CODEX_ACCESS.md` - phone, tablet, GitHub, Codespaces, and Codex access path.
+- `FRIEND_ALPHA_CHECKLIST.md` - go/no-go checklist before inviting trusted testers.
 
 GitHub Pages is enough for a public prototype link. Vercel or Netlify is the better next host for private beta previews, especially once Supabase environment values are added.
 

@@ -11,6 +11,7 @@ This file keeps the running product requests in one place so ideas do not get lo
 - Product structure pass: Today Briefing, grouped command center actions, Review Inbox naming, one Subscription Hub, and visible launch roadmap. Done in prototype.
 - Phase 1 cloud starter: Supabase setup modal, Auth sign-in/sign-up hooks, private workspace push/pull flow, starter SQL schema, post-push/pull auto sync, and hosted runtime config. Started.
 - Phone/tablet development path: Codespaces config, static preview server, and mobile Codex access guide. Started.
+- Friend alpha launchpad and tester checklist. Started.
 
 ## Recently Completed
 
