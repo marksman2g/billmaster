@@ -94,7 +94,8 @@
       cloudLastAutoCheckAt: "",
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
-      cloudSyncConflictMessage: ""
+      cloudSyncConflictMessage: "",
+      deletedItems: {}
     },
     accounts: [
       { id: "acct_1", name: "Chase Checking", type: "Checking", last4: "4521", balance: 3245.67, color: "teal" },
@@ -357,7 +358,7 @@
     "ai-prompt",
     "reset-data"
   ]);
-  saveData({ undo: false, cloudSync: false });
+  saveData({ undo: false, cloudSync: false, syncStamp: false });
 
   function getHashView() {
     if (typeof window === "undefined" || !window.location) return "";
@@ -720,9 +721,11 @@
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      deletedItems: {},
       ...(nextData.settings || {})
     };
     nextData.settings.categoryColors = { ...defaultCategoryColors, ...(nextData.settings.categoryColors || {}) };
+    nextData.settings.deletedItems = normalizeDeletedItemsMap(nextData.settings.deletedItems);
     nextData.settings.customTaskCategories = normalizeCustomTaskCategories(nextData.settings.customTaskCategories);
     nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
     if (!["simple", "power"].includes(nextData.settings.interfaceMode)) nextData.settings.interfaceMode = "power";
@@ -744,6 +747,120 @@
 
   function safeArray(value) {
     return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
+  }
+
+  function syncCollectionKeys() {
+    return Object.keys(seed).filter((key) => Array.isArray(seed[key]) && key !== "dismissedInboxIds");
+  }
+
+  function normalizeDeletedItemsMap(value) {
+    const normalized = {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) return normalized;
+    Object.entries(value).forEach(([collection, itemMap]) => {
+      if (!itemMap || typeof itemMap !== "object" || Array.isArray(itemMap)) return;
+      Object.entries(itemMap).forEach(([itemId, deletedAt]) => {
+        const key = String(itemId || "").trim();
+        const at = String(deletedAt || "").trim();
+        if (!key || !at) return;
+        normalized[collection] = normalized[collection] || {};
+        normalized[collection][key] = at;
+      });
+    });
+    return normalized;
+  }
+
+  function syncItemId(collection, item) {
+    if (!item || typeof item !== "object") return "";
+    if (item.id) return String(item.id);
+    if (collection === "weather" && item.date) return String(item.date);
+    return "";
+  }
+
+  function syncComparable(value) {
+    if (Array.isArray(value)) return value.map(syncComparable);
+    if (!value || typeof value !== "object") return value;
+    return Object.keys(value)
+      .filter((key) => !["updatedAt", "syncUpdatedAt"].includes(key))
+      .sort()
+      .reduce((output, key) => {
+        output[key] = syncComparable(value[key]);
+        return output;
+      }, {});
+  }
+
+  function syncFingerprint(value) {
+    try {
+      return JSON.stringify(syncComparable(value));
+    } catch (error) {
+      return String(value || "");
+    }
+  }
+
+  function workspaceFallbackTime(payload) {
+    return payload?.settings?.cloudRemoteUpdatedAt
+      || payload?.settings?.cloudLastSyncAt
+      || payload?.settings?.cloudLastAutoCheckAt
+      || "";
+  }
+
+  function syncItemTime(item, fallback = "") {
+    return cloudTimeValue(item?.updatedAt || item?.syncUpdatedAt || fallback);
+  }
+
+  function mergeDeletedItems(localDeleted, incomingDeleted) {
+    const merged = normalizeDeletedItemsMap(localDeleted);
+    const incoming = normalizeDeletedItemsMap(incomingDeleted);
+    Object.entries(incoming).forEach(([collection, itemMap]) => {
+      Object.entries(itemMap).forEach(([itemId, incomingAt]) => {
+        const currentAt = merged[collection]?.[itemId] || "";
+        if (!currentAt || cloudTimeValue(incomingAt) >= cloudTimeValue(currentAt)) {
+          merged[collection] = merged[collection] || {};
+          merged[collection][itemId] = incomingAt;
+        }
+      });
+    });
+    return merged;
+  }
+
+  function stampLocalSyncChanges(nextData, options = {}) {
+    if (options.syncStamp === false) return nextData;
+    let previousData = null;
+    try {
+      previousData = lastSavedSnapshot ? JSON.parse(lastSavedSnapshot) : null;
+    } catch (error) {
+      previousData = null;
+    }
+    const now = new Date().toISOString();
+    const baseline = workspaceFallbackTime(nextData) || workspaceFallbackTime(previousData) || now;
+    const deletedItems = normalizeDeletedItemsMap(nextData.settings?.deletedItems || previousData?.settings?.deletedItems);
+    syncCollectionKeys().forEach((collection) => {
+      const currentItems = safeArray(nextData[collection]);
+      const previousItems = safeArray(previousData?.[collection]);
+      const previousById = new Map();
+      previousItems.forEach((item) => {
+        const itemId = syncItemId(collection, item);
+        if (itemId) previousById.set(itemId, item);
+      });
+      const currentIds = new Set();
+      nextData[collection] = currentItems.map((item) => {
+        const itemId = syncItemId(collection, item);
+        if (!itemId) return item;
+        currentIds.add(itemId);
+        const previousItem = previousById.get(itemId);
+        const stamped = { ...item };
+        if (!stamped.updatedAt) stamped.updatedAt = previousItem?.updatedAt || previousItem?.syncUpdatedAt || baseline;
+        if (!previousItem || syncFingerprint(previousItem) !== syncFingerprint(stamped)) stamped.updatedAt = now;
+        return stamped;
+      });
+      previousById.forEach((previousItem, itemId) => {
+        if (currentIds.has(itemId)) return;
+        deletedItems[collection] = deletedItems[collection] || {};
+        deletedItems[collection][itemId] = deletedItems[collection][itemId] || now;
+      });
+    });
+    nextData.settings = nextData.settings || {};
+    nextData.settings.deletedItems = deletedItems;
+    return nextData;
   }
 
   function isHexColor(value) {
@@ -1056,6 +1173,61 @@
     return base;
   }
 
+  function mergeSyncCollection(collection, localItems, incomingItems, deletedItems, localFallback, incomingFallback) {
+    const byId = new Map();
+    const noIdByFingerprint = new Map();
+    const addItem = (item, fallback) => {
+      const itemId = syncItemId(collection, item);
+      if (!itemId) {
+        noIdByFingerprint.set(syncFingerprint(item), item);
+        return;
+      }
+      const stamped = { ...item };
+      if (!stamped.updatedAt) stamped.updatedAt = fallback || new Date().toISOString();
+      const itemAt = syncItemTime(stamped, fallback);
+      const deletedAt = cloudTimeValue(deletedItems?.[collection]?.[itemId] || "");
+      if (deletedAt && deletedAt >= itemAt) return;
+      const current = byId.get(itemId);
+      if (!current || syncItemTime(stamped, fallback) >= syncItemTime(current, localFallback || incomingFallback)) {
+        byId.set(itemId, stamped);
+      }
+    };
+    safeArray(localItems).forEach((item) => addItem(item, localFallback));
+    safeArray(incomingItems).forEach((item) => addItem(item, incomingFallback));
+    return [...byId.values(), ...noIdByFingerprint.values()];
+  }
+
+  function mergeWorkspacePayloads(localPayload, incomingPayload, options = {}) {
+    const preferIncoming = options.prefer === "incoming" || options.prefer === "remote";
+    const local = normalizeData(mergeSeed(clone(seed), clone(localPayload || {})));
+    const incoming = normalizeData(mergeSeed(clone(seed), clone(incomingPayload || {})));
+    const merged = clone(preferIncoming ? incoming : local);
+    const localSettings = local.settings || {};
+    const incomingSettings = incoming.settings || {};
+    merged.settings = preferIncoming
+      ? { ...localSettings, ...incomingSettings }
+      : { ...incomingSettings, ...localSettings };
+    merged.settings.deletedItems = mergeDeletedItems(localSettings.deletedItems, incomingSettings.deletedItems);
+    const localFallback = workspaceFallbackTime(local);
+    const incomingFallback = workspaceFallbackTime(incoming);
+    Object.keys(seed).forEach((collection) => {
+      if (!Array.isArray(seed[collection])) return;
+      if (collection === "dismissedInboxIds") {
+        merged[collection] = Array.from(new Set([...(local[collection] || []), ...(incoming[collection] || [])].map(String)));
+        return;
+      }
+      merged[collection] = mergeSyncCollection(
+        collection,
+        local[collection],
+        incoming[collection],
+        merged.settings.deletedItems,
+        localFallback,
+        incomingFallback
+      );
+    });
+    return normalizeData(merged);
+  }
+
   function pushUndoSnapshot(snapshot) {
     if (!snapshot || undoStack[undoStack.length - 1]?.snapshot === snapshot) return;
     undoStack.push({ snapshot, at: Date.now() });
@@ -1090,6 +1262,7 @@
   function saveData(options = {}) {
     let serialized = "";
     try {
+      stampLocalSyncChanges(data, options);
       data = normalizeData(data);
       serialized = JSON.stringify(data);
       if (options.undo !== false && lastSavedSnapshot && serialized !== lastSavedSnapshot) {
@@ -2115,7 +2288,7 @@
     const hasConflict = Boolean(data.settings?.cloudSyncConflictAt);
     const lastSync = data.settings?.cloudLastSyncAt ? `${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))} ${new Date(data.settings.cloudLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Not synced yet";
     const setupCopy = signedIn
-      ? "You are connected. Auto sync pushes saved changes and checks for updates from your other devices."
+      ? "You are connected. Auto sync merges saved items by ID, so tasks, notes, loans, addresses, projects, and other records can sync across devices."
       : configured
         ? "Cloud is ready. Sign in or create an account, then pull your workspace on another device."
         : hasProject
@@ -2157,7 +2330,7 @@
       { label: "Publishable key", ready: Boolean(cloudConfig.anonKey), detail: cloudConfig.anonKey ? "Browser can sign in" : "Paste full key into billmaster-config.js" },
       { label: "BillMaster account", ready: cloudSignedIn(), detail: cloudSignedIn() ? cloudSafeEmail() : "Create or sign in from Sync Center" },
       { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Push local once, then pull on phone/iPad" },
-      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Pushes saves and pulls updates" : "Turn on after first good push/pull" }
+      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Merges saved items across devices" : "Turn on after first good push/pull" }
     ];
     const ready = checks.filter((item) => item.ready).length;
     const keyMissing = cloudHasProjectUrl() && !cloudConfig.anonKey;
@@ -10116,7 +10289,7 @@
           data = blankWorkspace();
           data.settings.cloudAutoSync = true;
           resetUndoBaseline();
-          saveData({ undo: false, cloudSync: false });
+          saveData({ undo: false, cloudSync: false, syncStamp: false });
           await pushWorkspaceToCloud("signup");
         }
         ui.modal = null;
@@ -10236,7 +10409,7 @@
     } catch (error) {
       console.warn("BillMaster auto sync failed.", error);
       data.settings.cloudSyncError = error.message || "Auto sync failed.";
-      saveData({ undo: false, cloudSync: false });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       showToast(data.settings.cloudSyncConflictAt ? "Auto sync paused: both devices changed. Open Sync Center to choose." : "Auto sync paused by an error. Open Sync Center to retry.", "danger");
       if (ui.view === "sync") render();
     } finally {
@@ -10259,7 +10432,7 @@
     try {
       const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true, onlyIfNewer: true });
       data.settings.cloudLastAutoCheckAt = new Date().toISOString();
-      saveData({ undo: false, cloudSync: false });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       if (loaded) {
         render();
         showToast("BillMaster pulled fresh cloud changes.");
@@ -10269,7 +10442,7 @@
     } catch (error) {
       console.warn("BillMaster auto pull failed.", error);
       data.settings.cloudSyncError = error.message || "Auto pull failed.";
-      saveData({ undo: false, cloudSync: false });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       if (/sign in|expired/i.test(error.message || "")) showToast(error.message, "danger");
       if (ui.view === "sync") render();
     } finally {
@@ -10280,14 +10453,15 @@
 
   async function pushWorkspaceToCloud(direction = "push", options = {}) {
     const remoteRow = await fetchCloudWorkspaceRow();
-    if (remoteRow?.payload && cloudWorkspaceIsNewer(remoteRow) && !options.force) {
-      markCloudConflict(remoteRow);
-      throw new Error("Sync paused: cloud has newer changes from another device.");
+    let payloadSource = normalizeData(clone(data));
+    if (remoteRow?.payload && !options.force) {
+      payloadSource = mergeWorkspacePayloads(remoteRow.payload, payloadSource, { prefer: "local" });
+      data = normalizeData(mergeSeed(clone(seed), payloadSource));
     }
     if (options.force) clearCloudConflict();
     const pushedAt = new Date().toISOString();
     const profile = activeProfile();
-    const payload = normalizeData(clone(data));
+    const payload = normalizeData(clone(payloadSource));
     payload.settings = {
       ...(payload.settings || {}),
       cloudLastSyncAt: pushedAt,
@@ -10317,7 +10491,8 @@
     data.settings.cloudLastAutoCheckAt = new Date().toISOString();
     data.settings.cloudSyncError = "";
     clearCloudConflict();
-    saveData({ undo: false, cloudSync: false });
+    cloudHasLocalUnsyncedChanges = false;
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
   }
 
   async function fetchCloudWorkspaceRow() {
@@ -10358,7 +10533,7 @@
     data.settings.cloudAutoSync = false;
     stopCloudAutoSync();
     cloudHasLocalUnsyncedChanges = true;
-    saveData({ undo: false, cloudSync: false });
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
   }
 
   async function loadCloudWorkspaceIntoLocal(options = {}) {
@@ -10367,7 +10542,9 @@
     if (options.onlyIfNewer && !cloudWorkspaceIsNewer(row)) return false;
     const pulledAt = new Date().toISOString();
     const remoteAt = row.updated_at || row.payload?.settings?.cloudRemoteUpdatedAt || row.payload?.settings?.cloudLastSyncAt || pulledAt;
-    data = normalizeData(mergeSeed(clone(seed), row.payload));
+    const remotePayload = normalizeData(mergeSeed(clone(seed), row.payload));
+    const nextPayload = options.replace ? remotePayload : mergeWorkspacePayloads(data, remotePayload, { prefer: "incoming" });
+    data = normalizeData(mergeSeed(clone(seed), nextPayload));
     data.settings.cloudLastSyncAt = pulledAt;
     data.settings.cloudLastDirection = "pull";
     data.settings.cloudRemoteUpdatedAt = remoteAt;
@@ -10377,7 +10554,7 @@
     clearCloudConflict();
     cloudHasLocalUnsyncedChanges = false;
     resetUndoBaseline();
-    saveData({ undo: false, cloudSync: false });
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
     return true;
   }
 
@@ -10389,7 +10566,7 @@
     try {
       await pushWorkspaceToCloud(options.force ? "force" : "push", { force: Boolean(options.force) });
       data.settings.cloudAutoSync = true;
-      saveData({ undo: false, cloudSync: false });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       startCloudAutoSync();
       if (!options.silent) showToast(options.force ? "This device was force-pushed to the cloud. Auto sync is back on." : "Local workspace pushed to Supabase. Auto sync is now on.");
       if (ui.view === "sync") render();
@@ -10413,7 +10590,7 @@
       return;
     }
     data.settings.cloudAutoSync = !cloudAutoSyncEnabled();
-    saveData({ undo: false, cloudSync: false });
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
     if (data.settings.cloudAutoSync) {
       showToast("Auto sync is on. BillMaster will push saves and pull new cloud changes.");
       if (cloudHasLocalUnsyncedChanges) scheduleCloudAutoPush(300);
