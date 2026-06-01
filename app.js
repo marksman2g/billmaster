@@ -45,6 +45,7 @@
     blockSelectMode: false,
     selectedTasks: [],
     selectedAddresses: [],
+    notifyQuery: "",
     modal: null,
     aiDraft: "",
     voiceTranscript: "",
@@ -5260,6 +5261,63 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;"><button class="outline-btn" data-action="close-modal">Cancel</button><button class="secondary-btn" data-action="copy-selected-to-date">Copy Tasks</button></div>`;
   }
 
+  function contactHasNotifyTarget(contact, channels = ["email"]) {
+    if (!contact) return false;
+    if (channels.includes("email") && contact.email) return true;
+    if (channels.includes("emailToText") && contact.textEmail) return true;
+    return false;
+  }
+
+  function notifyGroupButton(group, selectedGroupIds, channels) {
+    const contacts = safeArray(group.contactIds)
+      .map((idValue) => data.contacts.find((item) => item.id === idValue))
+      .filter(Boolean);
+    const readyCount = contacts.filter((contact) => contactHasNotifyTarget(contact, channels)).length;
+    const searchText = [group.name, group.source, contacts.map((contact) => contact.name).join(" ")].join(" ").toLowerCase();
+    return `<button class="outline-btn notify-group-chip ${selectedGroupIds.has(group.id) ? "active" : ""}" data-action="toggle-notify-group" data-id="${group.id}" data-notify-search-group="${esc(searchText)}">${icon("home")}<span>${esc(group.name)}</span><small>${contacts.length} people | ${readyCount} ready</small></button>`;
+  }
+
+  function taskNotifyPreviewStats(task, selectedContactIds, selectedGroupIds, channels, extraRecipient = "") {
+    const contactIds = new Set(Array.from(selectedContactIds || []));
+    Array.from(selectedGroupIds || []).forEach((groupId) => {
+      const group = (data.contactGroups || []).find((item) => item.id === groupId);
+      safeArray(group?.contactIds).forEach((contactId) => contactIds.add(contactId));
+    });
+    const contacts = Array.from(contactIds)
+      .map((contactId) => data.contacts.find((contact) => contact.id === contactId))
+      .filter(Boolean);
+    const recipients = [];
+    const missing = [];
+    contacts.forEach((contact) => {
+      let added = false;
+      if (channels.includes("email") && contact.email) {
+        recipients.push(contact.email);
+        added = true;
+      }
+      if (channels.includes("emailToText") && contact.textEmail) {
+        recipients.push(contact.textEmail);
+        added = true;
+      }
+      if (!added) missing.push(contact);
+    });
+    if (extraRecipient) recipients.push(extraRecipient);
+    return {
+      contacts,
+      missing,
+      recipients: Array.from(new Set(recipients.map((recipient) => String(recipient || "").trim()).filter(Boolean)))
+    };
+  }
+
+  function taskNotifyPreviewMarkup(stats) {
+    const missingNames = safeArray(stats.missing).slice(0, 3).map((contact) => contact.name).join(", ");
+    return `<div class="notify-preview-grid">
+      <span><strong>${safeArray(stats.contacts).length}</strong><small>people selected</small></span>
+      <span><strong>${safeArray(stats.recipients).length}</strong><small>email/text targets</small></span>
+      <span class="${safeArray(stats.missing).length ? "warn" : "ready"}"><strong>${safeArray(stats.missing).length}</strong><small>${safeArray(stats.missing).length ? "missing target" : "ready"}</small></span>
+    </div>
+    ${missingNames ? `<p class="subtle">${esc(missingNames)} ${stats.missing.length > 3 ? `and ${stats.missing.length - 3} more ` : ""}need an email or email-to-text address.</p>` : `<p class="subtle">Selected contacts are ready for Gmail drafts or device email.</p>`}`;
+  }
+
   function modalTaskNotify(taskId) {
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return "";
@@ -5271,6 +5329,7 @@
     const channels = taskNotifyChannels(task);
     const notifyEveryStatus = task.notifyOnAnyStatus !== false;
     const selectedStatuses = new Set(task.notifyOnStatuses || []);
+    const previewStats = taskNotifyPreviewStats(task, selectedContactIds, selectedGroupIds, channels, recipient);
     return `${modalHeader("Notify About Task", task.title)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="card-row"><strong>${icon("bell")} Alert preview</strong><span class="status muted">${esc(task.status)}</span></div>
@@ -5293,8 +5352,12 @@
         </div>
         <p class="subtle">Free text alerts usually require a carrier email gateway. Direct SMS can be added later as a paid/premium provider feature.</p>
       </div>
+      <label class="search-field notify-search">${icon("search")}<input id="taskNotifySearch" data-action="notify-search" value="${esc(ui.notifyQuery || "")}" placeholder="Search imported contacts, groups, email, or phone..." autocomplete="off"></label>
+      <div id="taskNotifyRecipientPreview" class="notify-preview">
+        ${taskNotifyPreviewMarkup(previewStats)}
+      </div>
       <div class="notify-group-row">
-        ${(data.contactGroups || []).map((group) => `<button class="outline-btn ${selectedGroupIds.has(group.id) ? "active" : ""}" data-action="toggle-notify-group" data-id="${group.id}">${icon("home")} ${esc(group.name)}</button>`).join("") || `<span class="subtle">Create groups from the Contacts screen.</span>`}
+        ${(data.contactGroups || []).map((group) => notifyGroupButton(group, selectedGroupIds, channels)).join("") || `<span class="subtle">Create groups from the Contacts screen.</span>`}
       </div>
       <div class="notify-contact-list">
         ${data.contacts.map((item) => `<label class="notify-contact-row">
@@ -5303,6 +5366,7 @@
           <span class="round-icon">${esc(item.name.charAt(0))}</span>
         </label>`).join("") || `<p class="muted">No contacts yet.</p>`}
       </div>
+      <p id="taskNotifySearchCount" class="subtle notify-search-count"></p>
       <div class="field-grid">
         ${field("taskNotifyRecipient", "Extra Email or Email-to-Text Address", recipient, "person@example.com")}
         ${textArea("taskNotifyMessage", "Message", message, "Alert message")}
@@ -6662,6 +6726,12 @@
       ui.loanQuery = target.value;
       renderPreservingInput(target);
     }
+    if (target && target.dataset.action === "notify-search") {
+      filterNotifyPicker(target.value);
+    }
+    if (target && target.id === "taskNotifyRecipient") {
+      updateTaskNotifyPreview();
+    }
     if (target && target.id === "forgiveAmount" && ui.modal?.type === "forgiveLoan") {
       const loan = data.loans.find((item) => item.id === ui.modal.id);
       const preview = document.getElementById("forgivePreviewRemaining");
@@ -6713,6 +6783,9 @@
     if (target && target.id === "contactAddress") toggleContactAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
     if (target && target.dataset.action === "image-upload") handleImageUpload(target);
+    if (target && (target.classList?.contains("taskNotifyChannel") || target.classList?.contains("taskNotifyStatus") || target.id === "taskNotifyAnyStatus" || String(target.id || "").startsWith("notifyContact_"))) {
+      updateTaskNotifyPreview();
+    }
   });
 
   document.addEventListener("change", (event) => {
@@ -7127,6 +7200,9 @@
     if (type === "voiceHabit") {
       ui.habitVoiceParsedHabit = ui.habitVoiceTranscript ? parseVoiceHabit(ui.habitVoiceTranscript) : null;
       ui.habitVoiceError = "";
+    }
+    if (type === "taskNotify") {
+      ui.notifyQuery = "";
     }
     render();
   }
@@ -10071,6 +10147,58 @@
     showToast(removed ? `Cleared ${removed} sent notification${removed === 1 ? "" : "s"}.` : "No sent notifications to clear.");
   }
 
+  function notifySearchTextForContact(contactId, row) {
+    const contact = data.contacts.find((item) => item.id === contactId);
+    const groups = contactGroupsForContact(contactId).map((group) => group.name).join(" ");
+    return [
+      row?.textContent || "",
+      contact?.name || "",
+      contact?.email || "",
+      contact?.phone || "",
+      contact?.textEmail || "",
+      contact?.source || "",
+      groups
+    ].join(" ").toLowerCase();
+  }
+
+  function filterNotifyPicker(rawQuery = ui.notifyQuery || "") {
+    ui.notifyQuery = rawQuery;
+    const query = String(rawQuery || "").trim().toLowerCase();
+    let visibleContacts = 0;
+    document.querySelectorAll(".notify-contact-row").forEach((row) => {
+      const input = row.querySelector("input[id^='notifyContact_']");
+      const contactId = input?.value || "";
+      const checked = Boolean(input?.checked);
+      const matches = !query || notifySearchTextForContact(contactId, row).includes(query);
+      row.hidden = !matches && !checked;
+      if (!row.hidden) visibleContacts += 1;
+    });
+    let visibleGroups = 0;
+    document.querySelectorAll("[data-notify-search-group]").forEach((button) => {
+      const active = button.classList.contains("active");
+      const matches = !query || String(button.dataset.notifySearchGroup || button.textContent || "").toLowerCase().includes(query);
+      button.hidden = !matches && !active;
+      if (!button.hidden) visibleGroups += 1;
+    });
+    const countEl = document.getElementById("taskNotifySearchCount");
+    if (countEl) countEl.textContent = query ? `${visibleContacts} contact${visibleContacts === 1 ? "" : "s"} and ${visibleGroups} group${visibleGroups === 1 ? "" : "s"} visible. Checked items stay visible.` : "";
+    updateTaskNotifyPreview();
+  }
+
+  function updateTaskNotifyPreview() {
+    const task = data.tasks.find((item) => item.id === ui.modal?.id);
+    const preview = document.getElementById("taskNotifyRecipientPreview");
+    if (!task || !preview) return;
+    const stats = taskNotifyPreviewStats(
+      task,
+      new Set(selectedNotifyContactIds()),
+      new Set(selectedNotifyGroupIds()),
+      selectedNotifyChannels(),
+      value("taskNotifyRecipient")
+    );
+    preview.innerHTML = taskNotifyPreviewMarkup(stats);
+  }
+
   function selectedNotifyContactIds() {
     return Array.from(document.querySelectorAll("[id^='notifyContact_']:checked")).map((input) => input.value);
   }
@@ -10088,6 +10216,8 @@
       const checkbox = document.getElementById(`notifyContact_${contactId}`);
       if (checkbox) checkbox.checked = active;
     });
+    filterNotifyPicker(ui.notifyQuery || "");
+    updateTaskNotifyPreview();
   }
 
   function saveTaskNotify(taskId) {
@@ -10120,7 +10250,6 @@
       const group = (data.contactGroups || []).find((item) => item.id === groupId);
       (group?.contactIds || []).forEach((contactId) => contactIds.add(contactId));
     });
-    if (task.contactId) contactIds.add(task.contactId);
     const recipients = [];
     Array.from(contactIds)
       .map((contactId) => data.contacts.find((contact) => contact.id === contactId))

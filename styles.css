@@ -3433,6 +3433,79 @@ button.round-icon {
   border-color: var(--navy-2);
 }
 
+.notify-search {
+  margin: 0 0 10px;
+}
+
+.notify-preview {
+  margin: 0 0 12px;
+  padding: 10px;
+  background: #f8fbff;
+  border: 1px solid #cfe3ff;
+  border-radius: 8px;
+}
+
+.notify-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notify-preview-grid span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.notify-preview-grid strong {
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+
+.notify-preview-grid small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.notify-preview-grid .ready strong {
+  color: var(--green);
+}
+
+.notify-preview-grid .warn strong {
+  color: var(--amber);
+}
+
+.notify-group-chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 7px;
+  min-height: 48px;
+  text-align: left;
+}
+
+.notify-group-chip .icon {
+  grid-row: span 2;
+}
+
+.notify-group-chip span,
+.notify-group-chip small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notify-group-chip small {
+  color: inherit;
+  opacity: 0.72;
+  font-size: 0.7rem;
+}
+
 .notify-contact-list {
   display: grid;
   gap: 8px;
@@ -3495,6 +3568,11 @@ button.round-icon {
 .notify-contact-row small {
   color: var(--muted);
   font-size: 0.76rem;
+}
+
+.notify-search-count {
+  min-height: 1.1rem;
+  margin: -4px 0 10px;
 }
 
 .notification-stats {
