@@ -1,0 +1,23 @@
+{
+  "name": "BillMaster Cloud Workbench",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [4176, 3000],
+  "portsAttributes": {
+    "4176": {
+      "label": "BillMaster local preview",
+      "onAutoForward": "openPreview"
+    },
+    "3000": {
+      "label": "Alternate BillMaster preview",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "node --version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.vscode-github-actions"
+      ]
+    }
+  }
+}

@@ -1828,6 +1828,36 @@ button.round-icon {
   width: 100%;
 }
 
+.mobile-codex-panel {
+  display: grid;
+  gap: 14px;
+  border-color: #d8d4ff;
+  background: linear-gradient(135deg, #ffffff, #f7f5ff);
+}
+
+.mobile-codex-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+}
+
+.mobile-codex-copy h2 {
+  margin: 0;
+}
+
+.mobile-codex-copy p {
+  margin: 4px 0 0;
+}
+
+.mobile-codex-facts small {
+  word-break: break-word;
+}
+
+.mobile-codex-actions a {
+  text-decoration: none;
+}
+
 .sync-card {
   display: grid;
   gap: 10px;

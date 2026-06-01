@@ -54,7 +54,9 @@ Use GitHub as the anchor. From there, BillMaster can be worked on from more than
 - A cloud VM or hosted dev box later if the app grows beyond static hosting.
 - Codex on the machine where development is active, with GitHub keeping the work portable.
 
-The practical next target is: open the repo from a cloud workspace, edit a file, commit it, and confirm the hosted app updates.
+The practical next target is: open the repo from a cloud workspace, run `node scripts/serve-billmaster.js --port 4176`, edit a file, commit it, and confirm the hosted app updates.
+
+The phone/tablet path is documented in `MOBILE_CODEX_ACCESS.md`.
 
 ## Supabase Setup Targets
 

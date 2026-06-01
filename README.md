@@ -23,6 +23,12 @@ Open `index.html` in a browser.
 
 No build step is required.
 
+For a cloud preview in GitHub Codespaces or another remote terminal:
+
+```bash
+node scripts/serve-billmaster.js --port 4176
+```
+
 ## Cloud / Deployment
 
 Current live prototype:
@@ -40,6 +46,9 @@ Phase 0 cloud-readiness files:
 - `vercel.json` - static publish config for Vercel.
 - `supabase/schema.sql` - first private workspace sync table and media bucket policies.
 - `billmaster-config.js` - optional hosted runtime config for the Supabase project URL and publishable key.
+- `.devcontainer/devcontainer.json` - GitHub Codespaces setup for cloud editing from another device.
+- `scripts/serve-billmaster.js` - small no-build preview server for Codespaces or local testing.
+- `MOBILE_CODEX_ACCESS.md` - phone, tablet, GitHub, Codespaces, and Codex access path.
 
 GitHub Pages is enough for a public prototype link. Vercel or Netlify is the better next host for private beta previews, especially once Supabase environment values are added.
 

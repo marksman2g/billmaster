@@ -2011,6 +2011,7 @@
         <div class="balance-meta"><span>${icon("wallet")} Bank/Card sync</span><span>${icon("receipt")} Biller sync</span><span>${icon("note")} Import inbox</span></div>
       </section>
       ${cloudWorkspacePanel()}
+      ${mobileCodexAccessPanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       <section class="section-card">
         <div class="section-title"><h2>Production Integration Plan</h2><span class="status info">Staged</span></div>
@@ -2056,6 +2057,30 @@
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
         <button class="outline-btn" data-action="toggle-cloud-auto-sync" ${signedIn ? "" : "disabled"}>${icon(cloudAutoSyncEnabled() ? "check" : "settings")} Auto ${cloudAutoSyncEnabled() ? "On" : "Off"}</button>
+      </div>
+    </section>`;
+  }
+
+  function mobileCodexAccessPanel() {
+    return `<section class="section-card mobile-codex-panel">
+      <div class="mobile-codex-copy">
+        <span class="round-icon" style="color:var(--purple);background:#f0edff">${icon("settings")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Codex Mobile & Cloud Workbench</h2><span class="status info">Phone/iPad path</span></div>
+          <p class="muted">Use the hosted app for real BillMaster access, GitHub or Codespaces for cloud editing, and ChatGPT mobile Codex when it is available on your account.</p>
+        </div>
+      </div>
+      <div class="cloud-facts mobile-codex-facts">
+        <span><strong>Use app</strong><small>GitHub Pages + Supabase sign-in</small></span>
+        <span><strong>Edit app</strong><small>GitHub.dev or Codespaces</small></span>
+        <span><strong>Preview</strong><small>node scripts/serve-billmaster.js --port 4176</small></span>
+        <span><strong>Limit</strong><small>Windows host still needs cloud workaround</small></span>
+      </div>
+      <div class="sheet-actions cloud-actions mobile-codex-actions">
+        <a class="outline-btn" href="https://github.com/marksman2g/billmaster" target="_blank" rel="noopener">${icon("note")} Repo</a>
+        <a class="outline-btn" href="https://github.dev/marksman2g/billmaster" target="_blank" rel="noopener">${icon("settings")} Web editor</a>
+        <a class="outline-btn" href="https://github.com/codespaces" target="_blank" rel="noopener">${icon("home")} Codespaces</a>
+        <button class="primary-btn" data-action="navigate-root" data-view="dashboard">${icon("playcard")} Use BillMaster</button>
       </div>
     </section>`;
   }
