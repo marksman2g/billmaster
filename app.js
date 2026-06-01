@@ -443,8 +443,21 @@
     url = url.replace(/\/(rest|auth|storage|graphql)\/v1\/?$/i, "");
     return {
       url,
-      anonKey: String(config?.anonKey || "").trim()
+      anonKey: normalizeCloudKey(config?.anonKey)
     };
+  }
+
+  function normalizeCloudKey(value) {
+    let key = String(value || "").trim().replace(/^["']|["'];?$/g, "");
+    const publishablePrefix = "sb_publishable_";
+    const firstPublishableKey = key.indexOf(publishablePrefix);
+    if (firstPublishableKey >= 0) {
+      key = key.slice(firstPublishableKey);
+      const duplicatePublishableKey = key.indexOf(publishablePrefix, publishablePrefix.length);
+      if (duplicatePublishableKey > 0) key = key.slice(0, duplicatePublishableKey);
+      key = key.replace(/[^A-Za-z0-9_-].*$/, "");
+    }
+    return key.trim();
   }
 
   function mergeCloudConfig(config) {
@@ -9933,7 +9946,7 @@
   }
 
   function hostedConfigSnippet(url, anonKey) {
-    return `window.BILLMASTER_CLOUD_CONFIG = {\n  url: "${String(url || "").trim()}",\n  anonKey: "${String(anonKey || "").trim()}"\n};\n`;
+    return `window.BILLMASTER_CLOUD_CONFIG = {\n  url: "${String(url || "").trim()}",\n  anonKey: "${normalizeCloudKey(anonKey)}"\n};\n`;
   }
 
   async function copyHostedCloudConfig() {
