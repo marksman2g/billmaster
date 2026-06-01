@@ -449,6 +449,9 @@
 
   function mergeCloudConfig(config) {
     const saved = normalizeCloudConfig(config);
+    if (hostedCloudConfigReady()) {
+      return normalizeCloudConfig(hostedCloudConfig);
+    }
     return normalizeCloudConfig({
       url: saved.url || hostedCloudConfig.url,
       anonKey: saved.anonKey || hostedCloudConfig.anonKey
