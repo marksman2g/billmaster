@@ -31,6 +31,8 @@
     notesQuery: "",
     notebookQuery: "",
     selectedNotes: [],
+    contactQuery: "",
+    contactGroupFilter: "all",
     taskPicker: null,
     navCollapsed: {},
     goalView: "full",
@@ -1110,6 +1112,7 @@
       task.notifyOnStatuses = Array.isArray(task.notifyOnStatuses)
         ? task.notifyOnStatuses.filter((status) => taskStatusOptions.includes(status))
         : [];
+      task.notifyConfigured = Boolean(task.notifyConfigured);
       task.updatedAt = String(task.updatedAt || "");
     });
   }
@@ -3635,7 +3638,8 @@
   }
 
   function contactGroupsForContact(contactId) {
-    return (data.contactGroups || []).filter((group) => group.contactIds?.includes(contactId));
+    const contact = data.contacts.find((item) => item.id === contactId);
+    return (data.contactGroups || []).filter((group) => safeArray(group.contactIds).includes(contactId) || safeArray(contact?.groupIds).includes(group.id));
   }
 
   function taskProjectBadge(task) {
@@ -4158,11 +4162,42 @@
   }
 
   function renderContacts() {
+    const contacts = filteredContacts();
     return `<section class="screen">
       ${header("Contacts", `<button class="icon-btn" data-action="open-modal" data-modal="editContact">${icon("plus")}</button>`)}
-      <label class="search-field" style="margin-bottom:16px;">${icon("search")}<input placeholder="Search contacts..." /></label>
-      <div class="contacts-grid">${data.contacts.map((contact) => contactCard(contact)).join("")}</div>
+      <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="contactSearch" value="${esc(ui.contactQuery)}" data-action="contact-search" placeholder="Search contacts, groups, phone, email..." /></label>
+      ${contactGroupFilterBar()}
+      <div class="contacts-grid">${contacts.map((contact) => contactCard(contact)).join("") || `<div class="empty-state compact-empty">${icon("home")}<h3>No contacts found</h3><p>Try another group or search term.</p></div>`}</div>
     </section>`;
+  }
+
+  function filteredContacts() {
+    const query = String(ui.contactQuery || "").trim().toLowerCase();
+    const groupFilter = ui.contactGroupFilter || "all";
+    return data.contacts.filter((contact) => {
+      const groups = contactGroupsForContact(contact.id);
+      const matchesGroup = groupFilter === "all" || groups.some((group) => group.id === groupFilter);
+      if (!matchesGroup) return false;
+      if (!query) return true;
+      const text = [contact.name, contact.email, contact.phone, contact.textEmail, contact.source, groups.map((group) => group.name).join(" ")].join(" ").toLowerCase();
+      return text.includes(query);
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function contactGroupFilterBar() {
+    const groups = safeArray(data.contactGroups).filter((group) => group.name);
+    return `<div class="contact-group-toolbar">
+      <button class="outline-btn ${ui.contactGroupFilter === "all" ? "active" : ""}" data-action="set-contact-group-filter" data-id="all">${icon("home")} All <small>${data.contacts.length}</small></button>
+      ${groups.map((group) => {
+        const count = data.contacts.filter((contact) => contactGroupsForContact(contact.id).some((item) => item.id === group.id)).length;
+        return `<button class="outline-btn ${ui.contactGroupFilter === group.id ? "active" : ""}" data-action="set-contact-group-filter" data-id="${esc(group.id)}">${icon("folder")} ${esc(group.name)} <small>${count}</small></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function setContactGroupFilter(groupId) {
+    ui.contactGroupFilter = groupId || "all";
+    render();
   }
 
   function contactCard(contact) {
@@ -5322,13 +5357,15 @@
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return "";
     const contact = taskContact(task);
-    const selectedContactIds = new Set([...(task.notifyContactIds || []), task.contactId].filter(Boolean));
+    const selectedContactIds = new Set(task.notifyContactIds || []);
+    if (!task.notifyConfigured && task.contactId) selectedContactIds.add(task.contactId);
     const selectedGroupIds = new Set(task.notifyGroupIds || []);
-    const recipient = task.notifyExtraRecipient || contact?.email || contact?.phone || "";
+    const recipient = task.notifyExtraRecipient || (!task.notifyConfigured ? (contact?.email || contact?.textEmail || "") : "");
     const message = task.notifyMessage || taskAlertMessage(task);
     const channels = taskNotifyChannels(task);
     const notifyEveryStatus = task.notifyOnAnyStatus !== false;
     const selectedStatuses = new Set(task.notifyOnStatuses || []);
+    const notifyPreset = notifyStatusPresetFromState(notifyEveryStatus, selectedStatuses);
     const previewStats = taskNotifyPreviewStats(task, selectedContactIds, selectedGroupIds, channels, recipient);
     return `${modalHeader("Notify About Task", task.title)}
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
@@ -5338,6 +5375,12 @@
       </div>
       <div class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="inline-add-heading">${icon("settings")} When to notify</div>
+        <div class="notify-preset-row">
+          <button class="outline-btn ${notifyPreset === "all" ? "active" : ""}" data-action="set-notify-status-preset" data-preset="all">${icon("bell")} Every change</button>
+          <button class="outline-btn ${notifyPreset === "active" ? "active" : ""}" data-action="set-notify-status-preset" data-preset="active">${icon("task")} Start + done</button>
+          <button class="outline-btn ${notifyPreset === "completed" ? "active" : ""}" data-action="set-notify-status-preset" data-preset="completed">${icon("check")} Done only</button>
+          <button class="outline-btn ${notifyPreset === "custom" ? "active" : ""}" data-action="set-notify-status-preset" data-preset="custom">${icon("settings")} Custom</button>
+        </div>
         <label class="check-row"><input id="taskNotifyAnyStatus" type="checkbox" ${notifyEveryStatus ? "checked" : ""}> Every status change</label>
         <div class="notify-status-grid">
           ${taskStatusOptions.map((status) => `<label class="check-row compact-check" style="border-left:4px solid ${statusHandleColor(status)};"><input class="taskNotifyStatus" type="checkbox" value="${esc(status)}" ${selectedStatuses.has(status) ? "checked" : ""}> ${esc(status)}</label>`).join("")}
@@ -5531,14 +5574,13 @@
 
   function modalContact(contactId) {
     const contact = data.contacts.find((item) => item.id === contactId) || {};
-    const groupOptions = (data.contactGroups || []).map((group) => group.name).join(", ");
     return `${modalHeader(contact.id ? "Edit Contact" : "New Contact")}
       <div class="field-grid">
         ${field("contactName", "Name", contact.name || "", "Contact name")}
         ${field("contactEmail", "Email", contact.email || "", "email@example.com", "email")}
         ${field("contactPhone", "Phone", contact.phone || "", "Phone number", "tel")}
         ${field("contactTextEmail", "Email-to-Text Address", contact.textEmail || "", "number@carrier-gateway.com", "email")}
-        ${field("contactGroups", "Groups", contactGroupsForContact(contact.id).map((group) => group.name).join(", "), groupOptions || "BM, Family, Work")}
+        ${contactGroupPicker(contact)}
         ${selectField("contactAddress", "Address", [ADD_TASK_ADDRESS_VALUE, "", ...data.addresses.map((addr) => addr.id)], contact.addressId || "", contactAddressLabel)}
         <div id="contactNewAddressPanel" class="inline-add-panel" hidden>
           <div class="inline-add-heading">${icon("plus")} New contact address</div>
@@ -5552,6 +5594,21 @@
         </div>
       </div>
       <div class="sheet-actions"><button class="primary-btn" data-action="save-contact" data-id="${contact.id || ""}">Save Contact</button></div>`;
+  }
+
+  function contactGroupPicker(contact) {
+    const selected = new Set(contactGroupsForContact(contact.id).map((group) => group.id));
+    const groups = safeArray(data.contactGroups).filter((group) => group.name);
+    return `<div class="field contact-group-picker">
+      <label>Groups</label>
+      <div class="contact-group-picks">
+        ${groups.map((group) => {
+          const count = data.contacts.filter((item) => contactGroupsForContact(item.id).some((memberGroup) => memberGroup.id === group.id)).length;
+          return `<label class="contact-group-pick ${selected.has(group.id) ? "active" : ""}"><input class="contactGroupChoice" type="checkbox" value="${esc(group.id)}" ${selected.has(group.id) ? "checked" : ""}><span>${icon("folder")} ${esc(group.name)}</span><small>${count}</small></label>`;
+        }).join("") || `<span class="subtle">No groups yet.</span>`}
+      </div>
+      <input id="contactNewGroups" placeholder="Add new group names, separated by commas">
+    </div>`;
   }
 
   function modalImportStatement() {
@@ -6722,6 +6779,10 @@
       ui.notebookQuery = target.value;
       renderPreservingInput(target);
     }
+    if (target && target.dataset.action === "contact-search") {
+      ui.contactQuery = target.value;
+      renderPreservingInput(target);
+    }
     if (target && target.dataset.action === "loan-search") {
       ui.loanQuery = target.value;
       renderPreservingInput(target);
@@ -6783,7 +6844,19 @@
     if (target && target.id === "contactAddress") toggleContactAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
     if (target && target.dataset.action === "image-upload") handleImageUpload(target);
+    if (target && target.classList?.contains("contactGroupChoice")) {
+      target.closest(".contact-group-pick")?.classList.toggle("active", target.checked);
+    }
     if (target && (target.classList?.contains("taskNotifyChannel") || target.classList?.contains("taskNotifyStatus") || target.id === "taskNotifyAnyStatus" || String(target.id || "").startsWith("notifyContact_"))) {
+      if (target.id === "taskNotifyAnyStatus" && target.checked) {
+        document.querySelectorAll(".taskNotifyStatus").forEach((input) => {
+          input.checked = false;
+        });
+      }
+      if (target.classList?.contains("taskNotifyStatus") && target.checked) {
+        const anyStatus = document.getElementById("taskNotifyAnyStatus");
+        if (anyStatus) anyStatus.checked = false;
+      }
       updateTaskNotifyPreview();
     }
   });
@@ -7012,7 +7085,9 @@
     if (action === "copy-notification-outbox") return copyNotificationOutbox();
     if (action === "clear-sent-notifications") return clearSentNotifications();
     if (action === "toggle-notify-group") return toggleNotifyGroup(el.dataset.id, el);
+    if (action === "set-notify-status-preset") return setNotifyStatusPreset(el.dataset.preset);
     if (action === "save-task-notify") return saveTaskNotify(el.dataset.id);
+    if (action === "set-contact-group-filter") return setContactGroupFilter(el.dataset.id);
     if (action === "open-task-route") return openSelectedTaskRoute();
     if (action === "copy-task-route-from-modal") return copyTaskRouteFromModal();
     if (action === "duplicate-block-horizontal") return duplicateBlockHorizontal(el.dataset.id);
@@ -9253,6 +9328,7 @@
       notifyGroupIds: task?.notifyGroupIds || [],
       notifyExtraRecipient: task?.notifyExtraRecipient || "",
       notifyMessage: task?.notifyMessage || "",
+      notifyConfigured: Boolean(task?.notifyConfigured),
       tags: task ? task.tags || [] : [],
       subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks),
       updatedAt: new Date().toISOString()
@@ -9946,6 +10022,14 @@
       .filter((status) => taskStatusOptions.includes(status));
   }
 
+  function notifyStatusPresetFromState(notifyEveryStatus, selectedStatuses) {
+    if (notifyEveryStatus) return "all";
+    const values = Array.from(selectedStatuses || []);
+    if (values.length === 1 && values[0] === "Completed") return "completed";
+    if (values.length === 2 && values.includes("In Progress") && values.includes("Completed")) return "active";
+    return "custom";
+  }
+
   function taskNotificationContacts(task) {
     const contactIds = new Set(task?.notifyContactIds || []);
     (task?.notifyGroupIds || []).forEach((groupId) => {
@@ -10197,6 +10281,34 @@
       value("taskNotifyRecipient")
     );
     preview.innerHTML = taskNotifyPreviewMarkup(stats);
+    updateTaskNotifyPresetButtons();
+  }
+
+  function updateTaskNotifyPresetButtons() {
+    const anyStatus = Boolean(document.getElementById("taskNotifyAnyStatus")?.checked);
+    const preset = notifyStatusPresetFromState(anyStatus, new Set(selectedNotifyStatuses()));
+    document.querySelectorAll(".notify-preset-row [data-preset]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.preset === preset);
+    });
+  }
+
+  function setNotifyStatusPreset(preset) {
+    const anyStatus = document.getElementById("taskNotifyAnyStatus");
+    const statuses = Array.from(document.querySelectorAll(".taskNotifyStatus"));
+    if (preset === "all") {
+      if (anyStatus) anyStatus.checked = true;
+      statuses.forEach((input) => {
+        input.checked = false;
+      });
+    } else {
+      if (anyStatus) anyStatus.checked = false;
+      statuses.forEach((input) => {
+        if (preset === "completed") input.checked = input.value === "Completed";
+        else if (preset === "active") input.checked = input.value === "In Progress" || input.value === "Completed";
+        else if (preset !== "custom") input.checked = false;
+      });
+    }
+    updateTaskNotifyPreview();
   }
 
   function selectedNotifyContactIds() {
@@ -10230,6 +10342,7 @@
     task.notifyChannels = selectedNotifyChannels();
     task.notifyOnAnyStatus = Boolean(document.getElementById("taskNotifyAnyStatus")?.checked);
     task.notifyOnStatuses = selectedNotifyStatuses();
+    task.notifyConfigured = true;
     if (!task.contactId && task.notifyContactIds.length === 1) task.contactId = task.notifyContactIds[0];
     task.updatedAt = new Date().toISOString();
     saveData();
@@ -10667,7 +10780,11 @@
 
   function saveContact(contactId) {
     const contact = data.contacts.find((item) => item.id === contactId);
-    const groupNames = value("contactGroups").split(",").map((name) => name.trim()).filter(Boolean);
+    const checkedGroupNames = Array.from(document.querySelectorAll(".contactGroupChoice:checked"))
+      .map((input) => data.contactGroups.find((group) => group.id === input.value)?.name || "")
+      .filter(Boolean);
+    const typedGroupNames = value("contactNewGroups").split(",").map((name) => name.trim()).filter(Boolean);
+    const groupNames = Array.from(new Set([...checkedGroupNames, ...typedGroupNames]));
     const savedId = contact?.id || id("contact");
     const contactName = value("contactName") || "Contact";
     const selectedAddressId = value("contactAddress");

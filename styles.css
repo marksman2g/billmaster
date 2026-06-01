@@ -3427,7 +3427,121 @@ button.round-icon {
   align-items: start;
 }
 
+.contact-group-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.contact-group-toolbar .outline-btn {
+  min-height: 38px;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.contact-group-toolbar .outline-btn.active {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.contact-group-toolbar small {
+  min-width: 22px;
+  padding: 2px 6px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.contact-group-picker {
+  gap: 8px;
+}
+
+.contact-group-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 8px;
+}
+
+.contact-group-pick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--navy);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.contact-group-pick input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contact-group-pick span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 900;
+}
+
+.contact-group-pick small {
+  min-width: 24px;
+  padding: 2px 7px;
+  color: var(--muted);
+  background: #f1f6fb;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.contact-group-pick.active {
+  color: var(--blue);
+  background: #eaf4ff;
+  border-color: #8fc7ff;
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.contact-group-pick.active small {
+  color: var(--blue);
+  background: #fff;
+}
+
 .notify-group-row .outline-btn.active {
+  color: #fff;
+  background: var(--navy-2);
+  border-color: var(--navy-2);
+}
+
+.notify-preset-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.notify-preset-row .outline-btn {
+  min-height: 40px;
+  justify-content: center;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.notify-preset-row .outline-btn.active {
   color: #fff;
   background: var(--navy-2);
   border-color: var(--navy-2);
