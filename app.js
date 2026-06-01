@@ -561,6 +561,7 @@
 
   async function cloudFetch(path, options = {}, authenticated = true) {
     if (!cloudConfigured()) throw new Error("Supabase is not configured.");
+    if (authenticated) await refreshCloudSessionIfNeeded();
     const response = await fetch(`${cloudConfig.url}${path}`, {
       ...options,
       headers: cloudHeaders(authenticated, options.headers || {})
@@ -576,9 +577,42 @@
     }
     if (!response.ok) {
       const message = body?.msg || body?.message || body?.error_description || body?.error || `Supabase request failed (${response.status}).`;
+      if (/jwt required|jwt expired|invalid jwt|missing authorization|not authenticated/i.test(String(message))) {
+        saveCloudSession(null);
+        throw new Error("Your cloud sign-in expired. Sign in again, then retry.");
+      }
       throw new Error(message);
     }
     return body;
+  }
+
+  async function refreshCloudSessionIfNeeded() {
+    if (!cloudSession?.accessToken || !cloudSession?.user?.id) {
+      saveCloudSession(null);
+      throw new Error("Sign in to cloud sync first.");
+    }
+    const refreshToken = cloudSession.refreshToken || "";
+    const expiresAt = Number(cloudSession.expiresAt || 0);
+    if (!refreshToken || (expiresAt && expiresAt > Date.now() + 60000)) return;
+    const response = await fetch(`${cloudConfig.url}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: cloudHeaders(false),
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        body = text;
+      }
+    }
+    if (!response.ok || !body?.access_token) {
+      saveCloudSession(null);
+      throw new Error("Your cloud sign-in expired. Sign in again, then retry.");
+    }
+    saveCloudSession(sessionFromAuthResult(body, cloudSession?.user));
   }
 
   async function cloudProbe(path, options = {}) {
@@ -10068,14 +10102,14 @@
     }
   }
 
-  function sessionFromAuthResult(result) {
+  function sessionFromAuthResult(result, fallbackUser = {}) {
     return {
       accessToken: result.access_token || "",
       refreshToken: result.refresh_token || "",
       expiresAt: Date.now() + Number(result.expires_in || 3600) * 1000,
       user: {
-        id: result.user?.id || "",
-        email: result.user?.email || ""
+        id: result.user?.id || fallbackUser?.id || "",
+        email: result.user?.email || fallbackUser?.email || ""
       }
     };
   }
