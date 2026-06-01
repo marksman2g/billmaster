@@ -2093,6 +2093,7 @@
       </div>
       <div class="sheet-actions friend-alpha-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
+        <button class="outline-btn" data-action="copy-hosted-cloud-config" ${cloudConfigured() ? "" : "disabled"}>${icon("note")} Copy config</button>
         <button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Sign in</button>
         <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("note")} Pull cloud</button>
@@ -4428,8 +4429,9 @@
         ${field("cloudUrl", "Supabase Project URL", cloudConfig.url || "", "https://your-project.supabase.co", "url")}
         ${field("cloudAnonKey", "Supabase Public Anon / Publishable Key", cloudConfig.anonKey || "", "sb_publishable_... or eyJhbGciOi...", "password")}
       </div>
-      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+      <div class="sheet-actions" style="grid-template-columns:repeat(3, minmax(0, 1fr));">
         <button class="outline-btn" data-action="test-cloud-config">${icon("search")} Test</button>
+        <button class="outline-btn" data-action="copy-hosted-cloud-config">${icon("note")} Copy hosted config</button>
         <button class="secondary-btn" data-action="save-cloud-config">${icon("check")} Save Setup</button>
       </div>`;
   }
@@ -6504,6 +6506,7 @@
     if (action === "delete-profile") return deleteProfile(el.dataset.id);
     if (action === "save-cloud-config") return saveCloudConfig();
     if (action === "test-cloud-config") return testCloudConfig();
+    if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
     if (action === "cloud-sign-in") return cloudSignIn();
     if (action === "cloud-sign-up") return cloudSignUp();
     if (action === "cloud-sign-out") return cloudSignOut();
@@ -9924,6 +9927,25 @@
     saveCloudConfigLocal({ url, anonKey });
     ui.modal = null;
     showToast("Supabase setup saved for this browser.");
+  }
+
+  function hostedConfigSnippet(url, anonKey) {
+    return `window.BILLMASTER_CLOUD_CONFIG = {\n  url: "${String(url || "").trim()}",\n  anonKey: "${String(anonKey || "").trim()}"\n};\n`;
+  }
+
+  async function copyHostedCloudConfig() {
+    const url = value("cloudUrl") || cloudConfig.url || hostedCloudConfig.url;
+    const anonKey = value("cloudAnonKey") || cloudConfig.anonKey || hostedCloudConfig.anonKey;
+    if (!url || !anonKey) {
+      showToast("Add the Supabase URL and publishable key first.", "danger");
+      return;
+    }
+    try {
+      await copyText(hostedConfigSnippet(url, anonKey));
+      showToast("Hosted config copied. Paste it into billmaster-config.js, then commit and push.");
+    } catch (error) {
+      showToast("Could not copy the hosted config automatically.", "danger");
+    }
   }
 
   async function testCloudConfig() {

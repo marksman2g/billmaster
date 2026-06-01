@@ -40,6 +40,16 @@ Ask each tester to do this:
 - Two separate test accounts have been checked.
 - You are comfortable that the app is still a beta prototype.
 
+## Fast Key Install
+
+Run this from the repo when the publishable key is ready:
+
+```bash
+node scripts/set-supabase-key.js
+```
+
+Then run the tests, commit, and push.
+
 ## Known Limits
 
 - Bill pay rails are staged, not real money movement.

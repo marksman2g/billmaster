@@ -29,6 +29,12 @@ For a cloud preview in GitHub Codespaces or another remote terminal:
 node scripts/serve-billmaster.js --port 4176
 ```
 
+To update the hosted Supabase publishable key without hand-editing the config file:
+
+```bash
+node scripts/set-supabase-key.js
+```
+
 ## Cloud / Deployment
 
 Current live prototype:
@@ -48,6 +54,7 @@ Phase 0 cloud-readiness files:
 - `billmaster-config.js` - optional hosted runtime config for the Supabase project URL and publishable key.
 - `.devcontainer/devcontainer.json` - GitHub Codespaces setup for cloud editing from another device.
 - `scripts/serve-billmaster.js` - small no-build preview server for Codespaces or local testing.
+- `scripts/set-supabase-key.js` - helper for placing the Supabase publishable key into `billmaster-config.js`.
 - `MOBILE_CODEX_ACCESS.md` - phone, tablet, GitHub, Codespaces, and Codex access path.
 - `FRIEND_ALPHA_CHECKLIST.md` - go/no-go checklist before inviting trusted testers.
 
@@ -80,7 +87,7 @@ When hosted over `https`, the app can be installed from supported mobile browser
 
 ## Supabase Phase 1 Starter
 
-The Sync Center now has a Supabase Cloud Workspace panel. After running `supabase/schema.sql` in Supabase, BillMaster can use either browser-saved setup values or the hosted `billmaster-config.js` file. The Project URL is already staged there; paste the full public publishable key into `anonKey` before inviting friends so they do not have to touch setup.
+The Sync Center now has a Supabase Cloud Workspace panel. After running `supabase/schema.sql` in Supabase, BillMaster can use either browser-saved setup values or the hosted `billmaster-config.js` file. The Project URL is already staged there; add the full public publishable key with `node scripts/set-supabase-key.js` or the Sync Center's copy-config helper before inviting friends so they do not have to touch setup.
 
 After the Project URL plus publishable/anon key are available, you can:
 
