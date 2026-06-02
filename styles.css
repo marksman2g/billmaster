@@ -29,6 +29,9 @@
 html,
 body {
   min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -45,6 +48,7 @@ input,
 select,
 textarea {
   font: inherit;
+  max-width: 100%;
 }
 
 button {
@@ -75,6 +79,15 @@ button:disabled {
 
 .app-shell {
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
 }
 
 .side-nav {
@@ -7687,7 +7700,116 @@ canvas {
   }
 }
 
+@media (max-width: 900px) {
+  .dashboard-grid,
+  .two-col,
+  .analytics-grid,
+  .finance-grid,
+  .subscription-grid,
+  .goal-grid,
+  .loan-grid,
+  .contacts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lending-stats,
+  .subscription-summary-grid,
+  .briefing-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-title,
+  .briefing-head,
+  .calendar-summary,
+  .day-toolbar,
+  .filter-row,
+  .category-filter-row {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .calendar-summary {
+    align-items: stretch;
+  }
+
+  .day-toolbar .muted {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .day-toolbar button {
+    flex: 1 1 128px;
+    min-width: 0;
+  }
+
+  .filter-row,
+  .category-filter-row,
+  .time-period-filters {
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-row button,
+  .category-filter-row button,
+  .time-period-chip {
+    flex: 0 0 auto;
+  }
+}
+
 @media (max-width: 640px) {
+  .main-view,
+  .screen,
+  .section-card,
+  .card,
+  .balance-panel,
+  .today-briefing {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .screen {
+    overflow-x: hidden;
+  }
+
+  .balance-panel {
+    padding: 18px 14px;
+  }
+
+  .balance-row,
+  .briefing-head,
+  .card-row {
+    min-width: 0;
+  }
+
+  .balance-row {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .balance-row > div:first-child {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .balance-amount {
+    font-size: clamp(2.2rem, 13vw, 3.15rem);
+    overflow-wrap: anywhere;
+  }
+
+  .balance-meta {
+    gap: 7px 10px;
+    font-size: 0.76rem;
+  }
+
+  .briefing-head {
+    flex-wrap: wrap;
+  }
+
+  .briefing-head h2 {
+    max-width: 100%;
+  }
+
   .prism-hero,
   .sync-panel {
     grid-template-columns: 1fr;
@@ -7701,6 +7823,21 @@ canvas {
 
   .cloud-start-actions {
     min-width: 0;
+    width: 100%;
+  }
+
+  .cloud-start-actions,
+  .briefing-actions {
+    gap: 8px;
+  }
+
+  .cloud-start-actions .primary-btn,
+  .cloud-start-actions .outline-btn,
+  .briefing-actions .primary-btn,
+  .briefing-actions .outline-btn,
+  .briefing-actions .ghost-btn {
+    min-width: 0;
+    padding-inline: 8px;
   }
 
   .prism-metrics {
@@ -7767,6 +7904,23 @@ canvas {
 
   .lending-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .day-task-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .block-scroll {
+    width: 100%;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .block-calendar {
+    min-width: 760px;
   }
 
   .loan-grid {
@@ -7836,11 +7990,45 @@ canvas {
   .address-actions {
     grid-template-columns: 1fr 1fr auto;
   }
+
+  .bottom-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 6px 6px calc(7px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nav-item {
+    gap: 2px;
+    padding-inline: 2px;
+    font-size: 0.64rem;
+  }
+
+  .nav-item .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .sheet-backdrop {
+    padding-inline: 8px;
+  }
+
+  .sheet {
+    width: min(100%, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    padding-inline: 14px;
+  }
 }
 
 @media (max-width: 420px) {
   .screen {
     padding-inline: 12px;
+  }
+
+  .screen-header h1 {
+    min-width: 0;
+    font-size: 1.15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .voice-correction-row {
@@ -7911,6 +8099,53 @@ canvas {
 
   .loan-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .balance-panel {
+    padding: 17px 13px;
+  }
+
+  .balance-amount {
+    font-size: clamp(2rem, 12vw, 2.85rem);
+  }
+
+  .briefing-metrics,
+  .briefing-actions,
+  .cloud-actions,
+  .cloud-start-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .briefing-actions .primary-btn,
+  .briefing-actions .outline-btn,
+  .briefing-actions .ghost-btn,
+  .cloud-actions .primary-btn,
+  .cloud-actions .outline-btn,
+  .cloud-start-actions .primary-btn,
+  .cloud-start-actions .outline-btn {
+    min-height: 42px;
+    font-size: 0.82rem;
+  }
+
+  .section-title,
+  .toolbar,
+  .calendar-controls,
+  .filter-row,
+  .category-filter-row {
+    min-width: 0;
+  }
+
+  .pill,
+  .chip,
+  .status,
+  .tag,
+  .quick-badge {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .block-scroll {
+    margin-inline: -12px;
   }
 
   .habit-day-picks,
