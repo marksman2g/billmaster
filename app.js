@@ -22,8 +22,11 @@
     billQuery: "",
     billInboxFilter: "pending",
     taskFilter: "all",
+    taskView: "regular",
+    taskSort: "newest",
     projectId: null,
     projectSort: "level",
+    projectTaskView: "regular",
     notesFilter: "all",
     notesSubjectFilter: "all",
     notesView: "stream",
@@ -3784,12 +3787,12 @@
   function renderTasks() {
     const done = data.tasks.filter((task) => task.status === "Completed").length;
     const pct = progressPct(done, data.tasks.length);
-    const filtered = data.tasks.filter((task) => {
+    const filtered = sortedTaskList(data.tasks.filter((task) => {
       if (ui.taskFilter === "today") return task.date === "2026-05-06";
       if (ui.taskFilter === "week") return weekDates().includes(task.date);
       if (ui.taskFilter === "done") return task.status === "Completed";
       return true;
-    });
+    }));
     return `<section class="screen">
       ${header("Tasks", `<button class="icon-btn" data-action="navigate" data-view="projects">${icon("folder")}</button>`)}
       <div class="quick-add">
@@ -3805,9 +3808,39 @@
       <div class="filter-row">
         ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
       </div>
+      <div class="filter-row task-view-row">
+        ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+      </div>
+      <div class="filter-row task-sort-row">
+        <span class="sort-label">Sort tasks by</span>
+        ${[
+          ["newest", "Newest"],
+          ["date", "Start date"],
+          ["priority", "Priority"],
+          ["status", "Status"],
+          ["project", "Project"],
+          ["title", "Title"]
+        ].map(([value, label]) => `<button class="${(ui.taskSort || "newest") === value ? "active" : ""}" data-action="set-tab" data-key="taskSort" data-value="${value}">${esc(label)}</button>`).join("")}
+      </div>
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input placeholder="Search tasks..." /></label>
-      <div class="list">${filtered.map((task) => taskBoardCard(task)).join("")}</div>
+      <div class="list tasks-list tasks-${esc(ui.taskView)}">${filtered.map((task) => taskBoardCard(task)).join("")}</div>
     </section>`;
+  }
+
+  function sortedTaskList(tasks) {
+    const sort = ui.taskSort || "newest";
+    return [...tasks].sort((a, b) => {
+      if (sort === "date") return Date.parse(`${a.date || "9999-12-31"}T${a.start || "23:59"}`) - Date.parse(`${b.date || "9999-12-31"}T${b.start || "23:59"}`) || a.title.localeCompare(b.title);
+      if (sort === "priority") return priorityRank(b.priority) - priorityRank(a.priority) || a.title.localeCompare(b.title);
+      if (sort === "status") return taskStatusOptions.indexOf(a.status) - taskStatusOptions.indexOf(b.status) || a.title.localeCompare(b.title);
+      if (sort === "project") return (projectName(a.projectId) || "Unassigned").localeCompare(projectName(b.projectId) || "Unassigned") || a.title.localeCompare(b.title);
+      if (sort === "title") return a.title.localeCompare(b.title);
+      return taskEditedStamp(b) - taskEditedStamp(a) || a.title.localeCompare(b.title);
+    });
+  }
+
+  function priorityRank(priority) {
+    return { Low: 1, Medium: 2, High: 3, Urgent: 4 }[priority] || 2;
   }
 
   function taskBoardCard(task) {
@@ -3872,6 +3905,10 @@
 
   function projectTasks(project) {
     return data.tasks.filter((task) => task.projectId === project.id);
+  }
+
+  function projectName(projectId) {
+    return data.projects.find((project) => project.id === projectId)?.name || "";
   }
 
   function projectLevelRank(level) {
@@ -3946,9 +3983,14 @@
           <h2 class="panel-title">Project Tasks</h2>
           <p class="muted">${done}/${tasks.length} completed. New tasks added here are assigned to ${esc(project.name)} automatically.</p>
         </div>
-        <button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button>
+        <div class="project-task-toolbar-actions">
+          <div class="segmented-mini">
+            ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.projectTaskView === view ? "active" : ""}" data-action="set-tab" data-key="projectTaskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+          </div>
+          <button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button>
+        </div>
       </section>
-      <div class="list">
+      <div class="list project-detail-task-list project-tasks-${esc(ui.projectTaskView)}">
         ${tasks.length ? tasks.map((task) => taskBoardCard(task)).join("") : `<section class="section-card"><p class="muted">No tasks are assigned to this project yet.</p></section>`}
       </div>
     </section>`;
@@ -4036,34 +4078,86 @@
   function projectGroup(project, tasks) {
     const media = entityImage(project);
     const unassigned = !project.id;
+    const visibleIds = tasks.map((task) => task.id);
+    const selectedIds = visibleIds.filter((taskId) => ui.selectedTasks.includes(taskId));
+    const bulkTools = unassigned ? `<div class="project-bulk-toolbar">
+      <button class="outline-btn" data-action="select-visible-project-tasks">${icon("check")} Select visible</button>
+      ${selectedIds.length ? `<button class="outline-btn" data-action="duplicate-selected-tasks">${icon("note")} Duplicate selected</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+      <span class="muted">${selectedIds.length}/${tasks.length} selected</span>
+    </div>` : "";
     return `<section class="project-card">
       <div class="section-title"><h2>${media ? `<span class="media-thumb project-list-thumb" ${imageStyleAttr(project)}><img src="${esc(media)}" alt=""></span>` : icon("folder")} ${esc(project.name)}</h2><span style="display:flex;align-items:center;gap:8px;">${project.id ? `<button class="icon-btn" data-action="open-project" data-id="${project.id}" aria-label="Open project">${icon("folder")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}" aria-label="Edit project">${icon("edit")}</button>` : ""}<span class="status muted">${tasks.length}</span>${project.id ? `<button class="icon-btn danger-text" data-action="delete-project" data-id="${project.id}" aria-label="Delete project">${icon("trash")}</button>` : ""}</span></div>
       ${unassigned ? `<p class="subtle project-drag-note">Drag any task card onto a project tile above to assign it.</p>` : ""}
+      ${bulkTools}
       <div class="${unassigned ? "unassigned-task-grid" : "list"}">${tasks.map((task) => projectTaskCard(task, project, unassigned)).join("") || `<p class="muted">No unassigned tasks.</p>`}</div>
     </section>`;
   }
 
   function projectTaskCard(task, project, unassigned = false) {
-    return `<article class="data-row project-task-mini ${unassigned ? "draggable-task" : ""}" ${unassigned ? `draggable="true" data-project-task-id="${task.id}" title="Drag ${esc(task.title)} onto a project tile"` : ""}>
+    const selected = ui.selectedTasks.includes(task.id);
+    return `<article class="data-row project-task-mini ${unassigned ? "draggable-task" : ""} ${selected ? "selected" : ""}" data-action="open-modal" data-modal="editTask" data-id="${task.id}" ${unassigned ? `draggable="true" data-project-task-id="${task.id}" title="Open ${esc(task.title)} or drag it onto a project tile"` : ""} role="button" tabindex="0">
+      ${unassigned ? `<button class="task-mini-select ${selected ? "active" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(task.title)}">${selected ? icon("check") : ""}</button>` : ""}
       <span class="dot" style="background:${priorityColor(task.priority)}"></span>
       <div class="project-task-mini-body">
         <strong>${esc(task.title)}</strong>
         <div class="subtle">${shortDate(task.date)}</div>
-        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${project.color};border-color:${project.color};" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${project.id ? "Edit Task" : "Assign to Project"}</button>
+        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${project.color};border-color:${project.color};" data-action="open-modal" data-modal="${project.id ? "editTask" : "assignProject"}" data-id="${task.id}">${project.id ? "Edit Task" : "Assign to Project"}</button>
       </div>
       <span class="project-task-mini-badges">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span>
     </article>`;
   }
 
+  function selectedUnassignedTaskIds(fallbackId = "") {
+    const unassignedIds = new Set(data.tasks.filter((task) => !task.projectId).map((task) => task.id));
+    const ids = ui.selectedTasks.filter((taskId) => unassignedIds.has(taskId));
+    if (fallbackId && unassignedIds.has(fallbackId) && !ids.includes(fallbackId)) ids.push(fallbackId);
+    return Array.from(new Set(ids));
+  }
+
   function assignTaskToProject(taskId, projectId) {
-    const task = data.tasks.find((item) => item.id === taskId);
+    return assignTasksToProject([taskId], projectId);
+  }
+
+  function assignTasksToProject(taskIds, projectId) {
     const project = data.projects.find((item) => item.id === projectId);
-    if (!task || !project) return;
-    task.projectId = project.id;
-    task.updatedAt = new Date().toISOString();
+    if (!project) return;
+    const ids = new Set(taskIds.filter(Boolean));
+    let count = 0;
+    data.tasks.forEach((task) => {
+      if (!ids.has(task.id)) return;
+      task.projectId = project.id;
+      task.updatedAt = new Date().toISOString();
+      count += 1;
+    });
+    if (!count) {
+      showToast("Select at least one unassigned task first.", "danger");
+      return;
+    }
+    ui.selectedTasks = ui.selectedTasks.filter((taskId) => !ids.has(taskId));
     saveData();
     render();
-    showToast(`${task.title} assigned to ${project.name}.`);
+    showToast(`${count} task${count === 1 ? "" : "s"} assigned to ${project.name}.`);
+  }
+
+  function selectVisibleProjectTasks() {
+    const ids = data.tasks.filter((task) => !task.projectId).map((task) => task.id);
+    ui.selectedTasks = Array.from(new Set([...ui.selectedTasks, ...ids]));
+    render();
+  }
+
+  function saveTaskProjectAssignment(taskId) {
+    const projectId = value("assignProjectId");
+    if (!projectId) {
+      showToast("Choose a project first.", "danger");
+      return;
+    }
+    const ids = selectedUnassignedTaskIds(taskId);
+    if (!ids.length) {
+      showToast("Select at least one unassigned task first.", "danger");
+      return;
+    }
+    assignTasksToProject(ids, projectId);
+    closeModal();
   }
 
   function assignNoteToNotebook(noteId, notebookId) {
@@ -4726,6 +4820,7 @@
     if (type === "copyTasksDate") content = modalCopyTasksDate();
     if (type === "taskNotify") content = modalTaskNotify(modalId);
     if (type === "taskRoute") content = modalTaskRoute();
+    if (type === "assignProject") content = modalAssignProject(modalId);
     if (type === "editProjectName") content = modalProjectName(modalId);
     if (type === "editNote") content = modalNote(modalId);
     if (type === "duplicateNotes") content = modalDuplicateNotes(modalId);
@@ -5726,6 +5821,34 @@
         </div>` : `<div class="section-card" style="box-shadow:none;"><p class="muted">Select tasks with addresses before opening a route.</p></div>`}`;
   }
 
+  function modalAssignProject(taskId) {
+    const task = data.tasks.find((item) => item.id === taskId);
+    if (!task) return "";
+    const selectedIds = selectedUnassignedTaskIds(taskId);
+    const defaultProjectId = task.projectId || data.projects[0]?.id || "";
+    return `${modalHeader("Assign to Project", selectedIds.length > 1 ? `${selectedIds.length} selected unassigned tasks` : task.title)}
+      <section class="section-card assign-project-preview" style="box-shadow:none;margin-bottom:14px;">
+        <div class="list">
+          ${selectedIds.slice(0, 5).map((taskIdValue) => {
+            const selectedTask = data.tasks.find((item) => item.id === taskIdValue);
+            return selectedTask ? `<div class="data-row"><span class="dot" style="background:${priorityColor(selectedTask.priority)}"></span><div><strong>${esc(selectedTask.title)}</strong><div class="subtle">${shortDate(selectedTask.date)} ${timeLabel(selectedTask.start)}</div></div>${taskQuickBadge(selectedTask, "status")}</div>` : "";
+          }).join("")}
+          ${selectedIds.length > 5 ? `<p class="muted">+${selectedIds.length - 5} more selected tasks</p>` : ""}
+        </div>
+      </section>
+      <div class="field">
+        <label for="assignProjectId">Project</label>
+        <select id="assignProjectId">
+          <option value="">Choose project</option>
+          ${data.projects.map((project) => `<option value="${project.id}" ${project.id === defaultProjectId ? "selected" : ""}>${esc(project.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-task-project-assignment" data-id="${task.id}">${icon("folder")} Assign ${selectedIds.length > 1 ? `${selectedIds.length} Tasks` : "Task"}</button>
+      </div>`;
+  }
+
   function modalProjectName(projectId) {
     const project = data.projects.find((item) => item.id === projectId);
     if (!project) return "";
@@ -6346,8 +6469,11 @@
           return;
         }
         event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", card.dataset.projectTaskId || "");
-        event.dataTransfer.setData("application/x-billmaster-task", card.dataset.projectTaskId || "");
+        const draggedId = card.dataset.projectTaskId || "";
+        const taskIds = ui.selectedTasks.includes(draggedId) ? selectedUnassignedTaskIds(draggedId) : [draggedId].filter(Boolean);
+        event.dataTransfer.setData("text/plain", draggedId);
+        event.dataTransfer.setData("application/x-billmaster-task", draggedId);
+        event.dataTransfer.setData("application/x-billmaster-tasks", JSON.stringify(taskIds));
         card.classList.add("is-dragging");
       });
       card.addEventListener("dragend", () => {
@@ -6360,18 +6486,25 @@
       tile.dataset.dropBound = "true";
       tile.addEventListener("dragover", (event) => {
         const types = Array.from(event.dataTransfer.types || []);
-        if (!types.includes("application/x-billmaster-task") && !types.includes("text/plain")) return;
+        if (!types.includes("application/x-billmaster-tasks") && !types.includes("application/x-billmaster-task") && !types.includes("text/plain")) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         tile.classList.add("project-drop-active");
       });
       tile.addEventListener("dragleave", () => tile.classList.remove("project-drop-active"));
       tile.addEventListener("drop", (event) => {
+        let taskIds = [];
+        try {
+          taskIds = JSON.parse(event.dataTransfer.getData("application/x-billmaster-tasks") || "[]");
+        } catch (error) {
+          taskIds = [];
+        }
         const taskId = event.dataTransfer.getData("application/x-billmaster-task") || event.dataTransfer.getData("text/plain");
-        if (!taskId) return;
+        if (!taskIds.length && taskId) taskIds = [taskId];
+        if (!taskIds.length) return;
         event.preventDefault();
         tile.classList.remove("project-drop-active");
-        assignTaskToProject(taskId, tile.dataset.projectDrop);
+        assignTasksToProject(taskIds, tile.dataset.projectDrop);
       });
     });
   }
@@ -7498,6 +7631,7 @@
       return render();
     }
     if (action === "toggle-task-select") return toggleTaskSelect(el.dataset.id);
+    if (action === "select-visible-project-tasks") return selectVisibleProjectTasks();
     if (action === "toggle-select-mode") return openTaskActions();
     if (action === "duplicate-calendar-item") return duplicateCalendarItem(el.dataset.id);
     if (action === "save-quick-time") return saveQuickTime(el.dataset.id);
@@ -7533,6 +7667,7 @@
     if (action === "save-block-duplicate-vertical") return duplicateBlockVertical(el.dataset.id, integerValue("blockDuplicateCount", 1, 1, 24));
     if (action === "save-selected-duplicate-horizontal") return duplicateSelectedHorizontal(integerValue("selectedDuplicateCount", 1, 1, 24));
     if (action === "save-selected-duplicate-vertical") return duplicateSelectedVertical(integerValue("selectedDuplicateCount", 1, 1, 24));
+    if (action === "save-task-project-assignment") return saveTaskProjectAssignment(el.dataset.id);
     if (action === "save-project-name") return saveProjectName(el.dataset.id);
     if (action === "open-project") {
       ui.projectId = el.dataset.id;
