@@ -339,6 +339,7 @@
     "copy-selected-tomorrow",
     "copy-selected-to-date",
     "duplicate-selected-tasks",
+    "save-duplicate-selected-tasks",
     "duplicate-calendar-item",
     "save-quick-time",
     "copy-selected-task-route",
@@ -2695,11 +2696,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-29";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-30";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-29`;
+    return `${location.origin}${location.pathname}?v=20260602-30`;
   }
 
   function friendPrivacyGatePanel() {
@@ -3678,7 +3679,7 @@
     const selectedDayAddresses = selectedDayTasks.map((task) => taskAddress(task)).filter(Boolean);
     const selectedDayCanRoute = selectedDayCount > 0 && selectedDayAddresses.length === selectedDayCount;
     return `<div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="duplicate-selected-tasks">${icon("note")} Duplicate selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
+      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
       ${dayTimeOfDayLegend()}
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit. Press and hold for duplicate/time actions. Drag one event onto another to swap times.</p>
       <div class="list day-task-grid">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
@@ -4249,7 +4250,7 @@
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input placeholder="Search tasks..." /></label>
       <div class="project-bulk-toolbar task-list-bulk-toolbar">
         <button class="outline-btn" data-action="select-visible-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
-        ${selectedIds.length ? `<button class="outline-btn" data-action="duplicate-selected-tasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+        ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
         <span class="muted">${selectedIds.length}/${filtered.length} selected</span>
       </div>
       <div class="list tasks-list tasks-${esc(ui.taskView)}">${filtered.map((task) => taskBoardCard(task)).join("")}</div>
@@ -4418,7 +4419,7 @@
           <p class="muted">${done}/${tasks.length} completed. New tasks added here are assigned to ${esc(project.name)} automatically.</p>
           <div class="project-bulk-toolbar project-detail-bulk-toolbar">
             <button class="outline-btn" data-action="select-visible-project-tasks" data-project-id="${project.id}">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
-            ${selectedIds.length ? `<button class="outline-btn" data-action="duplicate-selected-tasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+            ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
             <span class="muted">${selectedIds.length}/${tasks.length} selected</span>
           </div>
         </div>
@@ -4522,7 +4523,7 @@
     const allSelected = visibleIds.length > 0 && selectedIds.length === visibleIds.length;
     const bulkTools = unassigned ? `<div class="project-bulk-toolbar">
       <button class="outline-btn" data-action="select-visible-project-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
-      ${selectedIds.length ? `<button class="outline-btn" data-action="duplicate-selected-tasks">${icon("note")} Duplicate selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Assign selected</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+      ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
       <span class="muted">${selectedIds.length}/${tasks.length} selected</span>
     </div>` : "";
     return `<section class="project-card">
@@ -5321,6 +5322,7 @@
     if (type === "blockDuplicateVertical") content = modalBlockDuplicate(modalId, "vertical");
     if (type === "selectedDuplicateHorizontal") content = modalSelectedDuplicate("horizontal");
     if (type === "selectedDuplicateVertical") content = modalSelectedDuplicate("vertical");
+    if (type === "duplicateTasks") content = modalDuplicateTasks();
     if (type === "taskActions") content = modalTaskActions();
     if (type === "copyTasksDate") content = modalCopyTasksDate();
     if (type === "taskNotify") content = modalTaskNotify(modalId);
@@ -6222,8 +6224,8 @@
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="selectedDuplicateVertical">
           <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate down</span><span class="muted">Choose count</span>
         </button>
-        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="duplicate-selected-tasks">
-          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate selected</span><span class="muted">${selected.length}</span>
+        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="duplicateTasks">
+          <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Copy selected</span><span class="muted">Choose count</span>
         </button>
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="map-selected-tasks" ${allHaveAddresses ? "" : "disabled"}>
           <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("map")}</span><span>Open address route</span><span class="muted">${addresses.length}/${selected.length}</span>
@@ -6249,6 +6251,27 @@
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-selected-tasks">
           <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete selected</span><span></span>
         </button>
+      </div>`;
+  }
+
+  function modalDuplicateTasks() {
+    const selected = ui.selectedTasks.map((taskId) => findCalendarItemById(taskId)).filter(Boolean);
+    return `${modalHeader("Copy Selected Tasks", `${selected.length || 0} selected task${selected.length === 1 ? "" : "s"}`)}
+      <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="list">
+          ${selected.slice(0, 5).map((task) => {
+            const project = task.projectId ? data.projects.find((item) => item.id === task.projectId) : null;
+            return `<div class="data-row"><span class="dot" style="background:${priorityColor(task.priority)}"></span><div><strong>${esc(task.title)}</strong><div class="subtle">${shortDate(task.date)} ${timeLabel(task.start)} - ${project ? esc(project.name) : "Unassigned"}</div></div>${taskQuickBadge(task, "status")}</div>`;
+          }).join("") || `<p class="muted">Select at least one task first.</p>`}
+          ${selected.length > 5 ? `<p class="muted">And ${selected.length - 5} more selected.</p>` : ""}
+        </div>
+      </section>
+      <div class="field-grid">
+        <div class="field"><label for="duplicateTaskCount">Copies per selected task</label><input id="duplicateTaskCount" type="number" min="1" max="25" step="1" value="1" placeholder="1"></div>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-duplicate-selected-tasks">${icon("note")} Copy Tasks</button>
       </div>`;
   }
 
@@ -8492,6 +8515,7 @@
     if (action === "complete-selected-tasks") return completeSelectedTasks();
     if (action === "priority-selected") return prioritySelectedTasks(el.dataset.priority);
     if (action === "duplicate-selected-tasks") return duplicateSelectedTasks();
+    if (action === "save-duplicate-selected-tasks") return duplicateSelectedTasks(Number(value("duplicateTaskCount") || 1));
     if (action === "copy-selected-tomorrow") return copySelectedTomorrow();
     if (action === "copy-selected-to-date") return copySelectedToDate();
     if (action === "open-task-alert") return openTaskAlert(el.dataset.id);
@@ -12117,11 +12141,14 @@
     closeModal();
   }
 
-  function duplicateSelectedTasks() {
+  function duplicateSelectedTasks(count = 1) {
+    const copyCount = clamp(Math.round(Number(count) || 1), 1, 25);
     const copies = ui.selectedTasks
       .map((taskId) => findCalendarItemById(taskId))
       .filter(Boolean)
-      .map((task) => taskCopyFromCalendarItem(task, { title: `${task.title} copy` }));
+      .flatMap((task) => Array.from({ length: copyCount }, (_, index) => taskCopyFromCalendarItem(task, {
+        title: copyCount === 1 ? `${task.title} copy` : `${task.title} copy ${index + 1}`
+      })));
     if (!copies.length) {
       showToast("Select at least one task first.", "danger");
       return;
