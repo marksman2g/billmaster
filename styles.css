@@ -1828,7 +1828,7 @@ button.round-icon {
 
 .cloud-facts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 8px;
 }
 
@@ -1857,6 +1857,72 @@ button.round-icon {
   margin-top: 2px;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.cloud-sync-status-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--navy-2);
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.cloud-sync-status-line > span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eef3f9;
+}
+
+.cloud-sync-status-line strong,
+.cloud-sync-status-line small {
+  display: block;
+}
+
+.cloud-sync-status-line small {
+  margin-top: 2px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cloud-sync-status-line.success {
+  border-color: #b9e8c8;
+  background: #f4fff7;
+}
+
+.cloud-sync-status-line.success > span {
+  color: var(--green);
+  background: #e9f8ef;
+}
+
+.cloud-sync-status-line.info {
+  border-color: #bdeef6;
+  background: #f0fbfd;
+}
+
+.cloud-sync-status-line.info > span {
+  color: #15799b;
+  background: #e8f8fb;
+}
+
+.cloud-sync-status-line.danger {
+  border-color: #ffb4b4;
+  background: #fff1f1;
+}
+
+.cloud-sync-status-line.danger > span {
+  color: var(--red);
+  background: #fff0f0;
+}
+
+.cloud-sync-status-line.muted > span {
+  color: var(--grey);
 }
 
 .cloud-actions {

@@ -103,6 +103,11 @@
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
       cloudLastAutoCheckAt: "",
+      cloudLastQueuedAt: "",
+      cloudLastPushedAt: "",
+      cloudLastPulledAt: "",
+      cloudSyncState: "idle",
+      cloudSyncMessage: "",
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
@@ -573,6 +578,57 @@
     return cloudAutoSyncEnabled() ? "Auto push/pull" : "Manual only";
   }
 
+  function cloudSyncStateClass(state = data.settings?.cloudSyncState) {
+    if (data.settings?.cloudSyncConflictAt || state === "conflict") return "danger";
+    if (state === "error") return "danger";
+    if (["queued", "pushing", "pulling", "checking"].includes(state)) return "info";
+    if (["synced", "pushed", "pulled", "checked"].includes(state)) return "success";
+    return cloudAutoSyncEnabled() ? "success" : "muted";
+  }
+
+  function cloudSyncStateLabel(state = data.settings?.cloudSyncState) {
+    if (data.settings?.cloudSyncConflictAt || state === "conflict") return "Needs choice";
+    if (state === "queued") return "Queued";
+    if (state === "pushing") return "Pushing";
+    if (state === "pulling") return "Pulling";
+    if (state === "checking") return "Checking";
+    if (state === "pushed") return "Pushed";
+    if (state === "pulled") return "Pulled";
+    if (state === "checked") return "Checked";
+    if (state === "error") return "Error";
+    if (state === "synced") return "Synced";
+    return cloudAutoSyncEnabled() ? "Watching" : "Idle";
+  }
+
+  function setCloudSyncState(state, message, extra = {}) {
+    const now = extra.at || new Date().toISOString();
+    data.settings.cloudSyncState = state || "idle";
+    data.settings.cloudSyncMessage = message || "";
+    if (extra.queued) data.settings.cloudLastQueuedAt = now;
+    if (extra.pushed) data.settings.cloudLastPushedAt = now;
+    if (extra.pulled) data.settings.cloudLastPulledAt = now;
+    if (extra.checked) data.settings.cloudLastAutoCheckAt = now;
+    if (state !== "error") data.settings.cloudSyncError = "";
+  }
+
+  function cloudTimeLabel(value) {
+    if (!value) return "Not yet";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Not yet";
+    return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  function cloudNextActionLabel() {
+    if (!cloudConfigured()) return cloudHasProjectUrl() ? "Add publishable key" : "Add Supabase project";
+    if (!cloudSignedIn()) return "Sign in";
+    if (data.settings?.cloudSyncConflictAt) return "Use Smart merge";
+    if (cloudPushInFlight) return "Saving this device";
+    if (cloudPullInFlight) return "Checking cloud";
+    if (cloudAutoPushTimer || cloudHasLocalUnsyncedChanges) return "Local save queued";
+    if (cloudAutoSyncEnabled()) return "Auto sync watching";
+    return "Turn Auto On";
+  }
+
   function clearAppTimer(timer) {
     if (timer && typeof clearTimeout === "function") clearTimeout(timer);
   }
@@ -741,6 +797,11 @@
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
       cloudLastAutoCheckAt: "",
+      cloudLastQueuedAt: "",
+      cloudLastPushedAt: "",
+      cloudLastPulledAt: "",
+      cloudSyncState: "idle",
+      cloudSyncMessage: "",
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
@@ -1363,6 +1424,11 @@
     try {
       stampLocalSyncChanges(data, options);
       data = normalizeData(data);
+      const shouldQueueCloudSync = options.cloudSync !== false && cloudAutoSyncEnabled();
+      if (shouldQueueCloudSync) {
+        cloudHasLocalUnsyncedChanges = true;
+        setCloudSyncState("queued", "Local change saved. BillMaster will smart-merge it to the cloud in a moment.", { queued: true });
+      }
       serialized = JSON.stringify(data);
       if (options.undo !== false && lastSavedSnapshot && serialized !== lastSavedSnapshot) {
         pushUndoSnapshot(lastSavedSnapshot);
@@ -1371,10 +1437,7 @@
       clearSessionFallback();
       lastSavedSnapshot = serialized;
       ui.lastSaveError = "";
-      if (options.cloudSync !== false && cloudAutoSyncEnabled()) {
-        cloudHasLocalUnsyncedChanges = true;
-        scheduleCloudAutoPush();
-      }
+      if (shouldQueueCloudSync) scheduleCloudAutoPush();
       return true;
     } catch (error) {
       console.warn("BillMaster could not save local data.", error);
@@ -2458,6 +2521,8 @@
     const hasProject = cloudHasProjectUrl();
     const hasConflict = Boolean(data.settings?.cloudSyncConflictAt);
     const lastSync = data.settings?.cloudLastSyncAt ? `${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))} ${new Date(data.settings.cloudLastSyncAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Not synced yet";
+    const syncState = data.settings?.cloudSyncState || "idle";
+    const syncMessage = data.settings?.cloudSyncMessage || (signedIn ? "BillMaster is ready to sync this workspace across your devices." : "Sign in to begin syncing this workspace.");
     const setupCopy = signedIn
       ? "You are connected. Auto sync merges saved items by ID, so tasks, notes, loans, addresses, projects, and other records can sync across devices."
       : configured
@@ -2479,6 +2544,14 @@
         <span><strong>Account</strong><small>${esc(cloudSafeEmail())}</small></span>
         <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
         <span><strong>Mode</strong><small>${esc(cloudAutoSyncLabel())}</small></span>
+        <span><strong>Next</strong><small>${esc(cloudNextActionLabel())}</small></span>
+        <span><strong>Last push</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPushedAt))}</small></span>
+        <span><strong>Last pull</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPulledAt))}</small></span>
+        <span><strong>Last check</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastAutoCheckAt))}</small></span>
+      </div>
+      <div class="cloud-sync-status-line ${cloudSyncStateClass(syncState)}">
+        <span>${icon(cloudSyncStateClass(syncState) === "danger" ? "alert" : cloudSyncStateClass(syncState) === "success" ? "check" : "settings")}</span>
+        <div><strong>${esc(cloudSyncStateLabel(syncState))}</strong><small>${esc(syncMessage)}</small></div>
       </div>
       ${hasConflict ? `<div class="sync-conflict-banner">
         <strong>${icon("alert")} Sync needs your choice</strong>
@@ -12005,6 +12078,10 @@
       stopCloudAutoSync();
       return;
     }
+    if (!data.settings.cloudSyncState || data.settings.cloudSyncState === "idle") {
+      setCloudSyncState("checked", "Auto sync is watching for changes on this device and in the cloud.", { checked: true });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+    }
     scheduleCloudAutoPull(1500);
   }
 
@@ -12019,6 +12096,9 @@
 
   function scheduleCloudAutoPush(delay = 1800) {
     if (!cloudAutoSyncEnabled()) return;
+    if (data.settings.cloudSyncState !== "queued") {
+      setCloudSyncState("queued", "Local change saved. BillMaster will smart-merge it to the cloud in a moment.", { queued: true });
+    }
     clearAppTimer(cloudAutoPushTimer);
     cloudAutoPushTimer = setAppTimer(() => {
       cloudAutoPushTimer = null;
@@ -12043,6 +12123,8 @@
     }
     cloudPushInFlight = true;
     try {
+      setCloudSyncState("pushing", "Smart-merging this device with the cloud now.");
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       await pushWorkspaceToCloud("auto");
       cloudHasLocalUnsyncedChanges = false;
       if (ui.view === "sync") render();
@@ -12050,6 +12132,7 @@
     } catch (error) {
       console.warn("BillMaster auto sync failed.", error);
       data.settings.cloudSyncError = error.message || "Auto sync failed.";
+      setCloudSyncState(data.settings.cloudSyncConflictAt ? "conflict" : "error", data.settings.cloudSyncError);
       saveData({ undo: false, cloudSync: false, syncStamp: false });
       showToast(data.settings.cloudSyncConflictAt ? "Auto sync paused: both devices changed. Open Sync Center to choose." : "Auto sync paused by an error. Open Sync Center to retry.", "danger");
       if (ui.view === "sync") render();
@@ -12071,8 +12154,11 @@
     }
     cloudPullInFlight = true;
     try {
+      setCloudSyncState("checking", "Checking whether another device has newer BillMaster changes.", { checked: true });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
       const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true, onlyIfNewer: true });
       data.settings.cloudLastAutoCheckAt = new Date().toISOString();
+      if (!loaded) setCloudSyncState("checked", "Cloud checked. No newer changes found on another device.", { checked: true });
       saveData({ undo: false, cloudSync: false, syncStamp: false });
       if (loaded) {
         render();
@@ -12083,6 +12169,7 @@
     } catch (error) {
       console.warn("BillMaster auto pull failed.", error);
       data.settings.cloudSyncError = error.message || "Auto pull failed.";
+      setCloudSyncState("error", data.settings.cloudSyncError);
       saveData({ undo: false, cloudSync: false, syncStamp: false });
       if (/sign in|expired/i.test(error.message || "")) showToast(error.message, "danger");
       if (ui.view === "sync") render();
@@ -12103,12 +12190,24 @@
     const pushedAt = new Date().toISOString();
     const profile = activeProfile();
     const payload = normalizeData(clone(payloadSource));
+    const pushedMessage = direction === "auto"
+      ? "Auto sync smart-merged this device with the cloud."
+      : direction === "smart-merge"
+        ? "Smart merge finished. This device and the cloud now share the same workspace."
+        : direction === "force"
+          ? "This device was force-pushed to the cloud."
+          : "This device was pushed to the cloud.";
     payload.settings = {
       ...(payload.settings || {}),
       cloudLastSyncAt: pushedAt,
       cloudLastDirection: direction,
       cloudRemoteUpdatedAt: pushedAt,
       cloudLastAutoCheckAt: data.settings?.cloudLastAutoCheckAt || "",
+      cloudLastQueuedAt: data.settings?.cloudLastQueuedAt || "",
+      cloudLastPushedAt: pushedAt,
+      cloudLastPulledAt: data.settings?.cloudLastPulledAt || "",
+      cloudSyncState: "synced",
+      cloudSyncMessage: pushedMessage,
       cloudSyncError: "",
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
@@ -12130,6 +12229,8 @@
     data.settings.cloudLastDirection = direction;
     data.settings.cloudRemoteUpdatedAt = pushedAt;
     data.settings.cloudLastAutoCheckAt = new Date().toISOString();
+    data.settings.cloudLastPushedAt = pushedAt;
+    setCloudSyncState("synced", pushedMessage, { pushed: true, checked: true, at: pushedAt });
     data.settings.cloudSyncError = "";
     clearCloudConflict();
     cloudHasLocalUnsyncedChanges = false;
@@ -12172,6 +12273,7 @@
     data.settings.cloudSyncConflictMessage = message;
     data.settings.cloudSyncError = message;
     data.settings.cloudAutoSync = false;
+    setCloudSyncState("conflict", message);
     stopCloudAutoSync();
     cloudHasLocalUnsyncedChanges = true;
     saveData({ undo: false, cloudSync: false, syncStamp: false });
@@ -12190,7 +12292,9 @@
     data.settings.cloudLastDirection = "pull";
     data.settings.cloudRemoteUpdatedAt = remoteAt;
     data.settings.cloudLastAutoCheckAt = pulledAt;
+    data.settings.cloudLastPulledAt = pulledAt;
     if (options.enableAutoSync !== false) data.settings.cloudAutoSync = true;
+    setCloudSyncState("pulled", "Cloud changes were merged into this device.", { pulled: true, checked: true, at: pulledAt });
     data.settings.cloudSyncError = "";
     clearCloudConflict();
     cloudHasLocalUnsyncedChanges = false;
@@ -12231,6 +12335,9 @@
       return;
     }
     data.settings.cloudAutoSync = !cloudAutoSyncEnabled();
+    setCloudSyncState(data.settings.cloudAutoSync ? "checked" : "idle", data.settings.cloudAutoSync
+      ? "Auto sync is on. BillMaster will push saves and pull new cloud changes."
+      : "Auto sync is off. Use Smart merge, Push local, or Pull cloud manually.", { checked: data.settings.cloudAutoSync });
     saveData({ undo: false, cloudSync: false, syncStamp: false });
     if (data.settings.cloudAutoSync) {
       showToast("Auto sync is on. BillMaster will push saves and pull new cloud changes.");
@@ -12271,6 +12378,8 @@
     try {
       const row = await fetchCloudWorkspaceRow();
       if (row?.payload) {
+        setCloudSyncState("pulling", "Smart merge is reading the cloud and combining matching records.");
+        saveData({ undo: false, cloudSync: false, syncStamp: false });
         const remotePayload = normalizeData(mergeSeed(clone(seed), row.payload));
         data = normalizeData(mergeSeed(clone(seed), mergeWorkspacePayloads(data, remotePayload, { prefer: "incoming" })));
       }
