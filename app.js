@@ -1527,7 +1527,7 @@
   }
 
   function header(title, actions = "") {
-    const root = routeNavItems().some(([view]) => view === ui.view);
+    const root = routeNavItems().some(([view]) => view === ui.view) && !ui.backStack.length;
     const profile = activeProfile();
     const profileAction = profile ? `<button class="icon-btn" data-action="open-modal" data-modal="profiles" aria-label="Profiles" title="${esc(profile.displayName)}">${icon("home")}</button>` : "";
     return `<header class="screen-header">
@@ -7482,6 +7482,7 @@
       return;
     }
     ui.view = ui.backStack.pop() || "dashboard";
+    syncHash(ui.view);
     render();
   }
 
