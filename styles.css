@@ -1892,6 +1892,67 @@ button.round-icon {
   text-decoration: none;
 }
 
+.media-storage-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  border-color: #cbd5ff;
+  background: linear-gradient(135deg, #ffffff, #f6f8ff);
+}
+
+.media-storage-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+}
+
+.media-storage-copy h2,
+.media-storage-copy p {
+  margin: 0;
+}
+
+.media-storage-facts span {
+  border-color: #dbe3ff;
+}
+
+.media-collection-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.media-collection-list span {
+  min-width: 0;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #dbe3ff;
+  border-radius: 8px;
+}
+
+.media-collection-list strong,
+.media-collection-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-collection-list strong {
+  color: var(--navy-2);
+  font-size: 0.78rem;
+}
+
+.media-collection-list small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.media-storage-actions {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 .google-contacts-panel {
   display: grid;
   gap: 14px;

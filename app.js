@@ -356,6 +356,8 @@
     "cloud-push-workspace",
     "cloud-force-push-workspace",
     "cloud-pull-workspace",
+    "cloud-smart-merge",
+    "copy-media-storage-plan",
     "simulate-detect",
     "simulate-import",
     "run-smart-sync",
@@ -2336,6 +2338,7 @@
       ${cloudWorkspacePanel()}
       ${friendAlphaLaunchPanel()}
       ${mobileCodexAccessPanel()}
+      ${mediaStoragePanel()}
       ${googleContactsPanel()}
       ${notificationFoundationPanel()}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
@@ -2447,6 +2450,7 @@
       <div class="sheet-actions cloud-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} ${hostedCloudConfigStarted() ? "Advanced setup" : "Setup"}</button>
         ${signedIn ? `<button class="outline-btn" data-action="cloud-sign-out">${icon("close")} Sign out</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${configured ? "" : "disabled"}>${icon("home")} Sign in</button>`}
+        <button class="primary-btn" data-action="cloud-smart-merge" ${signedIn ? "" : "disabled"}>${icon("cloud")} Smart merge now</button>
         <button class="secondary-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
         ${hasConflict ? `<button class="danger-soft-btn" data-action="cloud-force-push-workspace" ${signedIn ? "" : "disabled"}>${icon("alert")} Force push</button>` : ""}
         <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
@@ -2488,6 +2492,7 @@
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
         <button class="outline-btn" data-action="copy-hosted-cloud-config" ${cloudConfigured() ? "" : "disabled"}>${icon("note")} Copy config</button>
         <button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Sign in</button>
+        <button class="primary-btn" data-action="cloud-smart-merge" ${cloudSignedIn() ? "" : "disabled"}>${icon("cloud")} Smart merge</button>
         <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("note")} Pull cloud</button>
       </div>
@@ -2514,6 +2519,39 @@
         <a class="outline-btn" href="https://github.dev/marksman2g/billmaster" target="_blank" rel="noopener">${icon("settings")} Web editor</a>
         <a class="outline-btn" href="https://github.com/codespaces" target="_blank" rel="noopener">${icon("home")} Codespaces</a>
         <button class="primary-btn" data-action="navigate-root" data-view="dashboard">${icon("playcard")} Use BillMaster</button>
+      </div>
+    </section>`;
+  }
+
+  function mediaStoragePanel() {
+    const stats = mediaPortabilityStats();
+    const statusClass = stats.localData ? "warn" : stats.total ? "success" : "info";
+    const statusLabel = stats.localData ? `${stats.localData} local upload${stats.localData === 1 ? "" : "s"}` : stats.total ? "Portable" : "No media yet";
+    const rows = stats.byCollection
+      .filter((item) => item.total)
+      .slice(0, 8)
+      .map((item) => `<span><strong>${esc(item.label)}</strong><small>${item.total} image${item.total === 1 ? "" : "s"} | ${item.localData} local</small></span>`)
+      .join("");
+    return `<section class="section-card media-storage-panel">
+      <div class="media-storage-copy">
+        <span class="round-icon" style="color:${stats.localData ? "var(--amber)" : "var(--green)"};background:${stats.localData ? "#fff5d6" : "#e9f8ef"}">${icon(stats.localData ? "alert" : "camera")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Media Storage Readiness</h2><span class="status ${statusClass}">${esc(statusLabel)}</span></div>
+          <p class="muted">Pictures already travel with this workspace when they are web or Google Drive links. Local uploads are saved in the workspace for now; the next production move is uploading them to the private <strong>billmaster-media</strong> Supabase bucket.</p>
+        </div>
+      </div>
+      <div class="cloud-facts media-storage-facts">
+        <span><strong>Total pictures</strong><small>${stats.total}</small></span>
+        <span><strong>Portable links</strong><small>${stats.web + stats.googleDrive}</small></span>
+        <span><strong>Local uploads</strong><small>${stats.localData}</small></span>
+        <span><strong>Bucket</strong><small>${cloudSignedIn() ? "Ready to test upload step" : "Sign in first"}</small></span>
+      </div>
+      ${rows ? `<div class="media-collection-list">${rows}</div>` : `<p class="muted">Add pictures to tasks, habits, notes, notebooks, projects, goals, loans, bills, or subscriptions and this panel will track them.</p>`}
+      <div class="sheet-actions media-storage-actions">
+        <button class="outline-btn" data-action="copy-media-storage-plan">${icon("note")} Copy media plan</button>
+        <button class="outline-btn" data-action="navigate" data-view="notebooks">${icon("book")} Notebooks</button>
+        <button class="outline-btn" data-action="navigate" data-view="projects">${icon("folder")} Projects</button>
+        <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Sync media data</button>
       </div>
     </section>`;
   }
@@ -5894,6 +5932,88 @@
       .catch(() => showToast("Could not read that image.", "danger", { render: false }));
   }
 
+  function mediaTrackedCollections() {
+    return [
+      ["tasks", "Tasks"],
+      ["habits", "Habits"],
+      ["projects", "Projects"],
+      ["notebooks", "Notebooks"],
+      ["notes", "Notes"],
+      ["subscriptions", "Subscriptions"],
+      ["loans", "Lending"],
+      ["goals", "Goals"],
+      ["bills", "Bills"]
+    ];
+  }
+
+  function mediaSourceKind(source) {
+    const raw = String(source || "").trim();
+    if (!raw) return "";
+    if (isDataImage(raw)) return "localData";
+    if (/drive\.google\.com|googleusercontent\.com/i.test(raw)) return "googleDrive";
+    if (/^https?:\/\//i.test(raw)) return "web";
+    if (/^(file:\/\/\/|[a-zA-Z]:\\)/.test(raw)) return "devicePath";
+    if (raw === "cherries" || raw === "bananas") return "stock";
+    return "other";
+  }
+
+  function mediaPortabilityStats() {
+    const stats = {
+      total: 0,
+      web: 0,
+      googleDrive: 0,
+      localData: 0,
+      devicePath: 0,
+      stock: 0,
+      other: 0,
+      byCollection: []
+    };
+    mediaTrackedCollections().forEach(([collection, label]) => {
+      const row = { collection, label, total: 0, localData: 0 };
+      safeArray(data[collection]).forEach((item) => {
+        const source = item?.image || item?.cover || "";
+        const kind = mediaSourceKind(source);
+        if (!kind) return;
+        stats.total += 1;
+        row.total += 1;
+        if (stats[kind] !== undefined) stats[kind] += 1;
+        else stats.other += 1;
+        if (kind === "localData") row.localData += 1;
+      });
+      stats.byCollection.push(row);
+    });
+    return stats;
+  }
+
+  async function copyMediaStoragePlan() {
+    const stats = mediaPortabilityStats();
+    const lines = [
+      "BillMaster Media Storage Plan",
+      "",
+      `Total pictures tracked: ${stats.total}`,
+      `Portable web/Google links: ${stats.web + stats.googleDrive}`,
+      `Local uploads currently stored in workspace JSON: ${stats.localData}`,
+      `Device-only file paths: ${stats.devicePath}`,
+      "",
+      "Next production step:",
+      "1. Keep using links for images that already live online.",
+      "2. Upload local pictures to the private Supabase Storage bucket named billmaster-media.",
+      "3. Store each uploaded file under the signed-in user's folder.",
+      "4. Save the storage path and use short-lived signed URLs for previews.",
+      "",
+      "By area:",
+      ...stats.byCollection
+        .filter((item) => item.total)
+        .map((item) => `- ${item.label}: ${item.total} image(s), ${item.localData} local upload(s)`)
+    ];
+    try {
+      await copyText(lines.join("\n"));
+      showToast("Media storage plan copied.");
+    } catch (error) {
+      showToast("Could not copy the media plan.", "danger");
+    }
+  }
+
   function taskAddressLabel(value) {
     if (value === ADD_TASK_ADDRESS_VALUE) return "+ Add new address";
     if (!value) return "No location";
@@ -7185,7 +7305,9 @@
     if (action === "cloud-push-workspace") return cloudPushWorkspace();
     if (action === "cloud-force-push-workspace") return cloudPushWorkspace({ force: true });
     if (action === "cloud-pull-workspace") return cloudPullWorkspace();
+    if (action === "cloud-smart-merge") return cloudSmartMergeNow();
     if (action === "toggle-cloud-auto-sync") return toggleCloudAutoSync();
+    if (action === "copy-media-storage-plan") return copyMediaStoragePlan();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
     if (action === "simulate-import") return simulateImport();
@@ -11691,6 +11813,33 @@
       showToast("Cloud workspace pulled into this device. Auto sync is now on.");
     } catch (error) {
       showToast(`Cloud pull failed: ${error.message}`, "danger");
+    }
+  }
+
+  async function cloudSmartMergeNow() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before smart merging.", "danger");
+      return;
+    }
+    try {
+      const row = await fetchCloudWorkspaceRow();
+      if (row?.payload) {
+        const remotePayload = normalizeData(mergeSeed(clone(seed), row.payload));
+        data = normalizeData(mergeSeed(clone(seed), mergeWorkspacePayloads(data, remotePayload, { prefer: "incoming" })));
+      }
+      data.settings.cloudAutoSync = true;
+      clearCloudConflict();
+      await pushWorkspaceToCloud(row?.payload ? "smart-merge" : "push");
+      startCloudAutoSync();
+      render();
+      showToast(row?.payload
+        ? "Smart merge complete. This device and the cloud now share the merged workspace."
+        : "No cloud workspace was found, so this device was pushed and auto sync is on.");
+    } catch (error) {
+      data.settings.cloudSyncError = error.message || "Smart merge failed.";
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      render();
+      showToast(`Smart merge failed: ${error.message}`, "danger");
     }
   }
 
