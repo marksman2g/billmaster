@@ -3372,7 +3372,7 @@
     const heads = `<div class="block-head time-head">AM/PM</div>${weekdays.map((iso) => {
       const dayTasks = calendarItemsForDay(iso);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<button class="block-head block-head-button ${stateClass}" data-action="open-day" data-date="${iso}" title="Open ${dateFull(iso)} in Day View"><span class="block-head-date">${dayName(iso)} ${Number(iso.slice(-2))}${weatherChip(iso, "block")}</span><span class="block-head-hours">${round1(totalTaskHours(dayTasks))}h</span></button>`;
+      return `<button class="block-head block-head-button ${stateClass}" data-action="open-day" data-date="${iso}" title="Open ${dateFull(iso)} in Day View"><span class="block-head-date">${dayName(iso)} ${Number(iso.slice(-2))}</span><span class="block-head-weather">${weatherChip(iso, "block")}</span><span class="block-head-hours">${round1(totalTaskHours(dayTasks))}h</span></button>`;
     }).join("")}<div class="block-head time-head">24h</div>`;
     const leftLabels = blockHourLabels(range, "left");
     const rightLabels = blockHourLabels(range, "right");

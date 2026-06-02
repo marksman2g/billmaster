@@ -5078,15 +5078,24 @@ canvas {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   width: 100%;
   color: var(--muted);
+  line-height: 1.05;
+}
+
+.block-head-weather {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 18px;
+  margin-top: 2px;
 }
 
 .block-head-hours {
   display: block;
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--blue);
+  line-height: 1;
 }
 
 .block-col.is-today {
