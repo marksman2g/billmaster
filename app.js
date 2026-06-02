@@ -30,6 +30,7 @@
     notesSort: "newest",
     notesQuery: "",
     notebookQuery: "",
+    notebookView: "regular",
     selectedNotes: [],
     contactQuery: "",
     contactGroupFilter: "all",
@@ -4098,7 +4099,10 @@
         </div>
       </section>
       <label class="search-field notebook-search">${icon("search")}<input id="notebookSearch" value="${esc(ui.notebookQuery)}" data-action="notebook-search" placeholder="Search notebooks, subjects, descriptions..." /></label>
-      <div class="notebook-grid">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>
+      <div class="filter-row notebook-view-switcher">
+        ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+      </div>
+      <div class="notebook-grid notebooks-${esc(ui.notebookView)}">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>
       <section class="section-card unassigned-notes-section">
         <div class="section-title compact-title">
           <h2>${icon("note")} Unassigned Notes</h2>
@@ -4174,7 +4178,6 @@
       ${header(nb ? nb.title : "All Notes", `<button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
       ${nb ? notebookDetailHero(nb, baseNotes, unassignedCount, noteCounts) : ""}
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="notesSearch" value="${esc(ui.notesQuery)}" data-action="notes-search" placeholder="Search notes, subjects, importance..." /></label>
-      ${nb ? "" : noteNotebookDropStrip()}
       <div class="notes-control-panel">
         <div class="filter-row">
           ${["stream", "compact", "gallery"].map((view) => `<button class="${ui.notesView === view ? "active" : ""}" data-action="set-tab" data-key="notesView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
@@ -4197,6 +4200,7 @@
           </select>
         </label>
       </div>
+      ${nb ? "" : noteNotebookDropStrip()}
       <div class="filter-row notes-importance-filters" style="margin-bottom:14px;">
         <button class="${ui.notesFilter === "all" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="all">All</button>
         <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned" title="No Subject">None <span class="filter-count">${unassignedCount}</span></button>

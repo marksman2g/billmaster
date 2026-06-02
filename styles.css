@@ -2484,7 +2484,7 @@ button.round-icon {
 }
 
 .notes-notebook-strip {
-  padding: 12px;
+  padding: 10px;
   margin: 0 0 12px;
   background: #f7fbff;
   border: 1px solid #cfe3ff;
@@ -2493,22 +2493,22 @@ button.round-icon {
 
 .note-notebook-drop-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
 }
 
 .note-notebook-drop-tile {
   position: relative;
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  min-height: 70px;
-  padding: 8px;
+  min-height: 54px;
+  padding: 7px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(26, 31, 54, 0.07);
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.06);
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
@@ -2525,8 +2525,8 @@ button.round-icon {
 .note-notebook-cover {
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 54px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   color: #fff;
   background: var(--accent);
@@ -2556,9 +2556,13 @@ button.round-icon {
   white-space: nowrap;
 }
 
+.note-notebook-drop-copy strong {
+  font-size: 0.82rem;
+}
+
 .note-notebook-drop-copy span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 750;
 }
 
@@ -2803,6 +2807,10 @@ button.round-icon {
   box-shadow: 0 12px 28px rgba(26, 31, 54, 0.06);
 }
 
+.notebook-view-switcher {
+  margin-bottom: 14px;
+}
+
 .notebook-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 16px;
@@ -2825,6 +2833,68 @@ button.round-icon {
   border-color: rgba(207, 219, 234, 0.95);
   box-shadow: 0 14px 34px rgba(26, 31, 54, 0.08);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.notebooks-compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 10px;
+}
+
+.notebooks-compact .notebook-tile {
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 118px;
+}
+
+.notebooks-compact .notebook-cover-wrap {
+  height: 100%;
+  min-height: 118px;
+  aspect-ratio: auto;
+}
+
+.notebooks-compact .notebook-cover-edit {
+  right: 6px;
+  bottom: 6px;
+  min-height: 28px;
+  padding: 5px 7px;
+}
+
+.notebooks-compact .notebook-tile-body {
+  gap: 7px;
+  padding: 10px 12px;
+}
+
+.notebooks-compact .notebook-count-row,
+.notebooks-gallery .notebook-count-row {
+  gap: 5px;
+}
+
+.notebooks-compact .notebook-count-row span,
+.notebooks-gallery .notebook-count-row span {
+  padding: 5px 6px;
+}
+
+.notebooks-compact .notebook-description,
+.notebooks-gallery .notebook-description {
+  min-height: 1.3em;
+  -webkit-line-clamp: 1;
+}
+
+.notebooks-compact .notebook-footer {
+  min-height: 22px;
+}
+
+.notebooks-gallery {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 14px;
+}
+
+.notebooks-gallery .notebook-cover-wrap {
+  aspect-ratio: 1 / 1;
+}
+
+.notebooks-gallery .notebook-tile-body {
+  gap: 8px;
+  padding: 11px 12px 13px 16px;
 }
 
 .notebook-tile::before {
