@@ -3319,7 +3319,11 @@
     const editModal = task.isHabit ? "editHabit" : "editTask";
     const editId = task.isHabit ? task.habitId : task.id;
     const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
-    const doneLabel = task.isHabit && task.status === "Completed" ? "Done" : "Done";
+    const habit = task.isHabit ? data.habits.find((item) => item.id === task.habitId) : null;
+    const habitDone = Boolean(task.isHabit && habitCompletedOn(habit, task.date));
+    const doneButton = task.isHabit
+      ? `<button class="${habitDone ? "outline-btn" : "success-btn"}" data-action="toggle-habit-completion" data-id="${task.habitId}" data-date="${task.date}">${icon("check")} ${habitDone ? "Undo Done" : "Mark Done"}</button>`
+      : `<button class="primary-btn" data-action="complete-task" data-id="${task.id}">${icon("check")} Done</button>`;
     return `<article class="task-card day-task-card compact-day-task ${taskImage ? "has-task-picture" : ""} ${task.status === "Completed" ? "complete" : ""}" data-task-id="${task.id}" style="${selected ? "background:#eaf4ff;border-color:#8dc8ff;" : ""}">
       ${taskImage ? `<span class="day-task-picture" ${dayTaskPictureStyle(task)}><img src="${esc(taskImage)}" alt=""></span>` : ""}
       ${taskTimeOfDayBadge(task)}
@@ -3347,7 +3351,7 @@
       <div class="sheet-actions compact-card-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="${editModal}" data-id="${editId}">${icon("edit")} Edit</button>
         ${task.isHabit ? `<button class="outline-btn" data-action="navigate" data-view="habits">${icon("chart")} Stats</button>` : `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}">${icon("bell")} Notify</button>`}
-        <button class="primary-btn" data-action="complete-task" data-id="${task.id}">${icon("check")} ${doneLabel}</button>
+        ${doneButton}
       </div>
     </article>`;
   }
