@@ -2301,14 +2301,14 @@
       </div>
       <div class="finance-grid">
         <section class="section-card">
-          <div class="section-title"><h2>${title}</h2><span class="status success">Live</span></div>
-          ${trackingSummary(type)}
-        </section>
-        <section class="section-card">
           <div class="section-title"><h2>${type === "income" ? "All Income Sources" : "All Expenses"}</h2><button class="text-btn" data-action="open-modal" data-modal="addTransaction">${icon("plus")} Add</button></div>
           <div class="list">
             ${items.map((tx) => transactionRow(tx)).join("")}
           </div>
+        </section>
+        <section class="section-card">
+          <div class="section-title"><h2>${title}</h2><span class="status success">Live</span></div>
+          ${trackingSummary(type)}
         </section>
       </div>
     </section>`;
@@ -2692,11 +2692,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-24";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-25";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-24`;
+    return `${location.origin}${location.pathname}?v=20260602-25`;
   }
 
   function friendPrivacyGatePanel() {
