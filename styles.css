@@ -1540,6 +1540,12 @@ button.round-icon {
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
+.task-board-card.selected {
+  background: #e8f3ff;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.16), var(--shadow);
+}
+
 .task-board-card:hover,
 .task-board-card:focus-visible {
   border-color: #90c6ff;
@@ -1553,6 +1559,10 @@ button.round-icon {
   align-items: flex-start;
   gap: 10px;
   min-width: 0;
+}
+
+.task-board-select {
+  flex: 0 0 auto;
 }
 
 .task-board-copy {
@@ -3090,6 +3100,11 @@ button.round-icon {
   background: #eef6ff;
   border: 1px solid #cfe3ff;
   border-radius: 8px;
+}
+
+.project-detail-bulk-toolbar,
+.task-list-bulk-toolbar {
+  margin-top: 12px;
 }
 
 .project-list-thumb {
@@ -5516,6 +5531,11 @@ canvas {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.task-project-assign span {
+  max-width: 190px;
+  white-space: nowrap;
 }
 
 .quick-project .icon:last-child {
