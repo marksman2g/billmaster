@@ -2248,8 +2248,65 @@ button.round-icon {
   background: #e9f8ef;
 }
 
+.friend-alpha-stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #b9e8c8;
+  border-radius: 8px;
+}
+
+.friend-alpha-stage strong,
+.friend-alpha-stage small {
+  display: block;
+  min-width: 0;
+}
+
+.friend-alpha-stage small {
+  margin-top: 2px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.friend-alpha-script {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.friend-alpha-script > div {
+  min-width: 0;
+  padding: 10px;
+  background: #f8fbff;
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.friend-alpha-script strong,
+.friend-alpha-script span {
+  display: block;
+}
+
+.friend-alpha-script strong {
+  margin-bottom: 4px;
+  color: var(--navy-2);
+}
+
+.friend-alpha-script span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .friend-alpha-actions {
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.friend-alpha-actions a {
+  text-decoration: none;
 }
 
 .sync-card {
@@ -7766,6 +7823,10 @@ canvas {
   .category-filter-row button,
   .time-period-chip {
     flex: 0 0 auto;
+  }
+
+  .friend-alpha-script {
+    grid-template-columns: 1fr;
   }
 }
 

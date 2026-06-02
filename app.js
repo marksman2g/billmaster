@@ -2626,7 +2626,8 @@
       { label: "Publishable key", ready: Boolean(cloudConfig.anonKey), detail: cloudConfig.anonKey ? "Browser can sign in" : "Paste full key into billmaster-config.js" },
       { label: "BillMaster account", ready: cloudSignedIn(), detail: cloudSignedIn() ? cloudSafeEmail() : "Create or sign in from Sync Center" },
       { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Push local once, then pull on phone/iPad" },
-      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Merges saved items across devices" : "Turn on after first good push/pull" }
+      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Merges saved items across devices" : "Turn on after first good push/pull" },
+      { label: "Safe alpha scope", ready: true, detail: "Tasks, notes, habits, loans, contacts, pictures, and manual finance only" }
     ];
     const ready = checks.filter((item) => item.ready).length;
     const keyMissing = cloudHasProjectUrl() && !cloudConfig.anonKey;
@@ -2634,6 +2635,7 @@
     const copy = keyMissing
       ? "The only hard blocker is the Supabase publishable key. Once it is in the hosted config, the sign-in flow can be tested from your phone and iPad."
       : "Use this as the go/no-go board before inviting friends. Every green item means one less thing that can confuse someone testing BillMaster.";
+    const stage = ready >= checks.length ? "Friend-ready alpha" : ready >= checks.length - 1 ? "Almost friend-ready" : "Personal cloud beta";
     return `<section class="section-card friend-alpha-panel">
       <div class="friend-alpha-head">
         <div>
@@ -2642,6 +2644,13 @@
         </div>
         <div class="friend-alpha-score">${ready}<span>of ${checks.length}</span></div>
       </div>
+      <div class="friend-alpha-stage">
+        <span class="round-icon">${icon(ready >= checks.length ? "check" : "settings")}</span>
+        <div>
+          <strong>${esc(stage)}</strong>
+          <small>${ready >= checks.length ? "You can invite one trusted tester, watch the first session, and keep bank/card sync turned off." : "Finish the red/yellow items before giving this to someone who is not sitting beside you."}</small>
+        </div>
+      </div>
       <div class="friend-alpha-checks">
         ${checks.map((item) => `<div class="friend-alpha-check ${item.ready ? "is-ready" : ""}">
           <span>${icon(item.ready ? "check" : "alert")}</span>
@@ -2649,15 +2658,99 @@
           <small>${esc(item.detail)}</small>
         </div>`).join("")}
       </div>
+      <div class="friend-alpha-script">
+        <div>
+          <strong>First tester script</strong>
+          <span>Sign in, add one task, add one note, add one loan, upload one picture, reload, then check another device.</span>
+        </div>
+        <div>
+          <strong>Keep off for alpha</strong>
+          <span>No real bank/card sync, no real bill pay, no direct cancellation APIs yet.</span>
+        </div>
+        <div>
+          <strong>What feedback means most</strong>
+          <span>Could they find things, save things, sync things, and understand what BillMaster helps them decide?</span>
+        </div>
+      </div>
       <div class="sheet-actions friend-alpha-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
         <button class="outline-btn" data-action="copy-hosted-cloud-config" ${cloudConfigured() ? "" : "disabled"}>${icon("note")} Copy config</button>
+        <button class="outline-btn" data-action="copy-friend-alpha-invite" ${ready >= checks.length ? "" : "disabled"}>${icon("mail")} Copy invite</button>
+        <button class="outline-btn" data-action="copy-friend-alpha-script">${icon("check")} Copy test script</button>
+        <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("home")} Open live app</a>
         <button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Sign in</button>
         <button class="primary-btn" data-action="cloud-smart-merge" ${cloudSignedIn() ? "" : "disabled"}>${icon("cloud")} Smart merge</button>
         <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Push local</button>
         <button class="outline-btn" data-action="cloud-pull-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("note")} Pull cloud</button>
       </div>
     </section>`;
+  }
+
+  function friendAlphaHostedUrl() {
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-19";
+    if (typeof location === "undefined") return liveUrl;
+    const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
+    if (localHost || location.protocol === "file:") return liveUrl;
+    return `${location.origin}${location.pathname}?v=20260602-19`;
+  }
+
+  function friendAlphaInviteText() {
+    return [
+      "BillMaster Friend Alpha Invite",
+      "",
+      "I am testing BillMaster as a personal financial command center. It helps organize tasks, habits, bills, loans, notes, contacts, addresses, pictures, and manual money tracking in one place.",
+      "",
+      `Open it here: ${friendAlphaHostedUrl()}`,
+      "",
+      "Please create your own BillMaster account, then try:",
+      "1. Add one task with a date and time.",
+      "2. Add one note or notebook.",
+      "3. Add one loan or manual transaction.",
+      "4. Add one contact/address if you are comfortable.",
+      "5. Reload the app and confirm your information is still there.",
+      "6. If you use another device, sign in there and confirm your data follows you.",
+      "",
+      "Important: this is an alpha test. Do not enter sensitive bank passwords, card numbers, or private financial details yet. Bank/card sync, real bill pay, and automatic cancellation are future production features.",
+      "",
+      "Most useful feedback: What confused you? What felt fast? What financial decision would you want BillMaster to help you make next?"
+    ].join("\n");
+  }
+
+  function friendAlphaTestScriptText() {
+    return [
+      "BillMaster Friend Alpha Test Script",
+      "",
+      "Goal: prove a friend can sign in, save useful data, sync across devices, and understand the financial command-center direction.",
+      "",
+      "Setup checks:",
+      "- Supabase project URL is configured.",
+      "- Publishable key is configured.",
+      "- User can create/sign into a BillMaster account.",
+      "- First cloud workspace has been pushed.",
+      "- Auto sync is on.",
+      "",
+      "Tester actions:",
+      "1. Open the live app.",
+      "2. Create a BillMaster account.",
+      "3. Add a task with title, date, start time, end time, category, and status.",
+      "4. Add a note and assign it to a notebook.",
+      "5. Add a manual loan or manual income/expense item.",
+      "6. Add a contact and address if comfortable.",
+      "7. Upload or link one picture.",
+      "8. Refresh the browser and confirm the data stayed.",
+      "9. Sign in on another device and confirm the data appears.",
+      "",
+      "Do not test yet:",
+      "- Real bank/card passwords.",
+      "- Real bill payments.",
+      "- Direct subscription cancellation.",
+      "",
+      "Feedback questions:",
+      "- Could you find the main areas?",
+      "- Did saving feel obvious?",
+      "- Did sync make sense?",
+      "- What would help you make better money decisions from this app?"
+    ].join("\n");
   }
 
   function mobileCodexAccessPanel() {
@@ -8048,6 +8141,8 @@
     if (action === "save-cloud-config") return saveCloudConfig();
     if (action === "test-cloud-config") return testCloudConfig();
     if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
+    if (action === "copy-friend-alpha-invite") return copyFriendAlphaInvite();
+    if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
     if (action === "save-google-contacts-config") return saveGoogleContactsConfig();
     if (action === "google-contacts-import") return importGoogleContacts();
     if (action === "copy-google-contacts-checklist") return copyGoogleContactsChecklist();
@@ -11887,6 +11982,24 @@
       showToast("Hosted config copied. Paste it into billmaster-config.js, then commit and push.");
     } catch (error) {
       showToast("Could not copy the hosted config automatically.", "danger");
+    }
+  }
+
+  async function copyFriendAlphaInvite() {
+    try {
+      await copyText(friendAlphaInviteText());
+      showToast("Friend alpha invite copied.");
+    } catch (error) {
+      showToast("Could not copy the friend invite automatically.", "danger");
+    }
+  }
+
+  async function copyFriendAlphaScript() {
+    try {
+      await copyText(friendAlphaTestScriptText());
+      showToast("Friend alpha test script copied.");
+    } catch (error) {
+      showToast("Could not copy the test script automatically.", "danger");
     }
   }
 
