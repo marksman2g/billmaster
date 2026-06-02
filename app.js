@@ -1665,7 +1665,8 @@
     const recent = [...data.transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
     const today = todayIso();
     const todayItems = calendarItemsForDay(today).sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")));
-    const reviewCount = billInboxItems().filter((item) => item.status === "pending").length;
+    const reviewCount = billInboxItems().filter((item) => item.status === "pending").length
+      + safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued").length;
     const routeCount = todayItems.filter((item) => item.addressId).length;
     const mode = data.settings?.interfaceMode === "simple" ? "simple" : "power";
 
@@ -2287,6 +2288,7 @@
     const items = billInboxItems();
     const pendingCount = items.filter((item) => item.status === "pending").length;
     const detectedCount = items.filter((item) => item.source === "Recurring detector").length;
+    const queuedAlerts = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued").length;
     const filtered = items.filter((item) => ui.billInboxFilter === "all" || item.status === ui.billInboxFilter || item.type === ui.billInboxFilter);
     return `<section class="screen">
       ${header("Review Inbox", `<button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="open-modal" data-modal="importStatement" title="Import statement">${icon("note")}</button><button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>`)}
@@ -2294,14 +2296,16 @@
         <div>
           <div class="small-label">Prism-style command center</div>
           <h2>Approve, pay, cancel, or file every bill signal.</h2>
-          <p>Bank/card sync, screenshots, PDFs, email forwards, and recurring-charge detection should all land here before they become bills, subscriptions, tasks, or cancellations.</p>
+          <p>Bank/card sync, screenshots, PDFs, email forwards, recurring-charge detection, and task notification alerts should all land here before they become action items.</p>
         </div>
         <div class="prism-metrics">
           <div><strong>${pendingCount}</strong><span>Pending</span></div>
           <div><strong>${detectedCount}</strong><span>Detected</span></div>
+          <div><strong>${queuedAlerts}</strong><span>Task Alerts</span></div>
           <div><strong>${data.cancellations.length}</strong><span>Cancellations</span></div>
         </div>
       </section>
+      ${notificationFoundationPanel("inbox")}
       ${billSyncPanel(items)}
       <div class="filter-row">
         ${["pending", "subscription", "bill", "approved", "all"].map((filter) => `<button class="${ui.billInboxFilter === filter ? "active" : ""}" data-action="set-tab" data-key="billInboxFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
@@ -2347,17 +2351,18 @@
     </section>`;
   }
 
-  function notificationFoundationPanel() {
+  function notificationFoundationPanel(context = "sync") {
     const queued = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued");
     const opened = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "opened");
     const sent = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "sent");
     const latest = safeArray(data.notificationLog).slice(0, 8);
+    const inboxMode = context === "inbox";
     return `<section class="section-card notification-foundation-panel">
       <div class="section-title">
-        <h2>Notification Outbox</h2>
-        <span class="status ${queued.length ? "warning" : "success"}">${queued.length} ready to send</span>
+        <h2>${inboxMode ? "Queued Task Alerts" : "Notification Outbox"}</h2>
+        <span class="status ${queued.length ? "warning" : "success"}">${queued.length} ${queued.length === 1 ? "alert" : "alerts"} ready</span>
       </div>
-      <p class="muted">Free mode opens a draft in Gmail or your device mail app. Gmail sends from whichever Google account the user is already signed into. Automatic background sending comes later with a server email provider.</p>
+      <p class="muted">${inboxMode ? "When a watched task changes status, BillMaster queues the exact email here." : "Free mode opens a draft in Gmail or your device mail app."} Gmail sends from whichever Google account the user is already signed into. Automatic background sending comes later with a server email provider.</p>
       <div class="notification-stats">
         <span><strong>${queued.length}</strong><small>Queued</small></span>
         <span><strong>${opened.length}</strong><small>Opened</small></span>
@@ -2369,11 +2374,15 @@
         <button class="outline-btn" data-action="copy-notification-outbox" ${latest.length ? "" : "disabled"}>${icon("note")} Copy outbox</button>
         <button class="outline-btn" data-action="clear-sent-notifications" ${sent.length ? "" : "disabled"}>${icon("trash")} Clear sent</button>
       </div>
-      <div class="roadmap-grid compact-roadmap">
+      ${inboxMode ? `<div class="notification-delivery-steps">
+        <span><strong>1</strong> Open Gmail draft</span>
+        <span><strong>2</strong> Send from Gmail</span>
+        <span><strong>3</strong> Mark sent here</span>
+      </div>` : `<div class="roadmap-grid compact-roadmap">
         ${syncRoadmapStep("1", "Gmail first", "Open prefilled Gmail drafts from the signed-in user's Gmail account.")}
         ${syncRoadmapStep("2", "Email-to-text", "Store carrier gateway addresses for free text-style alerts where available.")}
         ${syncRoadmapStep("3", "Server send later", "Use Resend/SendGrid or Gmail API after OAuth and consent are ready.")}
-      </div>
+      </div>`}
       ${latest.length ? `<div class="notification-list">${latest.map((notice) => notificationNoticeRow(notice)).join("")}</div>` : `<div class="empty-state compact-empty">${icon("bell")}<h3>No alerts yet</h3><p>When a watched task changes status, BillMaster will place the email here.</p></div>`}
     </section>`;
   }
@@ -2389,6 +2398,7 @@
           <span class="status ${statusClass}">${esc(notificationStatusLabel(notice.deliveryStatus))}</span>
         </div>
         <div class="subtle">${esc(notice.previousStatus || "Unknown")} -> ${esc(notice.status || "Updated")} | ${esc(notificationChannelLabel(notice.channels))}</div>
+        <div class="subtle">Queued ${esc(notificationQueuedLabel(notice.createdAt))}${notice.openedAt ? ` | Opened ${esc(notificationQueuedLabel(notice.openedAt))}` : ""}${notice.sentAt ? ` | Sent ${esc(notificationQueuedLabel(notice.sentAt))}` : ""}</div>
         <div class="subtle">${esc(recipients.slice(0, 3).join(", ") || "No recipients")}${recipients.length > 3 ? ` +${recipients.length - 3} more` : ""}</div>
       </div>
       <div class="notification-row-actions">
@@ -10136,6 +10146,13 @@
 
   function notificationSubject(notice) {
     return `BillMaster task alert: ${notice.taskTitle || "Task"}`;
+  }
+
+  function notificationQueuedLabel(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return `${dateLabel(date.toISOString().slice(0, 10))} ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
   }
 
   function notificationMailto(notice) {

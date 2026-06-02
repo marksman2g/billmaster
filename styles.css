@@ -1701,7 +1701,7 @@ button.round-icon {
 
 .prism-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
   gap: 8px;
 }
 
@@ -3718,6 +3718,38 @@ button.round-icon {
 .notification-actions {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 12px;
+}
+
+.notification-delivery-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.notification-delivery-steps span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--navy-2);
+  background: #f8fbff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 850;
+}
+
+.notification-delivery-steps strong {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  color: #fff;
+  background: var(--navy-2);
+  border-radius: 50%;
+  font-size: 0.82rem;
 }
 
 .notification-list {
@@ -7025,6 +7057,7 @@ canvas {
 
   .notification-actions,
   .notification-stats,
+  .notification-delivery-steps,
   .notification-row,
   .notification-row-actions {
     grid-template-columns: 1fr;
