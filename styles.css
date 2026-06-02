@@ -4668,9 +4668,10 @@ canvas {
 
 .time-period-chip.afternoon {
   color: #b45309;
-  background: #fff2bf;
+  background: #fff0b3;
   border-color: #101828;
   isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18), 0 0 18px rgba(251, 191, 36, 0.1);
 }
 
 .time-period-chip.night {
@@ -4698,10 +4699,17 @@ canvas {
 .time-of-day-badge.noon,
 .time-of-day-badge.afternoon {
   color: #d97706;
-  background: #fff2bf;
+  background: radial-gradient(circle at center, #fff9c2 0 42%, #ffd166 74%, #fff3c4 100%);
   border-color: #101828;
   isolation: isolate;
   animation: noon-glow 2.2s ease-in-out infinite;
+}
+
+.time-period-chip.afternoon svg,
+.time-of-day-badge.afternoon svg {
+  position: relative;
+  z-index: 1;
+  animation: afternoon-sun-pulse 2.6s ease-in-out infinite;
 }
 
 .time-period-chip.afternoon::after,
@@ -4765,12 +4773,18 @@ canvas {
 }
 
 @keyframes noon-glow {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.22); }
-  50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(217, 119, 6, 0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.34), 0 0 10px rgba(251, 191, 36, 0.28); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 9px rgba(251, 191, 36, 0), 0 0 22px rgba(255, 213, 79, 0.7); }
 }
 
 @keyframes afternoon-orbit {
   to { transform: rotate(360deg); }
+}
+
+@keyframes afternoon-sun-pulse {
+  0%, 100% { filter: drop-shadow(0 0 1px rgba(255, 193, 7, 0.3)); transform: scale(1); }
+  45% { filter: drop-shadow(0 0 8px rgba(255, 213, 79, 0.95)); transform: scale(1.12); }
+  70% { filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.62)); transform: scale(1.04); }
 }
 
 @keyframes night-twinkle {
