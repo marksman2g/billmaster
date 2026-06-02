@@ -2695,11 +2695,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-28";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-29";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-28`;
+    return `${location.origin}${location.pathname}?v=20260602-29`;
   }
 
   function friendPrivacyGatePanel() {
@@ -4733,7 +4733,7 @@
         <div class="note-action-bar unassigned-note-actions">
           <span>${selectedUnassignedNotes ? `${selectedUnassignedNotes} unassigned note${selectedUnassignedNotes === 1 ? "" : "s"} selected` : "Select unassigned notes, then copy them or drag one selected note onto a notebook to move them all"}</span>
           <button class="outline-btn" data-action="select-unassigned-notes">${selectedUnassignedNotes === unassignedNotes.length && unassignedNotes.length ? "Deselect unassigned" : "Select unassigned"}</button>
-          ${selectedUnassignedNotes ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+          ${selectedUnassignedNotes ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
         </div>
         <div class="unassigned-note-grid">${unassignedNotes.map((note) => unassignedNoteCard(note)).join("") || `<p class="muted">No unassigned notes right now.</p>`}</div>
       </section>
@@ -4837,9 +4837,9 @@
         ${["Low", "Medium", "High", "Critical"].map((level) => `<button class="${ui.notesFilter === level ? "active" : ""}" style="--importance-color:${noteImportanceColor(level)}" data-action="set-tab" data-key="notesFilter" data-value="${level}" title="${esc(level)}">${esc(noteImportanceShortLabel(level))} <span class="filter-count">${noteCounts[level]}</span></button>`).join("")}
       </div>
       <div class="note-action-bar">
-        <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate or delete"}</span>
+        <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate, move, retag, or delete"}</span>
         <button class="outline-btn" data-action="select-visible-notes">${selectedVisibleNotes === notes.length && notes.length ? "Deselect visible" : "Select visible"}</button>
-        ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+        ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
       </div>
       <div class="list notes-list notes-${esc(ui.notesView)}">${notes.length ? notes.map((note) => noteCard(note)).join("") : `<section class="section-card"><p class="muted">No notes match this view.</p></section>`}</div>
     </section>`;
@@ -5330,6 +5330,7 @@
     if (type === "editNote") content = modalNote(modalId);
     if (type === "duplicateNotes") content = modalDuplicateNotes(modalId);
     if (type === "bulkNoteSubject") content = modalBulkNoteSubject();
+    if (type === "bulkNoteNotebook") content = modalBulkNoteNotebook();
     if (type === "editNotebook") content = modalNotebook(modalId);
     if (type === "notebookPicture") content = modalNotebookPicture(modalId);
     if (type === "editGoal") content = modalGoal(modalId);
@@ -6528,6 +6529,30 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="close-modal">Cancel</button>
         <button class="secondary-btn" data-action="save-selected-note-subject">${icon("check")} Save Subject</button>
+      </div>`;
+  }
+
+  function modalBulkNoteNotebook() {
+    const notes = selectedNoteRecords();
+    return `${modalHeader("Change Notebook", `${notes.length || 0} selected note${notes.length === 1 ? "" : "s"}`)}
+      <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="list">
+          ${notes.slice(0, 5).map((note) => `<div class="data-row"><span class="round-icon note-icon" style="color:#fff;background:${noteImportanceColor(note.importance)}">${icon(note.icon || "note")}</span><div><strong>${esc(note.title)}</strong><div class="subtle">${esc(data.notebooks.find((nb) => nb.id === note.notebookId)?.title || "Unassigned")} ${note.subject ? `- ${esc(note.subject)}` : "- No subject"}</div></div><span class="status muted">${esc(note.importance || "Low")}</span></div>`).join("") || `<p class="muted">Select at least one note first.</p>`}
+          ${notes.length > 5 ? `<p class="muted">And ${notes.length - 5} more selected.</p>` : ""}
+        </div>
+      </section>
+      <div class="field">
+        <label for="bulkNoteNotebook">Notebook</label>
+        <select id="bulkNoteNotebook">
+          <option value="">Unassigned / decide later</option>
+          <option value="${ADD_NOTEBOOK_VALUE}">+ New notebook</option>
+          ${data.notebooks.map((notebook) => `<option value="${notebook.id}">${esc(notebook.title)}</option>`).join("")}
+        </select>
+      </div>
+      <div id="bulkNoteNotebookNewWrap" hidden>${field("bulkNoteNewNotebookTitle", "New Notebook Name", "", "Notebook name")}</div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-selected-note-notebook">${icon("check")} Save Notebook</button>
       </div>`;
   }
 
@@ -8258,6 +8283,11 @@
       if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("noteNewNotebookTitle")?.focus();
       refreshModalNoteSubjectOptions();
     }
+    if (target && target.id === "bulkNoteNotebook") {
+      const panel = document.getElementById("bulkNoteNotebookNewWrap");
+      if (panel) panel.hidden = target.value !== ADD_NOTEBOOK_VALUE;
+      if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("bulkNoteNewNotebookTitle")?.focus();
+    }
     if (target && target.dataset.action === "note-inline") {
       updateNoteInline(target.dataset.id, target.dataset.field, target.value);
       return;
@@ -8512,6 +8542,7 @@
     if (action === "delete-selected-notes") return deleteSelectedNotes();
     if (action === "duplicate-notes") return duplicateNotes(el.dataset.id);
     if (action === "save-selected-note-subject") return saveSelectedNoteSubject();
+    if (action === "save-selected-note-notebook") return saveSelectedNoteNotebook();
     if (action === "pick-note-color") {
       ui.noteColor = el.dataset.color;
       document.querySelectorAll(".swatch").forEach((button) => button.classList.toggle("active", button === el));
@@ -10450,6 +10481,43 @@
     closeModal();
     render();
     showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} changed to ${subject || "No subject"}.`);
+  }
+
+  function saveSelectedNoteNotebook() {
+    const notes = selectedNoteRecords();
+    if (!notes.length) return showToast("Select at least one note first.", "danger");
+    let notebookId = value("bulkNoteNotebook");
+    if (notebookId === ADD_NOTEBOOK_VALUE) {
+      const notebook = createNotebookFromTitle(value("bulkNoteNewNotebookTitle"));
+      if (!notebook) {
+        showToast("Enter a notebook name first.", "danger");
+        return;
+      }
+      notebookId = notebook.id;
+    }
+    const now = new Date().toISOString();
+    if (notebookId) {
+      const notebook = data.notebooks.find((item) => item.id === notebookId);
+      if (!notebook) return showToast("Choose a notebook first.", "danger");
+      notes.forEach((note) => {
+        note.notebookId = notebook.id;
+        note.updatedAt = now;
+        if (note.subject) ensureNotebookSubject(notebook.id, note.subject);
+      });
+      saveData();
+      closeModal();
+      render();
+      showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}.`);
+      return;
+    }
+    notes.forEach((note) => {
+      note.notebookId = null;
+      note.updatedAt = now;
+    });
+    saveData();
+    closeModal();
+    render();
+    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to Unassigned.`);
   }
 
   function visibleNotebooksForCurrentView() {
