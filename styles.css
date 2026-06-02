@@ -2309,6 +2309,60 @@ button.round-icon {
   text-decoration: none;
 }
 
+.alpha-feedback-panel {
+  display: grid;
+  gap: 14px;
+  border-color: #b9e8c8;
+  background: linear-gradient(135deg, #ffffff, #f7fffb);
+}
+
+.alpha-feedback-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.alpha-feedback-summary span,
+.alpha-feedback-card {
+  min-width: 0;
+  padding: 11px;
+  background: #f8fbff;
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.alpha-feedback-summary strong,
+.alpha-feedback-summary small {
+  display: block;
+}
+
+.alpha-feedback-summary strong {
+  color: var(--navy-2);
+  font-size: 1.28rem;
+}
+
+.alpha-feedback-summary small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.alpha-feedback-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.alpha-feedback-card {
+  display: grid;
+  gap: 6px;
+}
+
+.alpha-feedback-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .friend-privacy-panel {
   border-color: #b9e8c8;
   background: linear-gradient(135deg, rgba(244, 255, 247, 0.9), rgba(248, 251, 255, 0.95));

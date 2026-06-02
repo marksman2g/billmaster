@@ -163,6 +163,7 @@
     ],
     dismissedInboxIds: [],
     notificationLog: [],
+    alphaFeedback: [],
     cancellations: [],
     subscriptionHistory: [
       { id: "sth_1", subId: "sub_1", name: "Netflix", date: "2026-04-30", amount: 15.99, status: "Paid", code: "CONF-NF-20240402" },
@@ -354,6 +355,7 @@
     "save-goal",
     "save-goal-contribution",
     "save-contact",
+    "save-alpha-feedback",
     "save-profile",
     "login-profile",
     "delete-profile",
@@ -2490,6 +2492,7 @@
       ${friendAlphaLaunchPanel()}
       ${friendPrivacyGatePanel()}
       ${friendAlphaOnboardingPanel()}
+      ${friendAlphaFeedbackPanel()}
       ${mobileCodexAccessPanel()}
       ${mediaStoragePanel()}
       ${googleContactsPanel()}
@@ -2689,11 +2692,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-23";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-24";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-23`;
+    return `${location.origin}${location.pathname}?v=20260602-24`;
   }
 
   function friendPrivacyGatePanel() {
@@ -2760,6 +2763,59 @@
         <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live app</a>
       </div>
     </section>`;
+  }
+
+  function friendAlphaFeedbackPanel() {
+    const feedback = safeArray(data.alphaFeedback);
+    const rated = feedback.filter((item) => Number(item.rating));
+    const average = rated.length ? (rated.reduce((sum, item) => sum + Number(item.rating || 0), 0) / rated.length).toFixed(1) : "0.0";
+    const latest = feedback.slice(0, 3);
+    return `<section class="section-card alpha-feedback-panel">
+      <div class="section-title compact-title">
+        <h2>Alpha Feedback</h2>
+        <span class="status ${feedback.length ? "success" : "info"}">${feedback.length} saved</span>
+      </div>
+      <p class="muted">Capture what friends actually feel while testing BillMaster. The most important question is whether the app helped them make, organize, or imagine a better financial decision.</p>
+      <div class="alpha-feedback-summary">
+        <span><strong>${feedback.length}</strong><small>Total notes</small></span>
+        <span><strong>${average}</strong><small>Avg rating</small></span>
+        <span><strong>${feedback.filter((item) => String(item.moneyDecision || "").trim()).length}</strong><small>Money insights</small></span>
+      </div>
+      ${latest.length ? `<div class="alpha-feedback-list">${latest.map((item) => alphaFeedbackCard(item)).join("")}</div>` : `<div class="empty-state compact-empty">${icon("note")}<h3>No feedback yet</h3><p>After a friend test, save what helped, what confused them, and what money decision they wanted help with.</p></div>`}
+      <div class="sheet-actions friend-alpha-actions">
+        <button class="primary-btn" data-action="open-modal" data-modal="friendFeedback">${icon("plus")} Add feedback</button>
+        <button class="outline-btn" data-action="copy-alpha-feedback" ${feedback.length ? "" : "disabled"}>${icon("note")} Copy feedback</button>
+      </div>
+    </section>`;
+  }
+
+  function alphaFeedbackCard(item) {
+    const created = item.createdAt ? dateLabel(String(item.createdAt).slice(0, 10)) : "Recent";
+    const decision = item.moneyDecision || item.nextFeature || item.helped || item.confused || "No detail yet.";
+    return `<article class="alpha-feedback-card">
+      <div class="card-row">
+        <strong>${esc(item.tester || "Friend tester")}</strong>
+        <span class="status info">${Number(item.rating || 0) || "-"} / 5</span>
+      </div>
+      <div class="subtle">${esc(item.device || "Device not listed")} | ${esc(created)}</div>
+      <p>${esc(decision)}</p>
+    </article>`;
+  }
+
+  function alphaFeedbackText() {
+    const feedback = safeArray(data.alphaFeedback);
+    if (!feedback.length) return "No BillMaster alpha feedback saved yet.";
+    return feedback.map((item, index) => [
+      `Feedback ${index + 1}`,
+      `Tester: ${item.tester || "Friend tester"}`,
+      `Device: ${item.device || "Not listed"}`,
+      `Rating: ${item.rating || "-"} / 5`,
+      `Confused: ${item.confused || "-"}`,
+      `Helpful: ${item.helped || "-"}`,
+      `Money decision: ${item.moneyDecision || "-"}`,
+      `Next feature: ${item.nextFeature || "-"}`,
+      `Saved: ${item.createdAt || "-"}`
+    ].join("\n")).join("\n\n");
   }
 
   function friendAlphaInviteText() {
@@ -5203,6 +5259,7 @@
     if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
     if (type === "copyFallback") content = modalCopyFallback();
     if (type === "friendOnboarding") content = modalFriendOnboarding();
+    if (type === "friendFeedback") content = modalFriendFeedback();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
     if (type === "addSubscription") content = modalAddSubscription();
@@ -5719,6 +5776,33 @@
         <button class="outline-btn" data-action="copy-friend-onboarding">${icon("note")} Copy quick start</button>
         <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live app</a>
         <button class="secondary-btn" data-action="close-modal">${icon("check")} Done</button>
+      </div>`;
+  }
+
+  function modalFriendFeedback() {
+    return `${modalHeader("Alpha Feedback", "Save what a friend felt while testing BillMaster. Keep it practical and tied to real decisions.")}
+      <section class="section-card friend-onboarding-modal-card" style="box-shadow:none;">
+        <div class="section-title compact-title"><h2>Tester Details</h2><span class="status info">Friend alpha</span></div>
+        <div class="field-grid">
+          ${field("feedbackTester", "Tester Name", "", "Friend name")}
+          <div class="field-row">
+            ${selectField("feedbackDevice", "Device", ["Phone", "iPad", "Desktop", "Multiple devices"], "Phone")}
+            ${selectField("feedbackRating", "Overall Rating", ["5", "4", "3", "2", "1"], "5", (value) => `${value} / 5`)}
+          </div>
+        </div>
+      </section>
+      <section class="section-card friend-onboarding-modal-card" style="box-shadow:none;">
+        <div class="section-title compact-title"><h2>What Happened?</h2><span class="status warn">Watch closely</span></div>
+        <div class="field-grid">
+          ${textArea("feedbackConfused", "What confused them?", "", "Where did they pause, ask a question, or click the wrong thing?")}
+          ${textArea("feedbackHelped", "What felt useful or fast?", "", "What did they like or understand quickly?")}
+          ${textArea("feedbackMoneyDecision", "What money decision could BillMaster help with?", "", "Example: cancel a subscription, track bill timing, compare income vs spending, plan a purchase.")}
+          ${textArea("feedbackNextFeature", "What would make them keep using it?", "", "What would make this feel necessary in their life?")}
+        </div>
+      </section>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="primary-btn" data-action="save-alpha-feedback">${icon("check")} Save Feedback</button>
       </div>`;
   }
 
@@ -8323,6 +8407,8 @@
     if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
     if (action === "copy-friend-safety-checklist") return copyFriendSafetyChecklist();
     if (action === "copy-friend-onboarding") return copyFriendOnboardingQuickStart();
+    if (action === "save-alpha-feedback") return saveAlphaFeedback();
+    if (action === "copy-alpha-feedback") return copyAlphaFeedback();
     if (action === "select-copy-fallback") return selectCopyFallback();
     if (action === "save-google-contacts-config") return saveGoogleContactsConfig();
     if (action === "google-contacts-import") return importGoogleContacts();
@@ -11968,6 +12054,29 @@
     showToast("Notebook picture updated.");
   }
 
+  function saveAlphaFeedback() {
+    const entry = {
+      id: id("feedback"),
+      tester: value("feedbackTester") || "Friend tester",
+      device: value("feedbackDevice") || "Phone",
+      rating: Number(value("feedbackRating") || 0),
+      confused: value("feedbackConfused"),
+      helped: value("feedbackHelped"),
+      moneyDecision: value("feedbackMoneyDecision"),
+      nextFeature: value("feedbackNextFeature"),
+      createdAt: new Date().toISOString()
+    };
+    if (!entry.confused && !entry.helped && !entry.moneyDecision && !entry.nextFeature) {
+      showToast("Add at least one feedback note first.", "danger");
+      return;
+    }
+    data.alphaFeedback = safeArray(data.alphaFeedback);
+    data.alphaFeedback.unshift(entry);
+    saveData();
+    closeModal();
+    showToast("Alpha feedback saved.");
+  }
+
   function saveGoal(goalId) {
     const goal = data.goals.find((item) => item.id === goalId);
     const payload = {
@@ -12213,6 +12322,23 @@
       };
       render();
       showToast("Select and copy the friend quick start.", "danger");
+    }
+  }
+
+  async function copyAlphaFeedback() {
+    const text = alphaFeedbackText();
+    try {
+      await copyText(text);
+      showToast("Alpha feedback copied.");
+    } catch (error) {
+      ui.modal = {
+        type: "copyFallback",
+        title: "Alpha Feedback",
+        text,
+        helper: "Clipboard access was blocked. Select this text, then copy it manually."
+      };
+      render();
+      showToast("Select and copy the alpha feedback.", "danger");
     }
   }
 
