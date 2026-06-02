@@ -4882,11 +4882,20 @@ canvas {
   display: inline-flex;
 }
 
+.task-card:has(.quick-picker),
+.task-board-copy:has(.quick-picker),
+.day-task-card:has(.quick-picker),
+.compact-day-task:has(.quick-picker) {
+  position: relative;
+  z-index: 90;
+  overflow: visible;
+}
+
 .quick-picker {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 20;
+  z-index: 120;
   display: grid;
   gap: 6px;
   min-width: 132px;
