@@ -2396,6 +2396,93 @@ button.round-icon {
   line-height: 1.25;
 }
 
+.friend-onboarding-panel {
+  border-color: #cfd8ff;
+  background: linear-gradient(135deg, rgba(247, 246, 255, 0.94), rgba(248, 251, 255, 0.96));
+}
+
+.friend-onboarding-steps,
+.friend-feedback-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px;
+}
+
+.friend-onboarding-steps span,
+.friend-feedback-grid span,
+.friend-onboarding-rules > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d7e3f1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.friend-onboarding-steps span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.friend-onboarding-steps strong {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+.friend-onboarding-steps small,
+.friend-feedback-grid small,
+.friend-onboarding-rules small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.friend-onboarding-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.friend-onboarding-rules strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--navy-2);
+}
+
+.friend-onboarding-modal-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  background: #f8fbff !important;
+}
+
+.friend-onboarding-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.friend-onboarding-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.friend-onboarding-checklist input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
 .sync-card {
   display: grid;
   gap: 10px;

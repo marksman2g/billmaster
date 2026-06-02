@@ -2489,6 +2489,7 @@
       ${cloudWorkspacePanel()}
       ${friendAlphaLaunchPanel()}
       ${friendPrivacyGatePanel()}
+      ${friendAlphaOnboardingPanel()}
       ${mobileCodexAccessPanel()}
       ${mediaStoragePanel()}
       ${googleContactsPanel()}
@@ -2688,11 +2689,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-22";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-23";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-22`;
+    return `${location.origin}${location.pathname}?v=20260602-23`;
   }
 
   function friendPrivacyGatePanel() {
@@ -2729,6 +2730,34 @@
         <button class="outline-btn" data-action="copy-friend-safety-checklist">${icon("note")} Copy safety checklist</button>
         <button class="outline-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Test clean sign-in</button>
         <a class="primary-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live tester app</a>
+      </div>
+    </section>`;
+  }
+
+  function friendAlphaOnboardingPanel() {
+    const signedIn = cloudSignedIn();
+    const hasSynced = Boolean(data.settings?.cloudLastSyncAt);
+    return `<section class="section-card friend-onboarding-panel">
+      <div class="section-title compact-title">
+        <h2>Friend Alpha Onboarding</h2>
+        <span class="status ${signedIn && hasSynced ? "success" : "info"}">${signedIn && hasSynced ? "Ready to rehearse" : "Script ready"}</span>
+      </div>
+      <p class="muted">This is the simple walkthrough for the first friend test. It keeps the tester focused on useful, safe actions and keeps BillMaster aimed at becoming a financial command center.</p>
+      <div class="friend-onboarding-steps">
+        <span><strong>1</strong><small>Create their own account</small></span>
+        <span><strong>2</strong><small>Add safe sample data</small></span>
+        <span><strong>3</strong><small>Refresh and sync</small></span>
+        <span><strong>4</strong><small>Say what helped or confused them</small></span>
+      </div>
+      <div class="friend-onboarding-rules">
+        <div><strong>Do</strong><small>Tasks, notes, habits, loans, contacts, addresses, pictures, and manual finance.</small></div>
+        <div><strong>Do Not</strong><small>Real bank passwords, full card numbers, real bill pay, or direct subscription cancellation yet.</small></div>
+        <div><strong>Ask</strong><small>Could this help you make a better money decision this week?</small></div>
+      </div>
+      <div class="sheet-actions friend-alpha-actions">
+        <button class="primary-btn" data-action="open-modal" data-modal="friendOnboarding">${icon("check")} Open walkthrough</button>
+        <button class="outline-btn" data-action="copy-friend-onboarding">${icon("note")} Copy quick start</button>
+        <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live app</a>
       </div>
     </section>`;
   }
@@ -2822,6 +2851,36 @@
       "- Data persists after refresh.",
       "- Phone/iPad/desktop sync works.",
       "- The tester understands what not to use yet: bank sync, bill pay, direct cancellation."
+    ].join("\n");
+  }
+
+  function friendOnboardingQuickStartText() {
+    return [
+      "BillMaster Friend Alpha Quick Start",
+      "",
+      "Goal: test whether BillMaster is easy to use, saves your information, syncs across devices, and helps you make better financial decisions.",
+      "",
+      "What to test:",
+      "1. Open the live app: " + friendAlphaHostedUrl(),
+      "2. Create your own BillMaster account with your own email.",
+      "3. Add one task with a date, start time, end time, and address.",
+      "4. Add one note or notebook picture.",
+      "5. Add one safe sample loan or manual money item.",
+      "6. Refresh the app and confirm your data is still there.",
+      "7. If you have another device, sign in there and confirm your data appears.",
+      "",
+      "What not to test yet:",
+      "- Do not enter real bank passwords.",
+      "- Do not enter full real card numbers.",
+      "- Do not attempt real bill pay.",
+      "- Do not rely on subscription cancellation as final yet.",
+      "",
+      "Feedback I need:",
+      "- What was confusing?",
+      "- What felt fast?",
+      "- What felt unsafe or unclear?",
+      "- What financial decision could this help you make this week?",
+      "- What feature would make you want to keep using it?"
     ].join("\n");
   }
 
@@ -5143,6 +5202,7 @@
     if (type === "cloudAuth") content = modalCloudAuth();
     if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
     if (type === "copyFallback") content = modalCopyFallback();
+    if (type === "friendOnboarding") content = modalFriendOnboarding();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
     if (type === "addSubscription") content = modalAddSubscription();
@@ -5627,6 +5687,37 @@
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="select-copy-fallback">${icon("search")} Select text</button>
+        <button class="secondary-btn" data-action="close-modal">${icon("check")} Done</button>
+      </div>`;
+  }
+
+  function modalFriendOnboarding() {
+    return `${modalHeader("Friend Alpha Walkthrough", "Use this with the first trusted tester while you watch what feels clear or confusing.")}
+      <section class="section-card friend-onboarding-modal-card" style="box-shadow:none;">
+        <div class="section-title compact-title"><h2>Before They Start</h2><span class="status warn">Safe alpha</span></div>
+        <p class="muted">Tell them BillMaster is ready for personal organization and manual finance testing, but not ready for live bank passwords, real bill payments, or direct cancellation APIs.</p>
+        <div class="friend-onboarding-checklist">
+          <label><input type="checkbox"> Open the live app from a phone, iPad, or desktop.</label>
+          <label><input type="checkbox"> Create a new BillMaster account with their own email.</label>
+          <label><input type="checkbox"> Add one task with a time and address.</label>
+          <label><input type="checkbox"> Add one note or notebook picture.</label>
+          <label><input type="checkbox"> Add one safe sample loan or manual expense.</label>
+          <label><input type="checkbox"> Refresh, sign back in, and confirm the data is still there.</label>
+          <label><input type="checkbox"> Try another device if available.</label>
+        </div>
+      </section>
+      <section class="section-card friend-onboarding-modal-card" style="box-shadow:none;">
+        <div class="section-title compact-title"><h2>Feedback Questions</h2><span class="status info">Watch closely</span></div>
+        <div class="friend-feedback-grid">
+          <span><strong>Find</strong><small>Could they find Calendar, Tasks, Notes, Loans, and Sync Center?</small></span>
+          <span><strong>Save</strong><small>Did every save feel obvious and safe?</small></span>
+          <span><strong>Sync</strong><small>Did they understand push, pull, smart merge, and auto sync?</small></span>
+          <span><strong>Money</strong><small>Did BillMaster help them make or imagine a better financial decision?</small></span>
+        </div>
+      </section>
+      <div class="sheet-actions" style="grid-template-columns:repeat(3, minmax(0, 1fr));">
+        <button class="outline-btn" data-action="copy-friend-onboarding">${icon("note")} Copy quick start</button>
+        <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live app</a>
         <button class="secondary-btn" data-action="close-modal">${icon("check")} Done</button>
       </div>`;
   }
@@ -8231,6 +8322,7 @@
     if (action === "copy-friend-alpha-invite") return copyFriendAlphaInvite();
     if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
     if (action === "copy-friend-safety-checklist") return copyFriendSafetyChecklist();
+    if (action === "copy-friend-onboarding") return copyFriendOnboardingQuickStart();
     if (action === "select-copy-fallback") return selectCopyFallback();
     if (action === "save-google-contacts-config") return saveGoogleContactsConfig();
     if (action === "google-contacts-import") return importGoogleContacts();
@@ -12105,6 +12197,22 @@
       };
       render();
       showToast("Select and copy the safety checklist.", "danger");
+    }
+  }
+
+  async function copyFriendOnboardingQuickStart() {
+    try {
+      await copyText(friendOnboardingQuickStartText());
+      showToast("Friend quick start copied.");
+    } catch (error) {
+      ui.modal = {
+        type: "copyFallback",
+        title: "Friend Alpha Quick Start",
+        text: friendOnboardingQuickStartText(),
+        helper: "Clipboard access was blocked. Select this text, then copy it manually."
+      };
+      render();
+      showToast("Select and copy the friend quick start.", "danger");
     }
   }
 
