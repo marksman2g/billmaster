@@ -1933,22 +1933,35 @@
 
   function cloudDashboardPrompt() {
     if (!hostedCloudConfigStarted() && !cloudConfigured()) return "";
-    if (cloudSignedIn() && data.settings?.cloudAutoSync) return "";
     const configured = cloudConfigured();
-    const title = configured ? "Use BillMaster Anywhere" : "Cloud Setup Almost Ready";
-    const copy = configured
-      ? "Create or sign into your BillMaster cloud account so this workspace can follow you from desktop to phone to iPad."
-      : "The Supabase project URL is built in. Add the public publishable key once, then friends can sign in without touching setup.";
+    const signedIn = cloudSignedIn();
+    const autoOn = cloudAutoSyncEnabled();
+    const title = signedIn
+      ? autoOn ? "Auto Sync Is Watching" : "Turn Auto Sync Back On"
+      : configured ? "Use BillMaster Anywhere" : "Cloud Setup Almost Ready";
+    const copy = signedIn
+      ? autoOn
+        ? "This workspace is signed in and will smart-merge saved changes with your phone, iPad, and desktop."
+        : "You are signed in, but automatic syncing is paused. Turn it back on before serious cross-device use."
+      : configured
+        ? "Create or sign into your BillMaster cloud account so this workspace can follow you from desktop to phone to iPad."
+        : "The Supabase project URL is built in. Add the public publishable key once, then friends can sign in without touching setup.";
+    const statusLabel = signedIn ? cloudSyncStateLabel(data.settings?.cloudSyncState || "idle") : configured ? "Sign in needed" : "Setup needed";
+    const statusClass = signedIn && autoOn ? "success" : configured ? "warning" : "info";
+    const lastSync = data.settings?.cloudLastSyncAt ? `Last sync ${cloudTimeLabel(data.settings.cloudLastSyncAt)}` : "No cloud sync yet";
     return `<section class="section-card cloud-start-card">
       <div class="cloud-start-copy">
-        <span class="round-icon" style="background:${configured ? "#e9f8ef" : "#fff5d6"};color:${configured ? "var(--green)" : "var(--amber)"}">${icon(configured ? "check" : "alert")}</span>
+        <span class="round-icon" style="background:${signedIn && autoOn ? "#e9f8ef" : configured ? "#fff5d6" : "#eaf4ff"};color:${signedIn && autoOn ? "var(--green)" : configured ? "var(--amber)" : "var(--blue)"}">${icon(signedIn && autoOn ? "check" : configured ? "alert" : "settings")}</span>
         <div>
-          <h2>${esc(title)}</h2>
+          <div class="card-row"><h2>${esc(title)}</h2><span class="status ${statusClass}">${esc(statusLabel)}</span></div>
           <p>${esc(copy)}</p>
+          <small class="subtle">${esc(lastSync)}</small>
         </div>
       </div>
       <div class="cloud-start-actions">
-        <button class="primary-btn" data-action="navigate-root" data-view="sync">${configured ? "Sign in / Sync" : "Finish setup"}</button>
+        ${signedIn ? `<button class="primary-btn" data-action="cloud-smart-merge">${icon("cloud")} Smart Merge</button>` : ""}
+        ${signedIn ? `<button class="outline-btn" data-action="toggle-cloud-auto-sync">${icon(autoOn ? "check" : "settings")} Auto ${autoOn ? "On" : "Off"}</button>` : ""}
+        <button class="${signedIn ? "outline-btn" : "primary-btn"}" data-action="navigate-root" data-view="sync">${configured ? "Sync Center" : "Finish setup"}</button>
       </div>
     </section>`;
   }
@@ -1957,9 +1970,9 @@
     return `<section class="section-card roadmap-card">
       <div class="section-title"><h2>Launch Roadmap</h2><span class="status warn">Next</span></div>
       <div class="roadmap-mini">
-        <div><strong>1-2 weeks</strong><span>Cloud login beta: Supabase Auth, per-user tables, saved tasks, habits, addresses, calendar.</span></div>
-        <div><strong>3-5 weeks</strong><span>Friend-ready beta: notes, projects, lending, subscriptions, backups, storage.</span></div>
-        <div><strong>8-12+ weeks</strong><span>Production track: bank/card sync, Google Calendar, notifications, cancellation workflows.</span></div>
+        <div><strong>Now</strong><span>Auto-sync beta: sign in, smart merge, phone/iPad/desktop workspace sharing.</span></div>
+        <div><strong>Next</strong><span>Friend alpha: clean onboarding, private tester data, feedback capture, mobile QA.</span></div>
+        <div><strong>Future</strong><span>Production rails: bank/card sync, Google Calendar, notifications, cancellation workflows.</span></div>
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="navigate" data-view="sync">${icon("settings")} Sync Plan</button>

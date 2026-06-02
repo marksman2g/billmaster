@@ -1966,9 +1966,9 @@ button.round-icon {
 
 .cloud-start-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
   gap: 12px;
-  align-items: center;
+  align-items: stretch;
   border-color: #b7d7ff;
   background: linear-gradient(135deg, #f8fbff, #eef6ff);
 }
@@ -1977,7 +1977,14 @@ button.round-icon {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 11px;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.cloud-start-copy .card-row {
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .cloud-start-copy h2 {
@@ -1993,10 +2000,15 @@ button.round-icon {
 }
 
 .cloud-start-actions {
-  min-width: 150px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
-.cloud-start-actions .primary-btn {
+.cloud-start-actions .primary-btn,
+.cloud-start-actions .outline-btn {
   width: 100%;
 }
 
