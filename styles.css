@@ -96,7 +96,7 @@ video {
 
 .main-view {
   min-height: 100vh;
-  padding-bottom: calc(var(--nav-height) + 22px);
+  padding-bottom: calc(var(--nav-height) + 22px + env(safe-area-inset-bottom, 0px));
 }
 
 .today-badge {
@@ -203,7 +203,7 @@ video {
   align-items: center;
   gap: 12px;
   min-height: 58px;
-  padding: 8px 16px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
   margin: -18px -16px 14px;
   background: rgba(246, 248, 251, 0.93);
   border-bottom: 1px solid rgba(223, 230, 238, 0.85);
@@ -252,7 +252,7 @@ video {
   grid-template-columns: repeat(5, 1fr);
   gap: 2px;
   min-height: var(--nav-height);
-  padding: 7px 8px 8px;
+  padding: 7px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid var(--line);
   box-shadow: 0 -8px 24px rgba(26, 31, 54, 0.08);
