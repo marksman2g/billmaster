@@ -3292,11 +3292,11 @@
               ${(task.tags || []).map((tag) => `<span class="tag">#${esc(tag)}</span>`).join("")}
             </div>
             <div class="task-time-preview">
-              <button data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("calendar")} <span class="task-time-label">Start: ${dateLabel(task.date)} ${timeLabel(task.start)}</span></button>
-              <button data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("calendar")} <span class="task-time-label">End: ${dateLabel(taskEndDate(task))} ${timeLabel(task.end)}</span></button>
+              <button class="start-time-row" data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("start")} <span class="task-time-label">Start: ${dateLabel(task.date)} ${timeLabel(task.start)}</span></button>
+              <button class="end-time-row" data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("end")} <span class="task-time-label">End: ${dateLabel(taskEndDate(task))} ${timeLabel(task.end)}</span></button>
               <button class="duration-chip" data-action="open-modal" data-modal="quickTime" data-id="${task.id}"><span class="task-time-label">${durationText(task)}</span></button>
             </div>
-            <div class="task-quick-controls">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}<button class="icon-btn danger-text" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit" : "task"}">${icon("trash")}</button></div>
+            <div class="task-quick-controls"><span class="task-quick-badge-stack">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span><button class="icon-btn danger-text task-delete-inline" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit" : "task"}">${icon("trash")}</button></div>
           </div>
         </div>
       </div>
@@ -3655,7 +3655,7 @@
   function taskProjectBadge(task) {
     const project = data.projects.find((item) => item.id === task.projectId);
     if (!project) return "";
-    return `<button class="status muted quick-project" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}" title="Edit project name">${icon("folder")} ${esc(project.name)}</button>`;
+    return `<button class="status muted quick-project" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}" title="Edit project name">${icon("folder")} <span>${esc(project.name)}</span>${icon("edit")}</button>`;
   }
 
   function taskAddressRow(task, reserve = false) {
@@ -4817,6 +4817,7 @@
         ${selectField("taskBill", "Link to Bill", ["", ...data.bills.map((b) => b.id)], task.billId || "", (value) => value ? data.bills.find((b) => b.id === value).name : "No bill")}
         ${selectField("taskGoal", "Link to Goal", ["", ...data.goals.map((g) => g.id)], task.goalId || "", (value) => value ? data.goals.find((g) => g.id === value).name : "No goal")}
         ${selectField("taskProject", "Project", ["", ...data.projects.map((p) => p.id)], task.projectId || "", (value) => value ? data.projects.find((p) => p.id === value).name : "No project")}
+        ${task.projectId ? `<button class="outline-btn inline-project-edit" data-action="open-modal" data-modal="editProjectName" data-id="${task.projectId}" data-return-modal="editTask" data-return-id="${task.id || ""}">${icon("edit")} Edit selected project</button>` : ""}
         ${selectField("taskContact", "Primary Contact", ["", ...data.contacts.map((contact) => contact.id)], task.contactId || "", (value) => value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "No primary contact")}
         <section class="inline-add-panel task-notify-panel">
           <div class="inline-add-heading">${icon("bell")} Notify Contacts</div>
@@ -5917,7 +5918,26 @@
       if (card.dataset.bound === "true") return;
       card.dataset.bound = "true";
       card.addEventListener("pointerdown", startDayTaskDrag);
+      card.addEventListener("click", handleDayTaskCardClick);
     });
+  }
+
+  function handleDayTaskCardClick(event) {
+    if (event.target.closest("button,a,input,select,textarea,.quick-picker")) return;
+    const card = event.currentTarget;
+    if (card.dataset.skipCardClick === "true") {
+      delete card.dataset.skipCardClick;
+      return;
+    }
+    openCalendarItemEditor(card.dataset.taskId);
+  }
+
+  function suppressNextDayCardClick(card) {
+    if (!card) return;
+    card.dataset.skipCardClick = "true";
+    setTimeout(() => {
+      if (card.dataset.skipCardClick === "true") delete card.dataset.skipCardClick;
+    }, 300);
   }
 
   function attachHabitInteractions() {
@@ -6050,12 +6070,17 @@
     state.card.releasePointerCapture?.(state.pointerId);
     document.querySelectorAll(".day-task-card.drop-target").forEach((card) => card.classList.remove("drop-target"));
     if (state.holdOpened) {
+      suppressNextDayCardClick(state.card);
       dayDragState = null;
       return;
     }
-    if (state.moved && state.targetId) swapTaskTimes(state.taskId, state.targetId);
-    else if (state.moved) showToast("Drag onto another task to swap times.", "danger");
-    else openCalendarItemEditor(state.taskId);
+    if (state.moved && state.targetId) {
+      suppressNextDayCardClick(state.card);
+      swapTaskTimes(state.taskId, state.targetId);
+    } else if (state.moved) {
+      suppressNextDayCardClick(state.card);
+      showToast("Drag onto another task to swap times.", "danger");
+    }
     dayDragState = null;
   }
 
@@ -6981,7 +7006,7 @@
     if (action === "calendar-nav") return moveCalendar(Number(el.dataset.direction || 1));
     if (action === "go-calendar-today") return goCalendarToday(el.dataset.view);
     if (action === "open-day") return openCalendarDay(el.dataset.date);
-    if (action === "open-modal") return openModal(el.dataset.modal, el.dataset.id, el.dataset.returnModal);
+    if (action === "open-modal") return openModal(el.dataset.modal, el.dataset.id, el.dataset.returnModal, el.dataset.returnId);
     if (action === "close-modal") return closeModal();
     if (action === "set-tab") {
       ui[el.dataset.key] = el.dataset.value;
@@ -7273,8 +7298,8 @@
     el.classList.add("active");
   }
 
-  function openModal(type, modalId, returnTo = "") {
-    ui.modal = { type, id: modalId || "", returnTo: returnTo || "" };
+  function openModal(type, modalId, returnTo = "", returnId = "") {
+    ui.modal = { type, id: modalId || "", returnTo: returnTo || "", returnId: returnId || "" };
     ui.noteColor = null;
     if (type === "voiceTask") {
       const quickInput = document.getElementById("quickTaskInput")?.value?.trim() || "";
@@ -10446,7 +10471,14 @@
     project.imageFit = imageFitValue("project");
     project.imageOpacity = imageOpacityValue("project");
     project.lastEditedAt = new Date().toISOString();
+    const returnTo = ui.modal?.returnTo;
+    const returnId = ui.modal?.returnId;
     saveData();
+    if (returnTo === "editTask" && returnId) {
+      ui.modal = { type: "editTask", id: returnId };
+      showToast("Project updated. Back in task edit.");
+      return;
+    }
     closeModal();
     showToast("Project updated.");
   }

@@ -4328,7 +4328,7 @@ canvas {
 
 .task-time-preview {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   margin-top: 6px;
   color: var(--muted);
@@ -4362,10 +4362,17 @@ canvas {
   white-space: nowrap;
 }
 
+.task-time-preview .start-time-row .icon {
+  color: var(--green);
+}
+
+.task-time-preview .end-time-row .icon {
+  color: var(--red);
+}
+
 .task-time-preview .duration-chip {
-  grid-column: 1 / -1;
   justify-self: start;
-  width: min(50%, 142px);
+  width: min(48%, 142px);
 }
 
 .task-time-preview button {
@@ -4400,10 +4407,20 @@ canvas {
   left: 0;
 }
 
+.task-quick-badge-stack {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .task-quick-controls .danger-text {
-  width: 34px;
-  height: 34px;
-  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  margin-left: 2px;
+  align-self: center;
 }
 
 .time-of-day-badge {
@@ -4699,11 +4716,31 @@ canvas {
 }
 
 .quick-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
   cursor: pointer;
+}
+
+.quick-project span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-project .icon:last-child {
+  width: 12px;
+  height: 12px;
+  opacity: 0.75;
 }
 
 .quick-project:hover {
   border-color: var(--blue);
+}
+
+.inline-project-edit {
+  min-height: 34px;
 }
 
 .quick-badge[style*="transparent"],
