@@ -2488,6 +2488,7 @@
       </section>
       ${cloudWorkspacePanel()}
       ${friendAlphaLaunchPanel()}
+      ${friendPrivacyGatePanel()}
       ${mobileCodexAccessPanel()}
       ${mediaStoragePanel()}
       ${googleContactsPanel()}
@@ -2687,11 +2688,49 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-19";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-22";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-19`;
+    return `${location.origin}${location.pathname}?v=20260602-22`;
+  }
+
+  function friendPrivacyGatePanel() {
+    const checks = [
+      { label: "Separate account", ready: cloudSignedIn(), detail: cloudSignedIn() ? `This device is signed in as ${cloudSafeEmail()}.` : "Each friend must create their own BillMaster account." },
+      { label: "Private workspace row", ready: true, detail: "Supabase Row Level Security uses auth.uid() = user_id for each workspace." },
+      { label: "Private picture folders", ready: true, detail: "Media policies keep uploads inside each user's Supabase user-id folder." },
+      { label: "No live bank credentials", ready: true, detail: "Alpha testers should only use manual finance data until bank/card sync is production-ready." },
+      { label: "First tester watched", ready: false, detail: "Invite one trusted person first and watch where they get confused." }
+    ];
+    const ready = checks.filter((item) => item.ready).length;
+    return `<section class="section-card friend-privacy-panel">
+      <div class="section-title compact-title">
+        <h2>Friend Safety Gate</h2>
+        <span class="status ${ready >= checks.length - 1 ? "success" : "info"}">${ready}/${checks.length} checks</span>
+      </div>
+      <p class="muted">This is the guardrail for letting friends test BillMaster. The goal is simple: every friend gets their own private cloud workspace, pictures stay private, and nobody enters real bank/card credentials during alpha.</p>
+      <div class="friend-safety-grid">
+        ${checks.map((item) => `<div class="friend-safety-item ${item.ready ? "is-ready" : "is-watch"}">
+          <span>${icon(item.ready ? "check" : "alert")}</span>
+          <div>
+            <strong>${esc(item.label)}</strong>
+            <small>${esc(item.detail)}</small>
+          </div>
+        </div>`).join("")}
+      </div>
+      <div class="friend-safety-flow">
+        <span><strong>1</strong><small>Friend opens live app</small></span>
+        <span><strong>2</strong><small>Creates their own account</small></span>
+        <span><strong>3</strong><small>Starts clean or imports their own data</small></span>
+        <span><strong>4</strong><small>Auto sync follows only their account</small></span>
+      </div>
+      <div class="sheet-actions friend-alpha-actions">
+        <button class="outline-btn" data-action="copy-friend-safety-checklist">${icon("note")} Copy safety checklist</button>
+        <button class="outline-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Test clean sign-in</button>
+        <a class="primary-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("playcard")} Open live tester app</a>
+      </div>
+    </section>`;
   }
 
   function friendAlphaInviteText() {
@@ -2750,6 +2789,39 @@
       "- Did saving feel obvious?",
       "- Did sync make sense?",
       "- What would help you make better money decisions from this app?"
+    ].join("\n");
+  }
+
+  function friendSafetyChecklistText() {
+    return [
+      "BillMaster Friend Safety Checklist",
+      "",
+      "Purpose: let trusted friends test BillMaster without mixing their data with mine or entering sensitive bank information too early.",
+      "",
+      "Before inviting:",
+      "1. Confirm the hosted app opens.",
+      "2. Confirm Supabase project URL and publishable key are configured.",
+      "3. Confirm a new user can create their own BillMaster account.",
+      "4. Confirm a new user can save data, refresh, and still see it.",
+      "5. Confirm a second device can sign into that same account and pull/sync the same workspace.",
+      "",
+      "Privacy rules:",
+      "- Every friend uses their own email and BillMaster password.",
+      "- Do not share my account with friends.",
+      "- Do not enter real bank passwords, full card numbers, or real bill-payment credentials in alpha.",
+      "- Pictures should be uploaded only after the user is signed in, so they belong to that user's private media folder.",
+      "",
+      "First friend test:",
+      "- Watch one person use it first.",
+      "- Ask what confused them.",
+      "- Ask what helped them make a financial decision.",
+      "- Fix the top 3 confusing points before inviting more people.",
+      "",
+      "Friend-ready means:",
+      "- Separate accounts work.",
+      "- Data persists after refresh.",
+      "- Phone/iPad/desktop sync works.",
+      "- The tester understands what not to use yet: bank sync, bill pay, direct cancellation."
     ].join("\n");
   }
 
@@ -5070,6 +5142,7 @@
     if (type === "cloudSetup") content = modalCloudSetup();
     if (type === "cloudAuth") content = modalCloudAuth();
     if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
+    if (type === "copyFallback") content = modalCopyFallback();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
     if (type === "addSubscription") content = modalAddSubscription();
@@ -5541,6 +5614,20 @@
         <button class="outline-btn" data-action="copy-google-contacts-checklist">${icon("note")} Copy steps</button>
         <button class="secondary-btn" data-action="save-google-contacts-config">${icon("check")} Save Client ID</button>
         <button class="primary-btn" data-action="google-contacts-import" ${data.settings?.googleContactsClientId ? "" : "disabled"}>${icon("wallet")} Import now</button>
+      </div>`;
+  }
+
+  function modalCopyFallback() {
+    const title = ui.modal?.title || "Copy Text";
+    const helper = ui.modal?.helper || "Select the text below and copy it.";
+    const text = ui.modal?.text || "";
+    return `${modalHeader(title, helper)}
+      <div class="copy-fallback-panel">
+        <textarea id="copyFallbackText" class="copy-fallback-text" readonly>${esc(text)}</textarea>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="select-copy-fallback">${icon("search")} Select text</button>
+        <button class="secondary-btn" data-action="close-modal">${icon("check")} Done</button>
       </div>`;
   }
 
@@ -8143,6 +8230,8 @@
     if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
     if (action === "copy-friend-alpha-invite") return copyFriendAlphaInvite();
     if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
+    if (action === "copy-friend-safety-checklist") return copyFriendSafetyChecklist();
+    if (action === "select-copy-fallback") return selectCopyFallback();
     if (action === "save-google-contacts-config") return saveGoogleContactsConfig();
     if (action === "google-contacts-import") return importGoogleContacts();
     if (action === "copy-google-contacts-checklist") return copyGoogleContactsChecklist();
@@ -12000,6 +12089,35 @@
       showToast("Friend alpha test script copied.");
     } catch (error) {
       showToast("Could not copy the test script automatically.", "danger");
+    }
+  }
+
+  async function copyFriendSafetyChecklist() {
+    try {
+      await copyText(friendSafetyChecklistText());
+      showToast("Friend safety checklist copied.");
+    } catch (error) {
+      ui.modal = {
+        type: "copyFallback",
+        title: "Friend Safety Checklist",
+        text: friendSafetyChecklistText(),
+        helper: "Clipboard access was blocked. Select this text, then copy it manually."
+      };
+      render();
+      showToast("Select and copy the safety checklist.", "danger");
+    }
+  }
+
+  function selectCopyFallback() {
+    const fieldEl = document.getElementById("copyFallbackText");
+    if (!fieldEl) return;
+    fieldEl.focus();
+    fieldEl.select();
+    try {
+      document.execCommand("copy");
+      showToast("Text selected and copied if this browser allows it.", "success", { render: false });
+    } catch (error) {
+      showToast("Text selected. Press Ctrl+C to copy.", "danger", { render: false });
     }
   }
 
