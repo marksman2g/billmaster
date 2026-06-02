@@ -2695,11 +2695,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-27";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-28";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-27`;
+    return `${location.origin}${location.pathname}?v=20260602-28`;
   }
 
   function friendPrivacyGatePanel() {
@@ -4733,7 +4733,7 @@
         <div class="note-action-bar unassigned-note-actions">
           <span>${selectedUnassignedNotes ? `${selectedUnassignedNotes} unassigned note${selectedUnassignedNotes === 1 ? "" : "s"} selected` : "Select unassigned notes, then copy them or drag one selected note onto a notebook to move them all"}</span>
           <button class="outline-btn" data-action="select-unassigned-notes">${selectedUnassignedNotes === unassignedNotes.length && unassignedNotes.length ? "Deselect unassigned" : "Select unassigned"}</button>
-          ${selectedUnassignedNotes ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+          ${selectedUnassignedNotes ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
         </div>
         <div class="unassigned-note-grid">${unassignedNotes.map((note) => unassignedNoteCard(note)).join("") || `<p class="muted">No unassigned notes right now.</p>`}</div>
       </section>
@@ -4839,7 +4839,7 @@
       <div class="note-action-bar">
         <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate or delete"}</span>
         <button class="outline-btn" data-action="select-visible-notes">${selectedVisibleNotes === notes.length && notes.length ? "Deselect visible" : "Select visible"}</button>
-        ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+        ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
       </div>
       <div class="list notes-list notes-${esc(ui.notesView)}">${notes.length ? notes.map((note) => noteCard(note)).join("") : `<section class="section-card"><p class="muted">No notes match this view.</p></section>`}</div>
     </section>`;
@@ -5329,6 +5329,7 @@
     if (type === "editProjectName") content = modalProjectName(modalId);
     if (type === "editNote") content = modalNote(modalId);
     if (type === "duplicateNotes") content = modalDuplicateNotes(modalId);
+    if (type === "bulkNoteSubject") content = modalBulkNoteSubject();
     if (type === "editNotebook") content = modalNotebook(modalId);
     if (type === "notebookPicture") content = modalNotebookPicture(modalId);
     if (type === "editGoal") content = modalGoal(modalId);
@@ -6502,6 +6503,31 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="close-modal">Cancel</button>
         <button class="secondary-btn" data-action="duplicate-notes" data-id="${esc(noteId || "")}">${icon("note")} Duplicate</button>
+      </div>`;
+  }
+
+  function modalBulkNoteSubject() {
+    const notes = selectedNoteRecords();
+    const subjectNames = Array.from(new Set(data.notebooks.flatMap((notebook) => notebookSubjects(notebook.id)))).sort((a, b) => a.localeCompare(b));
+    return `${modalHeader("Change Subject", `${notes.length || 0} selected note${notes.length === 1 ? "" : "s"}`)}
+      <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <div class="list">
+          ${notes.slice(0, 5).map((note) => `<div class="data-row"><span class="round-icon note-icon" style="color:#fff;background:${noteImportanceColor(note.importance)}">${icon(note.icon || "note")}</span><div><strong>${esc(note.title)}</strong><div class="subtle">${esc(data.notebooks.find((nb) => nb.id === note.notebookId)?.title || "Unassigned")} ${note.subject ? `- ${esc(note.subject)}` : "- No subject"}</div></div><span class="status muted">${esc(note.importance || "Low")}</span></div>`).join("") || `<p class="muted">Select at least one note first.</p>`}
+          ${notes.length > 5 ? `<p class="muted">And ${notes.length - 5} more selected.</p>` : ""}
+        </div>
+      </section>
+      <div class="field">
+        <label for="bulkNoteSubject">Subject</label>
+        <select id="bulkNoteSubject">
+          <option value="">No subject</option>
+          <option value="${ADD_NOTE_SUBJECT_VALUE}">+ Add subject</option>
+          ${subjectNames.map((subject) => `<option value="${esc(subject)}">${esc(subject)}</option>`).join("")}
+        </select>
+        <span class="field-hint">The subject will be applied to every selected note. If notes are in different notebooks, BillMaster saves that subject to each notebook.</span>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-selected-note-subject">${icon("check")} Save Subject</button>
       </div>`;
   }
 
@@ -8485,6 +8511,7 @@
     if (action === "clear-selected-notes") return clearSelectedNotes();
     if (action === "delete-selected-notes") return deleteSelectedNotes();
     if (action === "duplicate-notes") return duplicateNotes(el.dataset.id);
+    if (action === "save-selected-note-subject") return saveSelectedNoteSubject();
     if (action === "pick-note-color") {
       ui.noteColor = el.dataset.color;
       document.querySelectorAll(".swatch").forEach((button) => button.classList.toggle("active", button === el));
@@ -10342,6 +10369,10 @@
     return filteredNotesForBase(baseNotes);
   }
 
+  function selectedNoteRecords() {
+    return ui.selectedNotes.map((noteId) => data.notes.find((note) => note.id === noteId)).filter(Boolean);
+  }
+
   function toggleNoteSelect(noteId) {
     if (!noteId) return;
     ui.selectedNotes = ui.selectedNotes.includes(noteId) ? ui.selectedNotes.filter((item) => item !== noteId) : [...ui.selectedNotes, noteId];
@@ -10398,6 +10429,27 @@
     saveData();
     closeModal();
     showToast(`${created.length} note duplicate${created.length === 1 ? "" : "s"} created.`);
+  }
+
+  function saveSelectedNoteSubject() {
+    const notes = selectedNoteRecords();
+    if (!notes.length) return showToast("Select at least one note first.", "danger");
+    let subject = String(value("bulkNoteSubject") || "").trim();
+    if (subject === ADD_NOTE_SUBJECT_VALUE) {
+      subject = promptForNoteSubject(ui.notebookId || notes[0]?.notebookId || "");
+      if (!subject) return;
+    }
+    subject = normalizeNoteSubjectName(subject);
+    const now = new Date().toISOString();
+    notes.forEach((note) => {
+      note.subject = subject;
+      note.updatedAt = now;
+      if (note.notebookId && subject) ensureNotebookSubject(note.notebookId, subject);
+    });
+    saveData();
+    closeModal();
+    render();
+    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} changed to ${subject || "No subject"}.`);
   }
 
   function visibleNotebooksForCurrentView() {
