@@ -4041,6 +4041,35 @@
     showToast(`${note.title} assigned to ${notebook.title}.`);
   }
 
+  function noteNotebookDropStrip() {
+    const notebooks = data.notebooks;
+    return `<section class="notes-notebook-strip" aria-label="Notebook drop targets">
+      <div class="section-title compact-title">
+        <h2>${icon("book")} Drag Notes To Notebooks</h2>
+        <span class="status info">${notebooks.length}</span>
+      </div>
+      <p class="subtle project-drag-note">Drag any note card below onto a notebook to file it without opening the note.</p>
+      <div class="note-notebook-drop-grid">
+        ${notebooks.map((nb) => noteNotebookDropTile(nb)).join("") || `<p class="muted">Create a notebook first, then drag notes here.</p>`}
+      </div>
+    </section>`;
+  }
+
+  function noteNotebookDropTile(nb) {
+    const notes = data.notes.filter((note) => note.notebookId === nb.id);
+    const media = entityImage(nb);
+    return `<article class="note-notebook-drop-tile" data-notebook-drop="${nb.id}" title="Drop notes into ${esc(nb.title)}">
+      <button class="note-notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)} aria-label="Open ${esc(nb.title)}">
+        ${media ? `<img src="${esc(media)}" alt="">` : `<span>${icon(nb.icon || "book")}</span>`}
+      </button>
+      <div class="note-notebook-drop-copy">
+        <strong>${esc(nb.title)}</strong>
+        <span>${notes.length} note${notes.length === 1 ? "" : "s"}</span>
+      </div>
+      <span class="notebook-drop-hint">${icon("note")} Drop note</span>
+    </article>`;
+  }
+
   function renderNotebooks() {
     const query = ui.notebookQuery.trim().toLowerCase();
     const notebooks = data.notebooks.filter((nb) => {
@@ -4141,6 +4170,7 @@
       ${header(nb ? nb.title : "All Notes", `<button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
       ${nb ? notebookDetailHero(nb, baseNotes, unassignedCount, noteCounts) : ""}
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="notesSearch" value="${esc(ui.notesQuery)}" data-action="notes-search" placeholder="Search notes, subjects, importance..." /></label>
+      ${nb ? "" : noteNotebookDropStrip()}
       <div class="notes-control-panel">
         <div class="filter-row">
           ${["stream", "compact", "gallery"].map((view) => `<button class="${ui.notesView === view ? "active" : ""}" data-action="set-tab" data-key="notesView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
@@ -4319,13 +4349,30 @@
     const media = entityImage(note);
     const importanceColor = noteImportanceColor(note.importance);
     const selected = ui.selectedNotes.includes(note.id);
-    return `<article class="note-card note-${String(note.importance || "Low").toLowerCase()} ${selected ? "selected" : ""}" style="--importance-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}" role="button" tabindex="0" aria-label="Open note ${esc(note.title)}">
-      ${media ? `<div class="cover-frame" ${imageStyleAttr(note)}><img class="cover" src="${esc(media)}" alt=""></div>` : ""}
+    const subjectOptions = notebookSubjects(note.notebookId, note.subject);
+    return `<article class="note-card note-${String(note.importance || "Low").toLowerCase()} ${selected ? "selected" : ""}" style="--importance-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}" draggable="true" data-notebook-note-id="${note.id}" role="button" tabindex="0" aria-label="Open note ${esc(note.title)}">
+      <div class="cover-frame ${media ? "has-image" : "empty"}" ${media ? imageStyleAttr(note) : ""}>
+        ${media ? `<img class="cover" src="${esc(media)}" alt="">` : `<span class="note-cover-placeholder">${icon("image")} No picture</span>`}
+      </div>
       <div class="note-body">
         <div class="card-row"><div style="display:flex;gap:10px;align-items:center;"><button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button><span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span><h2 class="entity-title">${esc(note.title)}</h2></div><div style="display:flex;gap:6px;"><button class="icon-btn" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}" aria-label="Duplicate note">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-note" data-id="${note.id}" aria-label="Delete note">${icon("trash")}</button></div></div>
-        <div class="task-meta"><span>${icon("calendar")} ${dateLabel(note.date)}</span><span class="status importance-pill" style="--importance-color:${importanceColor}">${esc(note.importance)}</span><span class="status info">${esc(note.subject || "No subject")}</span></div>
+        <div class="task-meta"><span>${icon("calendar")} ${dateLabel(note.date)}</span></div>
+        <div class="note-inline-controls">
+          <label><span>Priority</span><select data-action="note-inline" data-field="importance" data-id="${note.id}">
+            ${["Low", "Medium", "High", "Critical"].map((level) => `<option value="${level}" ${note.importance === level ? "selected" : ""}>${level}</option>`).join("")}
+          </select></label>
+          <label><span>Subject</span><input data-action="note-inline" data-field="subject" data-id="${note.id}" list="noteSubjectOptions-${note.id}" value="${esc(note.subject || "")}" placeholder="No subject" autocomplete="off"></label>
+          <datalist id="noteSubjectOptions-${note.id}">
+            <option value="">No subject</option>
+            ${subjectOptions.map((subject) => `<option value="${esc(subject)}">${esc(subject)}</option>`).join("")}
+          </datalist>
+          <label><span>Notebook</span><select data-action="note-inline" data-field="notebookId" data-id="${note.id}">
+            <option value="" ${note.notebookId ? "" : "selected"}>Unassigned</option>
+            ${data.notebooks.map((item) => `<option value="${item.id}" ${note.notebookId === item.id ? "selected" : ""}>${esc(item.title)}</option>`).join("")}
+          </select></label>
+        </div>
         <p class="muted">${esc(note.content)}</p>
-        <div class="subtle">${icon("book")} ${esc(nb ? nb.title : "Unassigned")}</div>
+        <div class="subtle note-notebook-label">${icon("book")} <strong>Notebook:</strong> ${esc(nb ? nb.title : "Unassigned")}</div>
       </div>
     </article>`;
   }
@@ -6178,7 +6225,7 @@
   }
 
   function attachNoteNotebookInteractions() {
-    if (ui.view !== "notebooks") return;
+    if (!["notebooks", "notes"].includes(ui.view)) return;
     document.querySelectorAll("[data-notebook-note-id]").forEach((card) => {
       if (card.dataset.dragBound === "true") return;
       card.dataset.dragBound = "true";
@@ -6968,6 +7015,7 @@
     }
     const action = actionEl.dataset.action;
     if (action === "habit-inline") return;
+    if (action === "note-inline") return;
     if (action === "image-upload") return;
     if (action === "close-modal" && sheet && actionEl.classList.contains("sheet-backdrop")) return;
     event.preventDefault();
@@ -7111,6 +7159,10 @@
       const panel = document.getElementById("noteNotebookNewWrap");
       if (panel) panel.hidden = target.value !== ADD_NOTEBOOK_VALUE;
       if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("noteNewNotebookTitle")?.focus();
+    }
+    if (target && target.dataset.action === "note-inline") {
+      updateNoteInline(target.dataset.id, target.dataset.field, target.value);
+      return;
     }
     if (target && target.id === "notesSubjectFilter") {
       ui.notesSubjectFilter = target.value || "all";
@@ -9152,6 +9204,24 @@
     ui.modal = null;
     saveData();
     showToast("Note deleted.");
+  }
+
+  function updateNoteInline(noteId, field, rawValue) {
+    const note = data.notes.find((item) => item.id === noteId);
+    if (!note) return;
+    const nextValue = String(rawValue || "").trim();
+    if (field === "importance") {
+      note.importance = ["Low", "Medium", "High", "Critical"].includes(nextValue) ? nextValue : "Low";
+    } else if (field === "subject") {
+      note.subject = nextValue;
+    } else if (field === "notebookId") {
+      note.notebookId = data.notebooks.some((item) => item.id === nextValue) ? nextValue : null;
+    } else {
+      return;
+    }
+    note.updatedAt = new Date().toISOString();
+    saveData();
+    showToast("Note updated.");
   }
 
   function visibleNotesForCurrentView() {
