@@ -2067,15 +2067,17 @@
       </button>
       <div class="card-row habit-card-head">
         <div class="habit-head-main">
-          <button class="habit-select-button ${selected ? "active" : ""}" data-action="toggle-habit-select" data-id="${habit.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(habit.title)}">${selected ? icon("check") : ""}</button>
+          <div class="habit-select-rail">
+            <button class="habit-select-button ${selected ? "active" : ""}" data-action="toggle-habit-select" data-id="${habit.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(habit.title)}">${selected ? icon("check") : ""}</button>
+            <button class="habit-inline-picture habit-rail-picture ${media ? "has-image" : "empty"}" data-action="open-modal" data-modal="editHabit" data-id="${habit.id}" aria-label="${media ? "Edit habit picture" : "Add habit picture"}" title="${media ? "Edit habit picture" : "Add habit picture"}" ${imageStyleAttr(habit)}>
+              ${media ? `<img src="${esc(media)}" alt="">` : icon("camera")}
+            </button>
+          </div>
           <div class="habit-main-fields">
             <input class="habit-title-input" data-action="habit-inline" data-id="${habit.id}" data-field="title" value="${esc(habit.title)}" aria-label="Habit title">
             <div class="habit-inline-row">
               <select data-action="habit-inline" data-id="${habit.id}" data-field="type" aria-label="Habit type">${inlineOptions(habitTypeOptions, habit.type)}</select>
               <select data-action="habit-inline" data-id="${habit.id}" data-field="schedule" aria-label="Habit schedule">${inlineOptions(habitScheduleOptions, habit.schedule)}</select>
-              <button class="habit-inline-picture ${media ? "has-image" : "empty"}" data-action="open-modal" data-modal="editHabit" data-id="${habit.id}" aria-label="${media ? "Edit habit picture" : "Add habit picture"}" title="${media ? "Edit habit picture" : "Add habit picture"}" ${imageStyleAttr(habit)}>
-                ${media ? `<img src="${esc(media)}" alt="">` : icon("camera")}
-              </button>
             </div>
             <div class="habit-time-row">
               <input type="time" data-action="habit-inline" data-id="${habit.id}" data-field="start" value="${esc(habit.start || "08:00")}" aria-label="Start time">

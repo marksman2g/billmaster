@@ -6566,6 +6566,14 @@ canvas {
   min-width: 0;
 }
 
+.habit-select-rail {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 42px;
+  flex: 0 0 42px;
+}
+
 .habit-select-button {
   display: grid;
   place-items: center;
@@ -6629,6 +6637,13 @@ canvas {
   border-radius: 8px;
   padding: 0;
   cursor: pointer;
+}
+
+.habit-rail-picture {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border-radius: 10px;
 }
 
 .habit-inline-picture img {
