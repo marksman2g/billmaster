@@ -2317,6 +2317,12 @@ button.round-icon {
   transform: translateY(-2px);
 }
 
+.notebook-tile.notebook-drop-active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 18px 42px rgba(26, 31, 54, 0.13);
+  transform: translateY(-2px);
+}
+
 .project-drop-hint {
   display: none;
   min-height: 26px;
@@ -2332,6 +2338,29 @@ button.round-icon {
 }
 
 .project-picture-tile.project-drop-active .project-drop-hint {
+  display: inline-flex;
+}
+
+.notebook-drop-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 2;
+  display: none;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: var(--blue);
+  background: rgba(238, 246, 255, 0.94);
+  border: 1px dashed #9fd0ff;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 850;
+  backdrop-filter: blur(8px);
+}
+
+.notebook-tile.notebook-drop-active .notebook-drop-hint {
   display: inline-flex;
 }
 
@@ -2444,6 +2473,16 @@ button.round-icon {
   gap: 10px;
 }
 
+.unassigned-notes-section {
+  margin-top: 16px;
+}
+
+.unassigned-note-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 10px;
+}
+
 .project-task-mini {
   min-width: 0;
   padding: 10px;
@@ -2457,7 +2496,15 @@ button.round-icon {
   cursor: grab;
 }
 
+.project-task-mini.draggable-note {
+  cursor: grab;
+}
+
 .project-task-mini.draggable-task:active {
+  cursor: grabbing;
+}
+
+.project-task-mini.draggable-note:active {
   cursor: grabbing;
 }
 

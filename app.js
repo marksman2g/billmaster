@@ -4030,6 +4030,17 @@
     showToast(`${task.title} assigned to ${project.name}.`);
   }
 
+  function assignNoteToNotebook(noteId, notebookId) {
+    const note = data.notes.find((item) => item.id === noteId);
+    const notebook = data.notebooks.find((item) => item.id === notebookId);
+    if (!note || !notebook) return;
+    note.notebookId = notebook.id;
+    note.updatedAt = new Date().toISOString();
+    saveData();
+    render();
+    showToast(`${note.title} assigned to ${notebook.title}.`);
+  }
+
   function renderNotebooks() {
     const query = ui.notebookQuery.trim().toLowerCase();
     const notebooks = data.notebooks.filter((nb) => {
@@ -4037,6 +4048,7 @@
       return !query || [nb.title, nb.description, subjects].some((part) => String(part || "").toLowerCase().includes(query));
     });
     const totalNotes = data.notes.length;
+    const unassignedNotes = data.notes.filter((note) => !note.notebookId);
     const totalSubjects = new Set(data.notes.map((note) => String(note.subject || "").trim()).filter(Boolean)).size;
     return `<section class="screen">
       ${header("Notebooks", `<button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
@@ -4047,12 +4059,21 @@
         </div>
         <div class="notebook-library-stats">
           <span><strong>${totalNotes}</strong> notes</span>
+          <span><strong>${unassignedNotes.length}</strong> unassigned</span>
           <span><strong>${totalSubjects}</strong> subjects</span>
           <span><strong>${data.notebooks.filter((nb) => entityImage(nb)).length}</strong> covers</span>
         </div>
       </section>
       <label class="search-field notebook-search">${icon("search")}<input id="notebookSearch" value="${esc(ui.notebookQuery)}" data-action="notebook-search" placeholder="Search notebooks, subjects, descriptions..." /></label>
       <div class="notebook-grid">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>
+      <section class="section-card unassigned-notes-section">
+        <div class="section-title compact-title">
+          <h2>${icon("note")} Unassigned Notes</h2>
+          <span class="status info">${unassignedNotes.length}</span>
+        </div>
+        <p class="subtle project-drag-note">Quick notes can live here first. Drag any unassigned note onto a notebook tile above when you are ready.</p>
+        <div class="unassigned-note-grid">${unassignedNotes.map((note) => unassignedNoteCard(note)).join("") || `<p class="muted">No unassigned notes right now.</p>`}</div>
+      </section>
     </section>`;
   }
 
@@ -4064,11 +4085,12 @@
     const project = data.projects.find((item) => item.id === nb.projectId);
     const latestNote = notes.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
     const accent = nb.color || "#4388f3";
-    return `<article class="notebook-tile" style="--notebook-color:${esc(accent)};">
+    return `<article class="notebook-tile" style="--notebook-color:${esc(accent)};" data-notebook-drop="${nb.id}" title="Open notebook or drop an unassigned note here">
       <div class="notebook-cover-wrap">
         <button class="notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)}>
           ${media ? `<img src="${esc(media)}" alt="">` : `<span class="notebook-fallback-cover"><span class="round-icon" style="color:#fff;background:rgba(255,255,255,.18);">${icon(nb.icon || "book")}</span></span>`}
         </button>
+        <span class="notebook-drop-hint">${icon("note")} Drop note</span>
         <button class="cover-edit-badge notebook-cover-edit" data-action="open-modal" data-modal="notebookPicture" data-id="${nb.id}" aria-label="Update ${esc(nb.title)} picture">${icon("camera")}</button>
       </div>
       <div class="notebook-tile-body">
@@ -4088,6 +4110,19 @@
     </article>`;
   }
 
+  function unassignedNoteCard(note) {
+    const importanceColor = noteImportanceColor(note.importance);
+    return `<article class="project-task-mini unassigned-note-mini draggable-note" draggable="true" data-notebook-note-id="${note.id}" title="Drag ${esc(note.title)} onto a notebook tile">
+      <span class="dot" style="background:${importanceColor}"></span>
+      <div class="project-task-mini-body">
+        <strong>${esc(note.title)}</strong>
+        <div class="subtle">${dateLabel(note.date)} &middot; ${esc(note.subject || "No subject")}</div>
+        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${importanceColor};border-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}">Edit Note</button>
+      </div>
+      <span class="project-task-mini-badges"><span class="status importance-pill" style="--importance-color:${importanceColor}">${esc(note.importance || "Low")}</span></span>
+    </article>`;
+  }
+
   function renderNotes() {
     const notebookId = ui.notebookId;
     const baseNotes = notebookId ? data.notes.filter((note) => note.notebookId === notebookId) : data.notes;
@@ -4103,7 +4138,7 @@
     const selectedVisibleNotes = notes.filter((note) => ui.selectedNotes.includes(note.id)).length;
     const selectedNoteCount = ui.selectedNotes.length;
     return `<section class="screen">
-      ${header(nb ? nb.title : "All Notes", `<button class="icon-btn">${icon("search")}</button>`)}
+      ${header(nb ? nb.title : "All Notes", `<button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
       ${nb ? notebookDetailHero(nb, baseNotes, unassignedCount, noteCounts) : ""}
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="notesSearch" value="${esc(ui.notesQuery)}" data-action="notes-search" placeholder="Search notes, subjects, importance..." /></label>
       <div class="notes-control-panel">
@@ -4290,7 +4325,7 @@
         <div class="card-row"><div style="display:flex;gap:10px;align-items:center;"><button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button><span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span><h2 class="entity-title">${esc(note.title)}</h2></div><div style="display:flex;gap:6px;"><button class="icon-btn" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}" aria-label="Duplicate note">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-note" data-id="${note.id}" aria-label="Delete note">${icon("trash")}</button></div></div>
         <div class="task-meta"><span>${icon("calendar")} ${dateLabel(note.date)}</span><span class="status importance-pill" style="--importance-color:${importanceColor}">${esc(note.importance)}</span><span class="status info">${esc(note.subject || "No subject")}</span></div>
         <p class="muted">${esc(note.content)}</p>
-        <div class="subtle">${icon("book")} ${esc(nb ? nb.title : "Notebook")}</div>
+        <div class="subtle">${icon("book")} ${esc(nb ? nb.title : "Unassigned")}</div>
       </div>
     </article>`;
   }
@@ -5504,7 +5539,7 @@
   }
 
   function modalNote(noteId) {
-    const defaultNotebookId = ui.notebookId || data.notebooks[0]?.id;
+    const defaultNotebookId = ui.notebookId || "";
     const note = data.notes.find((item) => item.id === noteId) || { date: "2026-05-06", importance: "Low", notebookId: defaultNotebookId, color: "#6c63ff", icon: "note" };
     const insideNotebook = !note.id && ui.notebookId;
     return `${modalHeader(note.id ? "Edit Note" : "New Note")}
@@ -5539,10 +5574,13 @@
   }
 
   function noteNotebookField(note) {
-    const currentNotebookId = note.notebookId || data.notebooks[0]?.id || ADD_NOTEBOOK_VALUE;
+    const currentNotebookId = note.notebookId || "";
     const creatingNew = currentNotebookId === ADD_NOTEBOOK_VALUE;
-    const options = [ADD_NOTEBOOK_VALUE, ...data.notebooks.map((nb) => nb.id)];
-    return `${selectField("noteNotebook", "Notebook", options, currentNotebookId, (value) => value === ADD_NOTEBOOK_VALUE ? "+ New notebook" : data.notebooks.find((nb) => nb.id === value)?.title || "Notebook")}
+    const options = ["", ADD_NOTEBOOK_VALUE, ...data.notebooks.map((nb) => nb.id)];
+    return `${selectField("noteNotebook", "Notebook", options, currentNotebookId, (value) => {
+      if (!value) return "Unassigned / decide later";
+      return value === ADD_NOTEBOOK_VALUE ? "+ New notebook" : data.notebooks.find((nb) => nb.id === value)?.title || "Notebook";
+    })}
       <div id="noteNotebookNewWrap" ${creatingNew ? "" : "hidden"}>${field("noteNewNotebookTitle", "New Notebook Name", "", "Notebook name")}</div>`;
   }
 
@@ -5552,7 +5590,7 @@
     return `${modalHeader("Duplicate Notes", `${notes.length || 0} note${notes.length === 1 ? "" : "s"} selected`)}
       <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
         <div class="list">
-          ${notes.slice(0, 4).map((note) => `<div class="data-row"><span class="round-icon note-icon" style="color:#fff;background:${noteImportanceColor(note.importance)}">${icon(note.icon || "note")}</span><div><strong>${esc(note.title)}</strong><div class="subtle">${esc(data.notebooks.find((nb) => nb.id === note.notebookId)?.title || "Notebook")}</div></div><span class="status muted">${esc(note.importance || "Low")}</span></div>`).join("") || `<p class="muted">Select at least one note first.</p>`}
+          ${notes.slice(0, 4).map((note) => `<div class="data-row"><span class="round-icon note-icon" style="color:#fff;background:${noteImportanceColor(note.importance)}">${icon(note.icon || "note")}</span><div><strong>${esc(note.title)}</strong><div class="subtle">${esc(data.notebooks.find((nb) => nb.id === note.notebookId)?.title || "Unassigned")}</div></div><span class="status muted">${esc(note.importance || "Low")}</span></div>`).join("") || `<p class="muted">Select at least one note first.</p>`}
         </div>
       </section>
       <div class="field-grid">
@@ -6035,6 +6073,7 @@
     attachDayTaskInteractions();
     attachHabitInteractions();
     attachProjectTaskInteractions();
+    attachNoteNotebookInteractions();
   }
 
   function attachDayTaskInteractions() {
@@ -6134,6 +6173,47 @@
         event.preventDefault();
         tile.classList.remove("project-drop-active");
         assignTaskToProject(taskId, tile.dataset.projectDrop);
+      });
+    });
+  }
+
+  function attachNoteNotebookInteractions() {
+    if (ui.view !== "notebooks") return;
+    document.querySelectorAll("[data-notebook-note-id]").forEach((card) => {
+      if (card.dataset.dragBound === "true") return;
+      card.dataset.dragBound = "true";
+      card.addEventListener("dragstart", (event) => {
+        if (event.target.closest("button,input,select,textarea,a")) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", card.dataset.notebookNoteId || "");
+        event.dataTransfer.setData("application/x-billmaster-note", card.dataset.notebookNoteId || "");
+        card.classList.add("is-dragging");
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
+        document.querySelectorAll(".notebook-drop-active").forEach((tile) => tile.classList.remove("notebook-drop-active"));
+      });
+    });
+    document.querySelectorAll("[data-notebook-drop]").forEach((tile) => {
+      if (tile.dataset.dropBound === "true") return;
+      tile.dataset.dropBound = "true";
+      tile.addEventListener("dragover", (event) => {
+        const types = Array.from(event.dataTransfer.types || []);
+        if (!types.includes("application/x-billmaster-note") && !types.includes("text/plain")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        tile.classList.add("notebook-drop-active");
+      });
+      tile.addEventListener("dragleave", () => tile.classList.remove("notebook-drop-active"));
+      tile.addEventListener("drop", (event) => {
+        const noteId = event.dataTransfer.getData("application/x-billmaster-note") || event.dataTransfer.getData("text/plain");
+        if (!noteId) return;
+        event.preventDefault();
+        tile.classList.remove("notebook-drop-active");
+        assignNoteToNotebook(noteId, tile.dataset.notebookDrop);
       });
     });
   }
@@ -9134,15 +9214,14 @@
   function deleteNotebook(notebookId) {
     const notebook = data.notebooks.find((item) => item.id === notebookId);
     if (!notebook || !confirmDelete(notebook.title)) return;
-    const fallback = data.notebooks.find((item) => item.id !== notebookId);
     data.notes.forEach((note) => {
-      if (note.notebookId === notebookId) note.notebookId = fallback ? fallback.id : null;
+      if (note.notebookId === notebookId) note.notebookId = null;
     });
     data.notebooks = data.notebooks.filter((item) => item.id !== notebookId);
-    if (ui.notebookId === notebookId) ui.notebookId = fallback ? fallback.id : null;
+    if (ui.notebookId === notebookId) ui.notebookId = null;
     ui.modal = null;
     saveData();
-    showToast(fallback ? `Notebook deleted. Notes moved to ${fallback.title}.` : "Notebook deleted.");
+    showToast("Notebook deleted. Its notes are now unassigned.");
   }
 
   function deleteGoal(goalId) {
@@ -10839,7 +10918,8 @@
 
   function noteNotebookIdFromForm() {
     const selected = value("noteNotebook");
-    if (selected !== ADD_NOTEBOOK_VALUE) return selected || data.notebooks[0]?.id || "";
+    if (!selected) return "";
+    if (selected !== ADD_NOTEBOOK_VALUE) return selected;
     const title = value("noteNewNotebookTitle");
     if (!title) return "";
     const existing = data.notebooks.find((notebook) => notebook.title.toLowerCase() === title.toLowerCase());
@@ -10859,7 +10939,7 @@
   function saveNote(noteId) {
     const note = data.notes.find((item) => item.id === noteId);
     const notebookId = noteNotebookIdFromForm();
-    if (!notebookId) {
+    if (value("noteNotebook") === ADD_NOTEBOOK_VALUE && !notebookId) {
       showToast("Enter a new notebook name first.", "danger");
       return;
     }
