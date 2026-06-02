@@ -6776,6 +6776,13 @@ canvas {
   box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.18), var(--shadow);
 }
 
+.notebook-tile.selected,
+.unassigned-note-mini.selected {
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2), var(--shadow);
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #eef6ff, #fff);
+}
+
 .note-action-bar,
 .notify-group-row {
   display: flex;
@@ -6814,6 +6821,37 @@ canvas {
   border-color: var(--blue);
 }
 
+.notebook-select-button {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--blue);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d4e5ff;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(26, 31, 54, 0.08);
+}
+
+.notebook-select-button.active {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.notebook-tile {
+  position: relative;
+}
+
+.notebook-action-bar,
+.unassigned-note-actions {
+  margin-top: 12px;
+}
+
 .note-heading-line {
   display: flex;
   align-items: center;
@@ -6827,6 +6865,12 @@ canvas {
 
 .note-card-actions {
   display: flex;
+  gap: 6px;
+}
+
+.mini-note-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 

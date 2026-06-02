@@ -35,6 +35,7 @@
     notebookQuery: "",
     notebookView: "regular",
     selectedNotes: [],
+    selectedNotebooks: [],
     contactQuery: "",
     contactGroupFilter: "all",
     taskPicker: null,
@@ -309,6 +310,8 @@
     "delete-note",
     "delete-selected-notes",
     "duplicate-notes",
+    "duplicate-notebook",
+    "duplicate-selected-notebooks",
     "delete-notebook",
     "delete-notebook-subject",
     "save-notebook-picture",
@@ -2692,11 +2695,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-25";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-26";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-25`;
+    return `${location.origin}${location.pathname}?v=20260602-26`;
   }
 
   function friendPrivacyGatePanel() {
@@ -4579,14 +4582,23 @@
   }
 
   function assignNoteToNotebook(noteId, notebookId) {
-    const note = data.notes.find((item) => item.id === noteId);
+    return assignNotesToNotebook([noteId], notebookId);
+  }
+
+  function assignNotesToNotebook(noteIds, notebookId) {
+    const ids = Array.from(new Set((Array.isArray(noteIds) ? noteIds : [noteIds]).filter(Boolean)));
     const notebook = data.notebooks.find((item) => item.id === notebookId);
-    if (!note || !notebook) return;
-    note.notebookId = notebook.id;
-    note.updatedAt = new Date().toISOString();
+    const notes = ids.map((noteId) => data.notes.find((item) => item.id === noteId)).filter(Boolean);
+    if (!notes.length || !notebook) return;
+    notes.forEach((note) => {
+      note.notebookId = notebook.id;
+      if (note.subject) ensureNotebookSubject(notebook.id, note.subject);
+      note.updatedAt = new Date().toISOString();
+    });
+    ui.selectedNotes = ui.selectedNotes.filter((noteId) => !ids.includes(noteId));
     saveData();
     render();
-    showToast(`${note.title} assigned to ${notebook.title}.`);
+    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} assigned to ${notebook.title}.`);
   }
 
   function noteNotebookDropStrip() {
@@ -4627,6 +4639,9 @@
     const totalNotes = data.notes.length;
     const unassignedNotes = data.notes.filter((note) => !note.notebookId);
     const totalSubjects = new Set(data.notes.map((note) => String(note.subject || "").trim()).filter(Boolean)).size;
+    const visibleNotebookIds = notebooks.map((nb) => nb.id);
+    const selectedVisibleNotebooks = visibleNotebookIds.filter((idValue) => ui.selectedNotebooks.includes(idValue)).length;
+    const selectedUnassignedNotes = unassignedNotes.filter((note) => ui.selectedNotes.includes(note.id)).length;
     return `<section class="screen">
       ${header("Notebooks", `<button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
       <section class="notebook-library-head">
@@ -4645,6 +4660,11 @@
       <div class="filter-row notebook-view-switcher">
         ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
       </div>
+      <div class="note-action-bar notebook-action-bar">
+        <span>${ui.selectedNotebooks.length ? `${ui.selectedNotebooks.length} notebook${ui.selectedNotebooks.length === 1 ? "" : "s"} selected` : "Select notebooks to duplicate the notebook and every note inside it"}</span>
+        <button class="outline-btn" data-action="select-visible-notebooks">${selectedVisibleNotebooks === visibleNotebookIds.length && visibleNotebookIds.length ? "Deselect visible" : "Select visible"}</button>
+        ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
+      </div>
       <div class="notebook-grid notebooks-${esc(ui.notebookView)}">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>
       <section class="section-card unassigned-notes-section">
         <div class="section-title compact-title">
@@ -4652,6 +4672,11 @@
           <span class="status info">${unassignedNotes.length}</span>
         </div>
         <p class="subtle project-drag-note">Quick notes can live here first. Drag any unassigned note onto a notebook tile above when you are ready.</p>
+        <div class="note-action-bar unassigned-note-actions">
+          <span>${selectedUnassignedNotes ? `${selectedUnassignedNotes} unassigned note${selectedUnassignedNotes === 1 ? "" : "s"} selected` : "Select unassigned notes, then copy them or drag one selected note onto a notebook to move them all"}</span>
+          <button class="outline-btn" data-action="select-unassigned-notes">${selectedUnassignedNotes === unassignedNotes.length && unassignedNotes.length ? "Deselect unassigned" : "Select unassigned"}</button>
+          ${selectedUnassignedNotes ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+        </div>
         <div class="unassigned-note-grid">${unassignedNotes.map((note) => unassignedNoteCard(note)).join("") || `<p class="muted">No unassigned notes right now.</p>`}</div>
       </section>
     </section>`;
@@ -4665,7 +4690,9 @@
     const project = data.projects.find((item) => item.id === nb.projectId);
     const latestNote = notes.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
     const accent = nb.color || "#4388f3";
-    return `<article class="notebook-tile" style="--notebook-color:${esc(accent)};" data-notebook-drop="${nb.id}" title="Open notebook or drop an unassigned note here">
+    const selected = ui.selectedNotebooks.includes(nb.id);
+    return `<article class="notebook-tile ${selected ? "selected" : ""}" style="--notebook-color:${esc(accent)};" data-action="navigate-notes" data-id="${nb.id}" data-notebook-drop="${nb.id}" title="Open notebook or drop notes here" role="button" tabindex="0">
+      <button class="notebook-select-button ${selected ? "active" : ""}" data-action="toggle-notebook-select" data-id="${nb.id}" aria-label="${selected ? "Deselect" : "Select"} notebook">${selected ? icon("check") : ""}</button>
       <div class="notebook-cover-wrap">
         <button class="notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)}>
           ${media ? `<img src="${esc(media)}" alt="">` : `<span class="notebook-fallback-cover"><span class="round-icon" style="color:#fff;background:rgba(255,255,255,.18);">${icon(nb.icon || "book")}</span></span>`}
@@ -4676,7 +4703,7 @@
       <div class="notebook-tile-body">
         <div class="notebook-title-row">
           <button class="link-title notebook-title" data-action="navigate-notes" data-id="${nb.id}">${esc(nb.title)}</button>
-          <span class="notebook-actions"><button class="icon-btn" data-action="open-modal" data-modal="editNotebook" data-id="${nb.id}" aria-label="Edit notebook">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-notebook" data-id="${nb.id}" aria-label="Delete notebook">${icon("trash")}</button></span>
+          <span class="notebook-actions"><button class="icon-btn" data-action="duplicate-notebook" data-id="${nb.id}" aria-label="Duplicate notebook">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNotebook" data-id="${nb.id}" aria-label="Edit notebook">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-notebook" data-id="${nb.id}" aria-label="Delete notebook">${icon("trash")}</button></span>
         </div>
         <div class="notebook-count-row">
           <span><strong>${count}</strong><small>notes</small></span>
@@ -4692,12 +4719,14 @@
 
   function unassignedNoteCard(note) {
     const importanceColor = noteImportanceColor(note.importance);
-    return `<article class="project-task-mini unassigned-note-mini draggable-note" draggable="true" data-notebook-note-id="${note.id}" title="Drag ${esc(note.title)} onto a notebook tile">
+    const selected = ui.selectedNotes.includes(note.id);
+    return `<article class="project-task-mini unassigned-note-mini draggable-note ${selected ? "selected" : ""}" draggable="true" data-action="open-modal" data-modal="editNote" data-id="${note.id}" data-notebook-note-id="${note.id}" title="Click to edit, or drag ${esc(note.title)} onto a notebook tile" role="button" tabindex="0">
+      <button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button>
       <span class="dot" style="background:${importanceColor}"></span>
       <div class="project-task-mini-body">
         <strong>${esc(note.title)}</strong>
         <div class="subtle">${dateLabel(note.date)} &middot; ${esc(note.subject || "No subject")}</div>
-        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${importanceColor};border-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}">Edit Note</button>
+        <div class="mini-note-actions"><button class="outline-btn" style="min-height:30px;margin-top:6px;color:${importanceColor};border-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}">Edit Note</button><button class="outline-btn" style="min-height:30px;margin-top:6px;" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}">${icon("note")} Copy</button></div>
       </div>
       <span class="project-task-mini-badges"><span class="status importance-pill" style="--importance-color:${importanceColor}">${esc(note.importance || "Low")}</span></span>
     </article>`;
@@ -7210,9 +7239,14 @@
           event.preventDefault();
           return;
         }
+        const noteId = card.dataset.notebookNoteId || "";
+        const noteIds = noteId && ui.selectedNotes.includes(noteId)
+          ? ui.selectedNotes.filter((idValue) => data.notes.some((note) => note.id === idValue))
+          : [noteId].filter(Boolean);
         event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", card.dataset.notebookNoteId || "");
-        event.dataTransfer.setData("application/x-billmaster-note", card.dataset.notebookNoteId || "");
+        event.dataTransfer.setData("text/plain", noteIds[0] || "");
+        event.dataTransfer.setData("application/x-billmaster-note", noteIds[0] || "");
+        event.dataTransfer.setData("application/x-billmaster-notes", JSON.stringify(noteIds));
         card.classList.add("is-dragging");
       });
       card.addEventListener("dragend", () => {
@@ -7225,18 +7259,25 @@
       tile.dataset.dropBound = "true";
       tile.addEventListener("dragover", (event) => {
         const types = Array.from(event.dataTransfer.types || []);
-        if (!types.includes("application/x-billmaster-note") && !types.includes("text/plain")) return;
+        if (!types.includes("application/x-billmaster-notes") && !types.includes("application/x-billmaster-note") && !types.includes("text/plain")) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         tile.classList.add("notebook-drop-active");
       });
       tile.addEventListener("dragleave", () => tile.classList.remove("notebook-drop-active"));
       tile.addEventListener("drop", (event) => {
+        let noteIds = [];
+        try {
+          noteIds = JSON.parse(event.dataTransfer.getData("application/x-billmaster-notes") || "[]");
+        } catch (error) {
+          noteIds = [];
+        }
         const noteId = event.dataTransfer.getData("application/x-billmaster-note") || event.dataTransfer.getData("text/plain");
-        if (!noteId) return;
+        if (!noteIds.length && noteId) noteIds = [noteId];
+        if (!noteIds.length) return;
         event.preventDefault();
         tile.classList.remove("notebook-drop-active");
-        assignNoteToNotebook(noteId, tile.dataset.notebookDrop);
+        assignNotesToNotebook(noteIds, tile.dataset.notebookDrop);
       });
     });
   }
@@ -8158,10 +8199,10 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    const noteCardEl = event.target.closest?.(".note-card[data-action='open-modal']");
-    if (noteCardEl && (event.key === "Enter" || event.key === " ") && !event.target.closest("button,input,select,textarea,a")) {
+    const cardActionEl = event.target.closest?.(".note-card[data-action='open-modal'], .unassigned-note-mini[data-action='open-modal'], .notebook-tile[data-action='navigate-notes']");
+    if (cardActionEl && (event.key === "Enter" || event.key === " ") && !event.target.closest("button,input,select,textarea,a")) {
       event.preventDefault();
-      return handleAction(noteCardEl);
+      return handleAction(cardActionEl);
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "t") {
       event.preventDefault();
@@ -8378,6 +8419,7 @@
     if (action === "delete-note") return deleteNote(el.dataset.id);
     if (action === "toggle-note-select") return toggleNoteSelect(el.dataset.id);
     if (action === "select-visible-notes") return selectVisibleNotes();
+    if (action === "select-unassigned-notes") return selectUnassignedNotes();
     if (action === "clear-selected-notes") return clearSelectedNotes();
     if (action === "delete-selected-notes") return deleteSelectedNotes();
     if (action === "duplicate-notes") return duplicateNotes(el.dataset.id);
@@ -8389,6 +8431,11 @@
     if (action === "save-notebook") return saveNotebook(el.dataset.id);
     if (action === "save-notebook-picture") return saveNotebookPicture(el.dataset.id);
     if (action === "save-goal") return saveGoal(el.dataset.id);
+    if (action === "toggle-notebook-select") return toggleNotebookSelect(el.dataset.id);
+    if (action === "select-visible-notebooks") return selectVisibleNotebooks();
+    if (action === "clear-selected-notebooks") return clearSelectedNotebooks();
+    if (action === "duplicate-notebook") return duplicateNotebooks([el.dataset.id]);
+    if (action === "duplicate-selected-notebooks") return duplicateSelectedNotebooks();
     if (action === "delete-notebook") return deleteNotebook(el.dataset.id);
     if (action === "delete-notebook-subject") return deleteNotebookSubject(el.dataset.id, el.dataset.subject);
     if (action === "delete-goal") return deleteGoal(el.dataset.id);
@@ -10246,6 +10293,13 @@
     render();
   }
 
+  function selectUnassignedNotes() {
+    const ids = data.notes.filter((note) => !note.notebookId).map((note) => note.id);
+    const allSelected = ids.length && ids.every((noteId) => ui.selectedNotes.includes(noteId));
+    ui.selectedNotes = allSelected ? ui.selectedNotes.filter((noteId) => !ids.includes(noteId)) : Array.from(new Set([...ui.selectedNotes, ...ids]));
+    render();
+  }
+
   function clearSelectedNotes() {
     ui.selectedNotes = [];
     render();
@@ -10282,6 +10336,82 @@
     saveData();
     closeModal();
     showToast(`${created.length} note duplicate${created.length === 1 ? "" : "s"} created.`);
+  }
+
+  function visibleNotebooksForCurrentView() {
+    const query = ui.notebookQuery.trim().toLowerCase();
+    return data.notebooks.filter((nb) => {
+      const subjects = notebookSubjects(nb.id).join(" ");
+      return !query || [nb.title, nb.description, subjects].some((part) => String(part || "").toLowerCase().includes(query));
+    });
+  }
+
+  function toggleNotebookSelect(notebookId) {
+    if (!notebookId) return;
+    ui.selectedNotebooks = ui.selectedNotebooks.includes(notebookId)
+      ? ui.selectedNotebooks.filter((item) => item !== notebookId)
+      : [...ui.selectedNotebooks, notebookId];
+    render();
+  }
+
+  function selectVisibleNotebooks() {
+    const ids = visibleNotebooksForCurrentView().map((notebook) => notebook.id);
+    const allSelected = ids.length && ids.every((notebookId) => ui.selectedNotebooks.includes(notebookId));
+    ui.selectedNotebooks = allSelected ? ui.selectedNotebooks.filter((notebookId) => !ids.includes(notebookId)) : Array.from(new Set([...ui.selectedNotebooks, ...ids]));
+    render();
+  }
+
+  function clearSelectedNotebooks() {
+    ui.selectedNotebooks = [];
+    render();
+  }
+
+  function notebookCopyTitle(sourceTitle, createdIndex = 1) {
+    const base = `${sourceTitle || "Notebook"} Copy`;
+    if (createdIndex > 1) return `${base} ${createdIndex}`;
+    if (!data.notebooks.some((notebook) => notebook.title.toLowerCase() === base.toLowerCase())) return base;
+    let suffix = 2;
+    while (data.notebooks.some((notebook) => notebook.title.toLowerCase() === `${base} ${suffix}`.toLowerCase())) suffix += 1;
+    return `${base} ${suffix}`;
+  }
+
+  function duplicateSelectedNotebooks() {
+    return duplicateNotebooks(ui.selectedNotebooks);
+  }
+
+  function duplicateNotebooks(notebookIds) {
+    const sourceIds = Array.from(new Set((Array.isArray(notebookIds) ? notebookIds : [notebookIds]).filter((idValue) => data.notebooks.some((notebook) => notebook.id === idValue))));
+    if (!sourceIds.length) return showToast("Select at least one notebook to duplicate.", "danger");
+    const now = new Date().toISOString();
+    const createdNotebooks = [];
+    const createdNotes = [];
+    sourceIds.forEach((sourceId) => {
+      const source = data.notebooks.find((notebook) => notebook.id === sourceId);
+      const nextNotebook = {
+        ...structuredClone(source),
+        id: id("nb"),
+        title: notebookCopyTitle(source.title),
+        updatedAt: now
+      };
+      createdNotebooks.push(nextNotebook);
+      data.notes
+        .filter((note) => note.notebookId === source.id)
+        .forEach((note) => {
+          createdNotes.push({
+            ...structuredClone(note),
+            id: id("note"),
+            notebookId: nextNotebook.id,
+            updatedAt: now
+          });
+        });
+    });
+    data.notebooks.unshift(...createdNotebooks);
+    data.notes.unshift(...createdNotes);
+    ui.selectedNotebooks = createdNotebooks.map((notebook) => notebook.id);
+    ui.selectedNotes = createdNotes.map((note) => note.id);
+    saveData();
+    render();
+    showToast(`${createdNotebooks.length} notebook${createdNotebooks.length === 1 ? "" : "s"} duplicated with ${createdNotes.length} note${createdNotes.length === 1 ? "" : "s"}.`);
   }
 
   function deleteNotebook(notebookId) {
