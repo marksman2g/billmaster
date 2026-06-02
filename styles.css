@@ -6284,6 +6284,22 @@ canvas {
   border-color: var(--blue);
 }
 
+.note-heading-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.note-heading-line .entity-title {
+  min-width: 0;
+}
+
+.note-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .note-body {
   padding: 14px;
 }
@@ -6357,6 +6373,21 @@ canvas {
   padding: 10px;
 }
 
+.notes-compact .card-row {
+  align-items: start;
+}
+
+.notes-compact .note-heading-line {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+}
+
+.notes-compact .note-heading-line .entity-title {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
 .notes-compact .note-body p {
   display: -webkit-box;
   overflow: hidden;
@@ -6394,6 +6425,37 @@ canvas {
   overflow: hidden;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+}
+
+.subject-manage-row {
+  align-items: center;
+}
+
+.subject-chip-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 3px 8px;
+  color: var(--navy-2);
+  background: #eaf6ff;
+  border: 1px solid #cce6ff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.subject-chip-delete .icon {
+  width: 12px;
+  height: 12px;
+  color: #ff3b30;
+}
+
+.subject-chip-delete:hover {
+  color: #b91c1c;
+  background: #fff1f1;
+  border-color: #fecaca;
 }
 
 .notebook-auto-note {

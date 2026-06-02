@@ -71,6 +71,8 @@
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
   const ADD_NOTEBOOK_VALUE = "__add_note_notebook__";
+  const ADD_NOTE_SUBJECT_VALUE = "__add_note_subject__";
+  const DELETE_NOTE_SUBJECT_VALUE = "__delete_note_subject__";
   const ADD_LOAN_CONTACT_VALUE = "__add_loan_contact__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
@@ -208,12 +210,12 @@
       { id: "proj_3", name: "Big Project note", description: "Big Project note description", status: "On Hold", level: "Low", color: "#6c63ff", dueDate: "2026-06-12" }
     ],
     notebooks: [
-      { id: "nb_1", title: "General Notes", description: "Default", projectId: null, color: "#4388f3", icon: "book" },
-      { id: "nb_2", title: "Eating Healthy", description: "Eating Healthy", projectId: null, color: "#14b8a6", icon: "note", cover: "cherries" },
-      { id: "nb_3", title: "Cats", description: "CAT", projectId: null, color: "#6c63ff", icon: "book" },
-      { id: "nb_4", title: "Big Project note", description: "Big Project note description", projectId: "proj_3", color: "#ff9800", icon: "book" },
-      { id: "nb_5", title: "aaaa", description: "", projectId: "proj_1", color: "#3f83f8", icon: "book" },
-      { id: "nb_6", title: "Eating bananas", description: "This is a test for eating bananas.", projectId: null, color: "#ffc107", icon: "note", cover: "bananas" }
+      { id: "nb_1", title: "General Notes", description: "Default", projectId: null, color: "#4388f3", icon: "book", subjects: ["Math"] },
+      { id: "nb_2", title: "Eating Healthy", description: "Eating Healthy", projectId: null, color: "#14b8a6", icon: "note", cover: "cherries", subjects: [] },
+      { id: "nb_3", title: "Cats", description: "CAT", projectId: null, color: "#6c63ff", icon: "book", subjects: [] },
+      { id: "nb_4", title: "Big Project note", description: "Big Project note description", projectId: "proj_3", color: "#ff9800", icon: "book", subjects: [] },
+      { id: "nb_5", title: "aaaa", description: "", projectId: "proj_1", color: "#3f83f8", icon: "book", subjects: [] },
+      { id: "nb_6", title: "Eating bananas", description: "This is a test for eating bananas.", projectId: null, color: "#ffc107", icon: "note", cover: "bananas", subjects: ["Yellow bananas"] }
     ],
     notes: [
       { id: "note_1", notebookId: "nb_1", title: "Get Isaiah", content: "I need to go to court and documents", date: "2026-04-07", subject: "", importance: "Low", color: "#6c63ff", icon: "note" },
@@ -299,6 +301,7 @@
     "delete-selected-notes",
     "duplicate-notes",
     "delete-notebook",
+    "delete-notebook-subject",
     "save-notebook-picture",
     "delete-goal",
     "delete-contact",
@@ -759,6 +762,7 @@
     normalizeAddresses(nextData);
     normalizeLoans(nextData);
     normalizeProjects(nextData);
+    normalizeNotebooks(nextData);
     normalizeHabits(nextData);
     normalizeHabitTemplates(nextData);
     normalizeContacts(nextData);
@@ -1094,6 +1098,33 @@
       project.dueDate = project.dueDate || todayIso();
       if (!projectLevelOptions.includes(project.level)) project.level = "Medium";
       project.lastEditedAt = String(project.lastEditedAt || "");
+    });
+  }
+
+  function normalizeNotebooks(nextData) {
+    nextData.notebooks = safeArray(nextData.notebooks).map((notebook) => ({
+      ...notebook,
+      id: notebook.id || id("nb"),
+      title: String(notebook.title || "Notebook"),
+      description: String(notebook.description || ""),
+      projectId: notebook.projectId || null,
+      color: notebook.color || "#4388f3",
+      icon: notebook.icon || "book",
+      subjects: Array.from(new Set((Array.isArray(notebook.subjects) ? notebook.subjects : [])
+        .map(normalizeNoteSubjectName)
+        .filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b))
+    }));
+    const notebookIds = new Set(nextData.notebooks.map((notebook) => notebook.id));
+    safeArray(nextData.notes).forEach((note) => {
+      note.notebookId = notebookIds.has(note.notebookId) ? note.notebookId : null;
+      note.subject = normalizeNoteSubjectName(note.subject);
+      if (!note.notebookId || !note.subject) return;
+      const notebook = nextData.notebooks.find((item) => item.id === note.notebookId);
+      if (notebook && !notebook.subjects.some((subject) => subject.toLowerCase() === note.subject.toLowerCase())) {
+        notebook.subjects.push(note.subject);
+        notebook.subjects.sort((a, b) => a.localeCompare(b));
+      }
     });
   }
 
@@ -4140,7 +4171,7 @@
           <span><strong>${subjects.length}</strong><small>subjects</small></span>
           <span><strong>${latestNote ? dateLabel(latestNote.date) : "-"}</strong><small>latest</small></span>
         </div>
-        ${subjects.length ? `<div class="subject-chip-row">${subjects.slice(0, 3).map((subject) => `<span>${esc(subject)}</span>`).join("")}</div>` : `<div class="subject-chip-row"><span>No subjects yet</span></div>`}
+        ${subjects.length ? `<div class="subject-chip-row subject-manage-row">${subjects.slice(0, 3).map((subject) => `<button type="button" class="subject-chip-delete" data-action="delete-notebook-subject" data-id="${nb.id}" data-subject="${esc(subject)}" title="Delete subject ${esc(subject)} from ${esc(nb.title)}">${esc(subject)} ${icon("close")}</button>`).join("")}</div>` : `<div class="subject-chip-row"><span>No subjects yet</span></div>`}
         <p class="notebook-description">${esc(nb.description || "No description yet.")}</p>
         <div class="notebook-footer"><span>${project ? `${icon("folder")} ${esc(project.name)}` : "General library"}</span>${nb.title === "General Notes" ? `<span class="status info">Default</span>` : ""}</div>
       </div>
@@ -4163,7 +4194,7 @@
   function renderNotes() {
     const notebookId = ui.notebookId;
     const baseNotes = notebookId ? data.notes.filter((note) => note.notebookId === notebookId) : data.notes;
-    const subjects = noteSubjectsForNotes(baseNotes);
+    const subjects = notebookId ? notebookSubjects(notebookId) : allNotebookSubjects();
     const activeSubject = normalizedNoteSubjectFilter(subjects);
     const notes = filteredNotesForBase(baseNotes, activeSubject);
     const nb = data.notebooks.find((item) => item.id === notebookId);
@@ -4235,7 +4266,7 @@
           <span><strong>${unassignedCount}</strong><small>unassigned</small></span>
           <span><strong>${latestNote ? dateLabel(latestNote.date) : "-"}</strong><small>latest</small></span>
         </div>
-        <div class="subject-chip-row">${subjects.length ? subjects.slice(0, 5).map((subject) => `<span>${esc(subject)}</span>`).join("") : `<span>No subjects yet</span>`}</div>
+        <div class="subject-chip-row subject-manage-row">${subjects.length ? subjects.slice(0, 5).map((subject) => `<button type="button" class="subject-chip-delete" data-action="delete-notebook-subject" data-id="${nb.id}" data-subject="${esc(subject)}" title="Delete subject ${esc(subject)} from ${esc(nb.title)}">${esc(subject)} ${icon("close")}</button>`).join("") : `<span>No subjects yet</span>`}</div>
         <div class="notebook-importance-strip">
           ${["Low", "Medium", "High", "Critical"].map((level) => `<span style="--importance-color:${noteImportanceColor(level)}"><strong>${noteCounts[level] || 0}</strong>${level}</span>`).join("")}
         </div>
@@ -4256,6 +4287,124 @@
       .map((note) => String(note.subject || "").trim())
       .filter(Boolean)))
       .sort((a, b) => a.localeCompare(b));
+  }
+
+  function normalizeNoteSubjectName(subject) {
+    return String(subject || "").trim().replace(/\s+/g, " ");
+  }
+
+  function notebookById(notebookId) {
+    return data.notebooks.find((notebook) => notebook.id === notebookId);
+  }
+
+  function allNotebookSubjects() {
+    const subjects = [];
+    data.notebooks.forEach((notebook) => subjects.push(...notebookSubjects(notebook.id)));
+    data.notes.forEach((note) => {
+      const subject = normalizeNoteSubjectName(note.subject);
+      if (subject) subjects.push(subject);
+    });
+    return Array.from(new Set(subjects)).sort((a, b) => a.localeCompare(b));
+  }
+
+  function ensureNotebookSubject(notebookId, subject) {
+    const clean = normalizeNoteSubjectName(subject);
+    const notebook = notebookById(notebookId);
+    if (!clean || !notebook) return clean;
+    notebook.subjects = Array.isArray(notebook.subjects) ? notebook.subjects : [];
+    if (!notebook.subjects.some((item) => item.toLowerCase() === clean.toLowerCase())) {
+      notebook.subjects.push(clean);
+      notebook.subjects.sort((a, b) => a.localeCompare(b));
+    }
+    return clean;
+  }
+
+  function deleteNotebookSubject(notebookId, subject) {
+    const notebook = notebookById(notebookId);
+    const clean = normalizeNoteSubjectName(subject);
+    if (!notebook || !clean) return;
+    notebook.subjects = (Array.isArray(notebook.subjects) ? notebook.subjects : [])
+      .filter((item) => item.toLowerCase() !== clean.toLowerCase());
+    data.notes.forEach((note) => {
+      if (note.notebookId === notebook.id && normalizeNoteSubjectName(note.subject).toLowerCase() === clean.toLowerCase()) {
+        note.subject = "";
+        note.updatedAt = new Date().toISOString();
+      }
+    });
+    notebook.updatedAt = new Date().toISOString();
+    saveData();
+    render();
+    showToast(`Subject "${clean}" deleted from ${notebook.title}.`);
+  }
+
+  function createNotebookFromTitle(title) {
+    const clean = String(title || "").trim().replace(/\s+/g, " ");
+    if (!clean) return null;
+    const existing = data.notebooks.find((notebook) => notebook.title.toLowerCase() === clean.toLowerCase());
+    if (existing) return existing;
+    const notebook = {
+      id: id("nb"),
+      title: clean,
+      description: "Created while saving a note",
+      projectId: null,
+      color: "#4388f3",
+      icon: "book",
+      subjects: [],
+      updatedAt: new Date().toISOString()
+    };
+    data.notebooks.unshift(notebook);
+    return notebook;
+  }
+
+  function promptForNoteSubject(notebookId, currentValue = "") {
+    const notebook = notebookById(notebookId);
+    const promptTitle = notebook ? `New subject for ${notebook.title}` : "New subject";
+    const entered = window.prompt(promptTitle, currentValue || "");
+    if (entered === null) return "";
+    return normalizeNoteSubjectName(entered);
+  }
+
+  function subjectOptionMarkup(note, includeDelete = true) {
+    const current = normalizeNoteSubjectName(note.subject);
+    const subjects = notebookSubjects(note.notebookId, current);
+    return `
+      <option value="" ${current ? "" : "selected"}>No subject</option>
+      <option value="${ADD_NOTE_SUBJECT_VALUE}">+ Add subject</option>
+      ${includeDelete && current && note.notebookId ? `<option value="${DELETE_NOTE_SUBJECT_VALUE}">Delete "${esc(current)}"</option>` : ""}
+      ${subjects.map((subject) => `<option value="${esc(subject)}" ${current === subject ? "selected" : ""}>${esc(subject)}</option>`).join("")}`;
+  }
+
+  function activeModalNoteNotebookId() {
+    const selected = value("noteNotebook");
+    if (selected && selected !== ADD_NOTEBOOK_VALUE) return selected;
+    return "";
+  }
+
+  function refreshModalNoteSubjectOptions(selectedSubject = "") {
+    const subjectEl = document.getElementById("noteSubject");
+    if (!subjectEl) return;
+    const notebookId = activeModalNoteNotebookId();
+    const subject = normalizeNoteSubjectName(selectedSubject || subjectEl.value);
+    subjectEl.innerHTML = subjectOptionMarkup({ notebookId, subject });
+  }
+
+  function handleModalNoteSubjectChange(target) {
+    const notebookId = activeModalNoteNotebookId();
+    if (target.value === ADD_NOTE_SUBJECT_VALUE) {
+      const subject = promptForNoteSubject(notebookId);
+      if (!subject) return refreshModalNoteSubjectOptions("");
+      ensureNotebookSubject(notebookId, subject);
+      refreshModalNoteSubjectOptions(subject);
+      saveData();
+      return;
+    }
+    if (target.value === DELETE_NOTE_SUBJECT_VALUE) {
+      const current = normalizeNoteSubjectName(target.dataset.currentSubject || "");
+      const subject = current || normalizeNoteSubjectName(Array.from(target.options).find((option) => option.selected)?.textContent?.replace(/^Delete\s+"|"\s*$/g, ""));
+      if (notebookId && subject) return deleteNotebookSubject(notebookId, subject);
+      refreshModalNoteSubjectOptions("");
+    }
+    target.dataset.currentSubject = target.value;
   }
 
   function normalizedNoteSubjectFilter(subjects) {
@@ -4357,25 +4506,21 @@
     const media = entityImage(note);
     const importanceColor = noteImportanceColor(note.importance);
     const selected = ui.selectedNotes.includes(note.id);
-    const subjectOptions = notebookSubjects(note.notebookId, note.subject);
     return `<article class="note-card note-${String(note.importance || "Low").toLowerCase()} ${selected ? "selected" : ""}" style="--importance-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}" draggable="true" data-notebook-note-id="${note.id}" role="button" tabindex="0" aria-label="Open note ${esc(note.title)}">
       <div class="cover-frame ${media ? "has-image" : "empty"}" ${media ? imageStyleAttr(note) : ""}>
         ${media ? `<img class="cover" src="${esc(media)}" alt="">` : `<span class="note-cover-placeholder">${icon("image")} No picture</span>`}
       </div>
       <div class="note-body">
-        <div class="card-row"><div style="display:flex;gap:10px;align-items:center;"><button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button><span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span><h2 class="entity-title">${esc(note.title)}</h2></div><div style="display:flex;gap:6px;"><button class="icon-btn" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}" aria-label="Duplicate note">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-note" data-id="${note.id}" aria-label="Delete note">${icon("trash")}</button></div></div>
+        <div class="card-row"><div class="note-heading-line"><button class="note-select-button ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button><span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span><h2 class="entity-title">${esc(note.title)}</h2></div><div class="note-card-actions"><button class="icon-btn" data-action="open-modal" data-modal="duplicateNotes" data-id="${note.id}" aria-label="Duplicate note">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${icon("edit")}</button><button class="icon-btn danger-text" data-action="delete-note" data-id="${note.id}" aria-label="Delete note">${icon("trash")}</button></div></div>
         <div class="task-meta"><span>${icon("calendar")} ${dateLabel(note.date)}</span></div>
         <div class="note-inline-controls">
           <label><span>Priority</span><select data-action="note-inline" data-field="importance" data-id="${note.id}">
             ${["Low", "Medium", "High", "Critical"].map((level) => `<option value="${level}" ${note.importance === level ? "selected" : ""}>${level}</option>`).join("")}
           </select></label>
-          <label><span>Subject</span><input data-action="note-inline" data-field="subject" data-id="${note.id}" list="noteSubjectOptions-${note.id}" value="${esc(note.subject || "")}" placeholder="No subject" autocomplete="off"></label>
-          <datalist id="noteSubjectOptions-${note.id}">
-            <option value="">No subject</option>
-            ${subjectOptions.map((subject) => `<option value="${esc(subject)}">${esc(subject)}</option>`).join("")}
-          </datalist>
+          <label><span>Subject</span><select data-action="note-inline" data-field="subject" data-id="${note.id}">${subjectOptionMarkup(note)}</select></label>
           <label><span>Notebook</span><select data-action="note-inline" data-field="notebookId" data-id="${note.id}">
             <option value="" ${note.notebookId ? "" : "selected"}>Unassigned</option>
+            <option value="${ADD_NOTEBOOK_VALUE}">+ New notebook</option>
             ${data.notebooks.map((item) => `<option value="${item.id}" ${note.notebookId === item.id ? "selected" : ""}>${esc(item.title)}</option>`).join("")}
           </select></label>
         </div>
@@ -5614,17 +5759,14 @@
   }
 
   function noteSubjectField(note) {
-    const subjects = notebookSubjects(note.notebookId, note.subject);
     const current = String(note.subject || "").trim();
+    const subjectNote = { ...note, subject: current };
     return `<div class="field">
       <label for="noteSubject">Subject</label>
-      <input id="noteSubject" list="noteSubjectOptions" value="${esc(current)}" placeholder="No subject or type a new subject" autocomplete="off">
-      <datalist id="noteSubjectOptions">
-        <option value="">No subject</option>
-        <option value="+ New subject">Type a new subject</option>
-        ${subjects.map((subject) => `<option value="${esc(subject)}">${esc(subject)}</option>`).join("")}
-      </datalist>
-      <span class="field-hint">Pick an existing subject or type a new one here.</span>
+      <select id="noteSubject" data-note-id="${esc(note.id || "")}" data-current-subject="${esc(current)}">
+        ${subjectOptionMarkup(subjectNote)}
+      </select>
+      <span class="field-hint">Subjects are saved to the selected notebook.</span>
     </div>`;
   }
 
@@ -5658,10 +5800,12 @@
   }
 
   function notebookSubjects(notebookId, includeSubject = "") {
-    const subjects = data.notes
+    const notebook = data.notebooks.find((item) => item.id === notebookId);
+    const subjects = [...(Array.isArray(notebook?.subjects) ? notebook.subjects.map(normalizeNoteSubjectName) : [])];
+    subjects.push(...data.notes
       .filter((note) => !notebookId || note.notebookId === notebookId)
       .map((note) => String(note.subject || "").trim())
-      .filter(Boolean);
+      .filter(Boolean));
     const current = String(includeSubject || "").trim();
     if (current) subjects.push(current);
     return Array.from(new Set(subjects)).sort((a, b) => a.localeCompare(b));
@@ -7057,11 +7201,6 @@
 
   document.addEventListener("input", (event) => {
     const target = event.target;
-    if (target && target.id === "noteSubject" && target.value === "+ New subject") {
-      target.value = "";
-      target.placeholder = "Type the new subject name";
-      return;
-    }
     if (target && target.dataset.action === "bill-search") {
       ui.billQuery = target.value;
       renderPreservingInput(target);
@@ -7158,15 +7297,14 @@
 
   document.addEventListener("change", (event) => {
     const target = event.target;
-    if (target && target.id === "noteSubject" && target.value === "+ New subject") {
-      target.value = "";
-      target.placeholder = "Type the new subject name";
-      target.focus();
+    if (target && target.id === "noteSubject") {
+      handleModalNoteSubjectChange(target);
     }
     if (target && target.id === "noteNotebook") {
       const panel = document.getElementById("noteNotebookNewWrap");
       if (panel) panel.hidden = target.value !== ADD_NOTEBOOK_VALUE;
       if (target.value === ADD_NOTEBOOK_VALUE) document.getElementById("noteNewNotebookTitle")?.focus();
+      refreshModalNoteSubjectOptions();
     }
     if (target && target.dataset.action === "note-inline") {
       updateNoteInline(target.dataset.id, target.dataset.field, target.value);
@@ -7426,6 +7564,7 @@
     if (action === "save-notebook-picture") return saveNotebookPicture(el.dataset.id);
     if (action === "save-goal") return saveGoal(el.dataset.id);
     if (action === "delete-notebook") return deleteNotebook(el.dataset.id);
+    if (action === "delete-notebook-subject") return deleteNotebookSubject(el.dataset.id, el.dataset.subject);
     if (action === "delete-goal") return deleteGoal(el.dataset.id);
     if (action === "delete-project") return deleteProject(el.dataset.id);
     if (action === "save-goal-contribution") return saveGoalContribution(el.dataset.id);
@@ -9222,14 +9361,34 @@
     if (field === "importance") {
       note.importance = ["Low", "Medium", "High", "Critical"].includes(nextValue) ? nextValue : "Low";
     } else if (field === "subject") {
-      note.subject = nextValue;
+      if (nextValue === ADD_NOTE_SUBJECT_VALUE) {
+        const subject = promptForNoteSubject(note.notebookId);
+        if (!subject) return render();
+        note.subject = ensureNotebookSubject(note.notebookId, subject);
+      } else if (nextValue === DELETE_NOTE_SUBJECT_VALUE) {
+        if (note.notebookId && note.subject) return deleteNotebookSubject(note.notebookId, note.subject);
+        note.subject = "";
+      } else {
+        note.subject = normalizeNoteSubjectName(nextValue);
+        if (note.notebookId && note.subject) ensureNotebookSubject(note.notebookId, note.subject);
+      }
     } else if (field === "notebookId") {
-      note.notebookId = data.notebooks.some((item) => item.id === nextValue) ? nextValue : null;
+      if (nextValue === ADD_NOTEBOOK_VALUE) {
+        const title = window.prompt("New notebook name", "");
+        const notebook = createNotebookFromTitle(title);
+        if (!notebook) return render();
+        note.notebookId = notebook.id;
+        if (note.subject) ensureNotebookSubject(notebook.id, note.subject);
+      } else {
+        note.notebookId = data.notebooks.some((item) => item.id === nextValue) ? nextValue : null;
+        if (note.notebookId && note.subject) ensureNotebookSubject(note.notebookId, note.subject);
+      }
     } else {
       return;
     }
     note.updatedAt = new Date().toISOString();
     saveData();
+    render();
     showToast("Note updated.");
   }
 
@@ -10992,7 +11151,7 @@
 
   function noteSubjectValue() {
     const selected = value("noteSubject");
-    return selected === "+ New subject" ? "" : selected;
+    return [ADD_NOTE_SUBJECT_VALUE, DELETE_NOTE_SUBJECT_VALUE].includes(selected) ? "" : normalizeNoteSubjectName(selected);
   }
 
   function noteNotebookIdFromForm() {
@@ -11001,18 +11160,8 @@
     if (selected !== ADD_NOTEBOOK_VALUE) return selected;
     const title = value("noteNewNotebookTitle");
     if (!title) return "";
-    const existing = data.notebooks.find((notebook) => notebook.title.toLowerCase() === title.toLowerCase());
-    if (existing) return existing.id;
-    const notebook = {
-      id: id("nb"),
-      title,
-      description: "Created while saving a note",
-      projectId: null,
-      color: "#4388f3",
-      icon: "book"
-    };
-    data.notebooks.unshift(notebook);
-    return notebook.id;
+    const notebook = createNotebookFromTitle(title);
+    return notebook ? notebook.id : "";
   }
 
   function saveNote(noteId) {
@@ -11022,12 +11171,14 @@
       showToast("Enter a new notebook name first.", "danger");
       return;
     }
+    const subject = noteSubjectValue();
+    if (notebookId && subject) ensureNotebookSubject(notebookId, subject);
     const payload = {
       notebookId,
       title: value("noteTitle") || "Note",
       content: value("noteContent"),
       date: value("noteDate") || "2026-05-06",
-      subject: noteSubjectValue(),
+      subject,
       importance: value("noteImportance") || "Low",
       color: ui.noteColor || note?.color || "#6c63ff",
       icon: "note",
@@ -11047,7 +11198,7 @@
 
   function saveNotebook(notebookId) {
     const notebook = data.notebooks.find((item) => item.id === notebookId);
-    const payload = { title: value("nbTitle") || "New Notebook", description: value("nbDescription"), projectId: value("nbProject") || null, color: notebook?.color || "#4388f3", icon: notebook?.icon || "book", image: imageValue("nb"), imageZoom: imageZoomValue("nb"), imageX: imagePanValue("nb", "x"), imageY: imagePanValue("nb", "y"), imageFit: imageFitValue("nb"), imageOpacity: imageOpacityValue("nb") };
+    const payload = { title: value("nbTitle") || "New Notebook", description: value("nbDescription"), projectId: value("nbProject") || null, color: notebook?.color || "#4388f3", icon: notebook?.icon || "book", subjects: Array.isArray(notebook?.subjects) ? notebook.subjects : [], image: imageValue("nb"), imageZoom: imageZoomValue("nb"), imageX: imagePanValue("nb", "x"), imageY: imagePanValue("nb", "y"), imageFit: imageFitValue("nb"), imageOpacity: imageOpacityValue("nb") };
     if (notebook) Object.assign(notebook, payload);
     else data.notebooks.unshift({ id: id("nb"), ...payload });
     saveData();
