@@ -370,6 +370,8 @@
     "cloud-pull-workspace",
     "cloud-smart-merge",
     "copy-media-storage-plan",
+    "cloud-upload-local-media",
+    "cloud-refresh-media-links",
     "simulate-detect",
     "simulate-import",
     "run-smart-sync",
@@ -655,6 +657,42 @@
     };
     if (authenticated && cloudSession?.accessToken) headers.Authorization = `Bearer ${cloudSession.accessToken}`;
     return headers;
+  }
+
+  function cloudBinaryHeaders(extra = {}) {
+    const headers = {
+      apikey: cloudConfig.anonKey,
+      ...extra
+    };
+    if (cloudSession?.accessToken) headers.Authorization = `Bearer ${cloudSession.accessToken}`;
+    return headers;
+  }
+
+  async function cloudStorageFetch(path, options = {}) {
+    if (!cloudConfigured()) throw new Error("Supabase is not configured.");
+    await refreshCloudSessionIfNeeded();
+    const response = await fetch(`${cloudConfig.url}/storage/v1${path}`, {
+      ...options,
+      headers: cloudBinaryHeaders(options.headers || {})
+    });
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        body = text;
+      }
+    }
+    if (!response.ok) {
+      const message = body?.msg || body?.message || body?.error_description || body?.error || `Supabase storage request failed (${response.status}).`;
+      if (/jwt required|jwt expired|invalid jwt|missing authorization|not authenticated/i.test(String(message))) {
+        saveCloudSession(null);
+        throw new Error("Your cloud sign-in expired. Sign in again, then retry.");
+      }
+      throw new Error(message);
+    }
+    return body;
   }
 
   async function cloudFetch(path, options = {}, authenticated = true) {
@@ -2635,33 +2673,47 @@
 
   function mediaStoragePanel() {
     const stats = mediaPortabilityStats();
-    const statusClass = stats.localData ? "warn" : stats.total ? "success" : "info";
-    const statusLabel = stats.localData ? `${stats.localData} local upload${stats.localData === 1 ? "" : "s"}` : stats.total ? "Portable" : "No media yet";
+    const statusClass = stats.localData ? "warn" : stats.cloudStorage ? "success" : stats.total ? "success" : "info";
+    const statusLabel = stats.localData
+      ? `${stats.localData} local upload${stats.localData === 1 ? "" : "s"}`
+      : stats.cloudStorage
+        ? "Cloud-backed"
+        : stats.total
+          ? "Portable"
+          : "No media yet";
     const rows = stats.byCollection
       .filter((item) => item.total)
       .slice(0, 8)
-      .map((item) => `<span><strong>${esc(item.label)}</strong><small>${item.total} image${item.total === 1 ? "" : "s"} | ${item.localData} local</small></span>`)
+      .map((item) => `<span><strong>${esc(item.label)}</strong><small>${item.total} image${item.total === 1 ? "" : "s"} | ${item.localData} local | ${item.cloudStorage} cloud</small></span>`)
       .join("");
+    const bucketStatus = cloudSignedIn()
+      ? stats.localData
+        ? "Ready to upload"
+        : "Private bucket ready"
+      : "Sign in first";
     return `<section class="section-card media-storage-panel">
       <div class="media-storage-copy">
         <span class="round-icon" style="color:${stats.localData ? "var(--amber)" : "var(--green)"};background:${stats.localData ? "#fff5d6" : "#e9f8ef"}">${icon(stats.localData ? "alert" : "camera")}</span>
         <div>
           <div class="section-title compact-title"><h2>Media Storage Readiness</h2><span class="status ${statusClass}">${esc(statusLabel)}</span></div>
-          <p class="muted">Pictures already travel with this workspace when they are web or Google Drive links. Local uploads are saved in the workspace for now; the next production move is uploading them to the private <strong>billmaster-media</strong> Supabase bucket.</p>
+          <p class="muted">Upload local pictures to your private <strong>billmaster-media</strong> Supabase bucket so they show on phone and iPad without carrying giant browser-only image data.</p>
         </div>
       </div>
       <div class="cloud-facts media-storage-facts">
         <span><strong>Total pictures</strong><small>${stats.total}</small></span>
-        <span><strong>Portable links</strong><small>${stats.web + stats.googleDrive}</small></span>
+        <span><strong>Portable links</strong><small>${stats.web + stats.googleDrive + stats.cloudStorage}</small></span>
         <span><strong>Local uploads</strong><small>${stats.localData}</small></span>
-        <span><strong>Bucket</strong><small>${cloudSignedIn() ? "Ready to test upload step" : "Sign in first"}</small></span>
+        <span><strong>Cloud-backed</strong><small>${stats.cloudStorage}</small></span>
+        <span><strong>Bucket</strong><small>${esc(bucketStatus)}</small></span>
       </div>
       ${rows ? `<div class="media-collection-list">${rows}</div>` : `<p class="muted">Add pictures to tasks, habits, notes, notebooks, projects, goals, loans, bills, or subscriptions and this panel will track them.</p>`}
       <div class="sheet-actions media-storage-actions">
+        <button class="primary-btn" data-action="cloud-upload-local-media" ${cloudSignedIn() && stats.localData ? "" : "disabled"}>${icon("cloud")} Upload local pictures</button>
+        <button class="outline-btn" data-action="cloud-refresh-media-links" ${cloudSignedIn() && stats.cloudStorage ? "" : "disabled"}>${icon("camera")} Refresh picture links</button>
         <button class="outline-btn" data-action="copy-media-storage-plan">${icon("note")} Copy media plan</button>
         <button class="outline-btn" data-action="navigate" data-view="notebooks">${icon("book")} Notebooks</button>
         <button class="outline-btn" data-action="navigate" data-view="projects">${icon("folder")} Projects</button>
-        <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Sync media data</button>
+        <button class="secondary-btn" data-action="cloud-push-workspace" ${cloudSignedIn() ? "" : "disabled"}>${icon("wallet")} Push workspace</button>
       </div>
     </section>`;
   }
@@ -6392,28 +6444,225 @@
     return "other";
   }
 
+  function mediaFieldForItem(item) {
+    if (item?.image) return "image";
+    if (item?.cover) return "cover";
+    return "image";
+  }
+
+  function mediaCloudPath(item, field = mediaFieldForItem(item)) {
+    return String(item?.[`${field}CloudPath`] || item?.imageCloudPath || item?.coverCloudPath || "").trim();
+  }
+
+  function mediaTrackedEntries() {
+    const entries = [];
+    mediaTrackedCollections().forEach(([collection, label]) => {
+      safeArray(data[collection]).forEach((item) => {
+        const field = mediaFieldForItem(item);
+        const source = item?.[field] || "";
+        const kind = mediaSourceKind(source);
+        const cloudPath = mediaCloudPath(item, field);
+        if (!kind && !cloudPath) return;
+        entries.push({ collection, label, item, field, source, kind: cloudPath ? "cloudStorage" : kind, cloudPath });
+      });
+    });
+    return entries;
+  }
+
+  function sanitizeStorageSegment(value, fallback = "item") {
+    const clean = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 72);
+    return clean || fallback;
+  }
+
+  function encodeStoragePath(path) {
+    return String(path || "")
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const match = String(dataUrl || "").match(/^data:([^;,]+)(;base64)?,(.*)$/);
+    if (!match) throw new Error("This picture is not a valid local image.");
+    const mime = match[1] || "image/jpeg";
+    const payload = match[3] || "";
+    const binary = match[2] ? atob(payload) : decodeURIComponent(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new Blob([bytes], { type: mime });
+  }
+
+  function mediaExtensionFromMime(mime) {
+    const text = String(mime || "").toLowerCase();
+    if (text.includes("png")) return "png";
+    if (text.includes("webp")) return "webp";
+    if (text.includes("gif")) return "gif";
+    if (text.includes("svg")) return "svg";
+    return "jpg";
+  }
+
+  function mediaStoragePath(entry, blob) {
+    if (entry.cloudPath) return entry.cloudPath;
+    const userId = cloudSession?.user?.id || "user";
+    const collection = sanitizeStorageSegment(entry.collection, "media");
+    const itemId = sanitizeStorageSegment(entry.item?.id || id("media"), "item");
+    const field = sanitizeStorageSegment(entry.field, "image");
+    const stamp = Date.now();
+    const extension = mediaExtensionFromMime(blob?.type);
+    return `${userId}/${collection}/${itemId}-${field}-${stamp}.${extension}`;
+  }
+
+  function signedMediaUrlFromResponse(body) {
+    const signed = String(body?.signedURL || body?.signedUrl || body?.signed_url || "");
+    if (!signed) throw new Error("Supabase did not return a signed picture link.");
+    if (/^https?:\/\//i.test(signed)) return signed;
+    if (signed.startsWith("/storage/v1")) return `${cloudConfig.url}${signed}`;
+    if (signed.startsWith("/object")) return `${cloudConfig.url}/storage/v1${signed}`;
+    if (signed.startsWith("/")) return `${cloudConfig.url}${signed}`;
+    return `${cloudConfig.url}/storage/v1/${signed}`;
+  }
+
+  async function signCloudMediaPath(path, expiresIn = 31536000) {
+    const body = await cloudStorageFetch(`/object/sign/billmaster-media/${encodeStoragePath(path)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn })
+    });
+    return {
+      url: signedMediaUrlFromResponse(body),
+      expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString()
+    };
+  }
+
+  async function uploadMediaEntryToCloud(entry) {
+    const blob = dataUrlToBlob(entry.source);
+    const path = mediaStoragePath(entry, blob);
+    await cloudStorageFetch(`/object/billmaster-media/${encodeStoragePath(path)}`, {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "application/octet-stream", "x-upsert": "true" },
+      body: blob
+    });
+    const signed = await signCloudMediaPath(path);
+    const now = new Date().toISOString();
+    entry.item[entry.field] = signed.url;
+    entry.item[`${entry.field}CloudBucket`] = "billmaster-media";
+    entry.item[`${entry.field}CloudPath`] = path;
+    entry.item[`${entry.field}CloudSignedAt`] = now;
+    entry.item[`${entry.field}CloudExpiresAt`] = signed.expiresAt;
+    entry.item.updatedAt = now;
+    return path;
+  }
+
+  async function uploadLocalMediaToCloud() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before uploading pictures.", "danger");
+      return;
+    }
+    const entries = mediaTrackedEntries().filter((entry) => entry.kind === "localData" && isDataImage(entry.source));
+    if (!entries.length) {
+      showToast("No local pictures need uploading right now.");
+      return;
+    }
+    let uploaded = 0;
+    let failed = 0;
+    showToast(`Uploading ${entries.length} local picture${entries.length === 1 ? "" : "s"} to Supabase...`, "success", { render: false });
+    for (const entry of entries) {
+      try {
+        await uploadMediaEntryToCloud(entry);
+        uploaded += 1;
+      } catch (error) {
+        failed += 1;
+        console.warn("BillMaster media upload failed.", entry.collection, entry.item?.id, error);
+      }
+    }
+    if (uploaded) {
+      const saved = saveData();
+      if (saved) {
+        try {
+          await pushWorkspaceToCloud("media");
+        } catch (error) {
+          console.warn("BillMaster could not push media workspace changes.", error);
+          showToast(`Pictures uploaded, but push needs retry: ${error.message}`, "danger");
+          render();
+          return;
+        }
+      }
+    }
+    render();
+    if (uploaded && !failed) showToast(`${uploaded} picture${uploaded === 1 ? "" : "s"} uploaded and synced.`);
+    else if (uploaded) showToast(`${uploaded} uploaded. ${failed} need another try.`, "danger");
+    else showToast("Picture upload failed. Check the Supabase storage bucket policies.", "danger");
+  }
+
+  async function refreshCloudMediaLinks() {
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before refreshing picture links.", "danger");
+      return;
+    }
+    const entries = mediaTrackedEntries().filter((entry) => entry.cloudPath);
+    if (!entries.length) {
+      showToast("No cloud picture links need refreshing yet.");
+      return;
+    }
+    let refreshed = 0;
+    let failed = 0;
+    for (const entry of entries) {
+      try {
+        const signed = await signCloudMediaPath(entry.cloudPath);
+        const now = new Date().toISOString();
+        entry.item[entry.field] = signed.url;
+        entry.item[`${entry.field}CloudSignedAt`] = now;
+        entry.item[`${entry.field}CloudExpiresAt`] = signed.expiresAt;
+        entry.item.updatedAt = now;
+        refreshed += 1;
+      } catch (error) {
+        failed += 1;
+        console.warn("BillMaster media link refresh failed.", entry.collection, entry.item?.id, error);
+      }
+    }
+    if (refreshed) {
+      saveData();
+      try {
+        await pushWorkspaceToCloud("media-links");
+      } catch (error) {
+        console.warn("BillMaster could not push refreshed media links.", error);
+      }
+    }
+    render();
+    if (refreshed && !failed) showToast(`${refreshed} cloud picture link${refreshed === 1 ? "" : "s"} refreshed.`);
+    else if (refreshed) showToast(`${refreshed} refreshed. ${failed} need another try.`, "danger");
+    else showToast("Could not refresh cloud picture links.", "danger");
+  }
+
   function mediaPortabilityStats() {
     const stats = {
       total: 0,
       web: 0,
       googleDrive: 0,
       localData: 0,
+      cloudStorage: 0,
       devicePath: 0,
       stock: 0,
       other: 0,
       byCollection: []
     };
+    const entries = mediaTrackedEntries();
     mediaTrackedCollections().forEach(([collection, label]) => {
-      const row = { collection, label, total: 0, localData: 0 };
-      safeArray(data[collection]).forEach((item) => {
-        const source = item?.image || item?.cover || "";
-        const kind = mediaSourceKind(source);
+      const row = { collection, label, total: 0, localData: 0, cloudStorage: 0 };
+      entries.filter((entry) => entry.collection === collection).forEach((entry) => {
+        const kind = entry.kind;
         if (!kind) return;
         stats.total += 1;
         row.total += 1;
         if (stats[kind] !== undefined) stats[kind] += 1;
         else stats.other += 1;
         if (kind === "localData") row.localData += 1;
+        if (kind === "cloudStorage") row.cloudStorage += 1;
       });
       stats.byCollection.push(row);
     });
@@ -6426,8 +6675,9 @@
       "BillMaster Media Storage Plan",
       "",
       `Total pictures tracked: ${stats.total}`,
-      `Portable web/Google links: ${stats.web + stats.googleDrive}`,
+      `Portable web/Google/cloud links: ${stats.web + stats.googleDrive + stats.cloudStorage}`,
       `Local uploads currently stored in workspace JSON: ${stats.localData}`,
+      `Private Supabase Storage pictures: ${stats.cloudStorage}`,
       `Device-only file paths: ${stats.devicePath}`,
       "",
       "Next production step:",
@@ -6439,7 +6689,7 @@
       "By area:",
       ...stats.byCollection
         .filter((item) => item.total)
-        .map((item) => `- ${item.label}: ${item.total} image(s), ${item.localData} local upload(s)`)
+        .map((item) => `- ${item.label}: ${item.total} image(s), ${item.localData} local upload(s), ${item.cloudStorage} cloud-backed`)
     ];
     try {
       await copyText(lines.join("\n"));
@@ -7797,6 +8047,8 @@
     if (action === "cloud-smart-merge") return cloudSmartMergeNow();
     if (action === "toggle-cloud-auto-sync") return toggleCloudAutoSync();
     if (action === "copy-media-storage-plan") return copyMediaStoragePlan();
+    if (action === "cloud-upload-local-media") return uploadLocalMediaToCloud();
+    if (action === "cloud-refresh-media-links") return refreshCloudMediaLinks();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
     if (action === "simulate-import") return simulateImport();
