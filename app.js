@@ -1574,6 +1574,15 @@
     return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
 
+  function moneyWhole(value) {
+    return Number(value || 0).toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0
+    });
+  }
+
   function reportableTransactions(type = "") {
     return data.transactions.filter((tx) => !tx.isTransfer && (!type || tx.type === type));
   }
@@ -4585,10 +4594,10 @@
       ${header("Financial Goals", `<button class="icon-btn" data-action="open-modal" data-modal="editGoal">${icon("plus")}</button>`)}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
         <div class="card-row">
-          <div><div class="balance-label">Active Goal Balance</div><div class="balance-amount">${money(sum(activeGoals, "current"))}</div></div>
+          <div><div class="balance-label">Active Goal Balance</div><div class="balance-amount">${moneyWhole(sum(activeGoals, "current"))}</div></div>
           <span class="pill dark">${activeGoals.length} active</span>
         </div>
-        <div class="balance-meta"><span>${icon("chart")} Active target ${money(sum(activeGoals, "target"))}</span><span>${icon("check")} Completed ${completedGoals.length}</span><span>${icon("task")} Linked tasks ${data.tasks.filter((task) => task.goalId).length}</span></div>
+        <div class="balance-meta"><span>${icon("chart")} Active target ${moneyWhole(sum(activeGoals, "target"))}</span><span>${icon("check")} Completed ${completedGoals.length}</span><span>${icon("task")} Linked tasks ${data.tasks.filter((task) => task.goalId).length}</span></div>
       </section>
       <div class="filter-row goal-view-row">
         ${[["active", "In Progress"], ["completed", "Completed"], ["all", "All"]].map(([status, label]) => `<button class="${ui.goalStatusFilter === status ? "active" : ""}" data-action="set-tab" data-key="goalStatusFilter" data-value="${status}">${label}</button>`).join("")}
@@ -4623,9 +4632,9 @@
           </div>
         </div>
         <div class="compact-goal-amounts">
-          <span><strong class="positive">${money(goal.current)}</strong><small>saved</small></span>
-          <span><strong>${money(goal.target)}</strong><small>target</small></span>
-          <span><strong>${money(remaining)}</strong><small>to go</small></span>
+          <span><strong class="positive">${moneyWhole(goal.current)}</strong><small>saved</small></span>
+          <span><strong>${moneyWhole(goal.target)}</strong><small>target</small></span>
+          <span><strong>${moneyWhole(remaining)}</strong><small>to go</small></span>
         </div>
         <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
         <div class="compact-goal-meta">
@@ -4653,8 +4662,8 @@
         </div>
       </div>
       <div class="goal-money-line">
-        <span><strong class="amount-large positive">${money(goal.current)}</strong><small>of ${money(goal.target)}</small></span>
-        <strong class="goal-remaining">${money(remaining)} to go</strong>
+        <span><strong class="amount-large positive">${moneyWhole(goal.current)}</strong><small>of ${moneyWhole(goal.target)}</small></span>
+        <strong class="goal-remaining">${moneyWhole(remaining)} to go</strong>
       </div>
       <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
       <div class="card-row" style="margin-top:10px;">

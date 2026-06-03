@@ -1403,12 +1403,15 @@ button.round-icon {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 12px;
+  justify-content: space-between;
+  gap: 6px 14px;
   margin: 12px 0 8px;
+  width: 100%;
 }
 
 .goal-money-line span {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
@@ -1424,6 +1427,9 @@ button.round-icon {
   color: var(--red);
   font-size: .98rem;
   font-weight: 900;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .goal-plan-card,
