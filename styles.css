@@ -1168,7 +1168,7 @@ button.round-icon {
 }
 
 .lending-stats {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .lending-stats .stat-card {
@@ -4236,6 +4236,27 @@ button.round-icon {
   transform: translateY(-1px);
 }
 
+.compact-loan-card.loan-done-card {
+  border-color: #c5ebce;
+  background:
+    linear-gradient(90deg, rgba(76, 175, 80, 0.12), rgba(255, 255, 255, 0.92)),
+    var(--loan-base-bg, #fff);
+}
+
+.compact-loan-card.loan-done-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(76, 175, 80, 0.08) 0 10px,
+      rgba(255, 255, 255, 0) 10px 22px
+    );
+  content: "";
+  pointer-events: none;
+}
+
 .loan-card-top,
 .loan-meta-row {
   display: flex;
@@ -4330,7 +4351,7 @@ button.round-icon {
 }
 
 .loan-actions {
-  grid-template-columns: repeat(5, minmax(48px, 1fr));
+  grid-template-columns: repeat(6, minmax(44px, 1fr));
   align-items: center;
   gap: 6px;
 }

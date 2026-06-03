@@ -303,6 +303,8 @@
     "save-repayment",
     "save-forgiveness",
     "forgive-loan",
+    "mark-loan-done",
+    "restore-loan",
     "delete-loan",
     "delete-bill",
     "delete-transaction",
@@ -1101,6 +1103,7 @@
     (nextData.loans || []).forEach((loan) => {
       const hadForgiven = loan.forgiven !== undefined && loan.forgiven !== null && loan.forgiven !== "";
       const rawStatus = String(loan.status || "").toLowerCase();
+      const isDone = rawStatus === "done" || loan.done === true;
       loan.borrower = String(loan.borrower || "Borrower");
       loan.contactId = loan.contactId || null;
       loan.borrowerPhone = String(loan.borrowerPhone || "");
@@ -1117,7 +1120,9 @@
       if (loan.repaid > loan.amount) loan.repaid = loan.amount;
       if (loan.forgiven >= loan.amount && loan.amount > 0) loan.repaid = 0;
       if (loan.repaid + loan.forgiven > loan.amount) loan.forgiven = Math.max(0, loan.amount - loan.repaid);
-      loan.status = loanStatusFromAmounts(loan);
+      loan.done = isDone;
+      loan.doneAt = isDone ? (loan.doneAt || todayIso()) : "";
+      loan.status = isDone ? "Done" : loanStatusFromAmounts(loan);
     });
   }
 
@@ -1213,6 +1218,7 @@
   }
 
   function loanStatusFromAmounts(loan) {
+    if (loan?.done || String(loan?.status || "").toLowerCase() === "done") return "Done";
     const amount = loanAmount(loan);
     const repaid = loanRepaid(loan);
     const forgiven = loanForgiven(loan);
@@ -1229,6 +1235,11 @@
 
   function lendingSummary() {
     return data.loans.reduce((summary, loan) => {
+      if (loanIsDone(loan)) {
+        summary.done += 1;
+        summary.total += 1;
+        return summary;
+      }
       const status = loanStatusFromAmounts(loan);
       const remaining = loanRemaining(loan);
       summary.outstanding += remaining;
@@ -1237,7 +1248,11 @@
       summary.forgiven += loanForgiven(loan);
       summary.total += 1;
       return summary;
-    }, { outstanding: 0, partial: 0, repaid: 0, forgiven: 0, total: 0 });
+    }, { outstanding: 0, partial: 0, repaid: 0, forgiven: 0, done: 0, total: 0 });
+  }
+
+  function loanIsDone(loan) {
+    return loan?.done === true || String(loan?.status || "").toLowerCase() === "done";
   }
 
   function normalizeProjects(nextData) {
@@ -1605,7 +1620,7 @@
 
   function statusClass(status) {
     const s = String(status || "").toLowerCase();
-    if (["paid", "active", "completed", "received", "closed"].includes(s)) return "success";
+    if (["paid", "active", "completed", "received", "closed", "done"].includes(s)) return "success";
     if (["trial", "due soon", "partial", "money owed"].includes(s)) return "warn";
     if (["in progress"].includes(s)) return "info";
     if (["overdue", "failed", "cancelled", "urgent"].includes(s)) return "danger";
@@ -5350,16 +5365,19 @@
         <div class="stat-card" style="border-color:#cbe9ff;"><span class="muted">${icon("chart")}</span><strong class="amount-large money-blue">${money(summary.partial)}</strong><div class="subtle">Money Owed</div></div>
         <div class="stat-card" style="border-color:#c5ebce;"><span class="muted">${icon("check")}</span><strong class="amount-large positive">${money(summary.repaid)}</strong><div class="subtle">Repaid</div></div>
         <div class="stat-card" style="border-color:#d9dce5;"><span class="muted">${icon("close")}</span><strong class="amount-large muted">${money(summary.forgiven)}</strong><div class="subtle">Forgiven</div></div>
+        <div class="stat-card" style="border-color:#c5ebce;"><span class="muted">${icon("check")}</span><strong class="amount-large positive">${summary.done}</strong><div class="subtle">Done</div></div>
         <div class="stat-card" style="border-color:#d0ccff;"><span class="muted">${icon("loan")}</span><strong class="amount-large" style="color:var(--accent)">${summary.total}</strong><div class="subtle">Total Loans</div></div>
       </div>
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="loanSearch" value="${esc(ui.loanQuery)}" data-action="loan-search" placeholder="Search borrower name..." /></label>
-      <div class="filter-row">${["all", "outstanding", "partial", "repaid", "forgiven"].map((filter) => `<button class="${ui.lendingFilter === filter ? "active" : ""}" data-action="set-tab" data-key="lendingFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}</div>
+      <div class="filter-row">${["all", "outstanding", "partial", "repaid", "forgiven", "done"].map((filter) => `<button class="${ui.lendingFilter === filter ? "active" : ""}" data-action="set-tab" data-key="lendingFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}</div>
       <div class="loan-grid">${filteredLoans.length ? filteredLoans.map((loan) => loanCard(loan)).join("") : `<section class="section-card loan-grid-empty"><p class="muted">No ${esc(filterLabel(ui.lendingFilter).toLowerCase())} loans right now.</p></section>`}</div>
     </section>`;
   }
 
   function matchesLendingFilter(loan, filter) {
     const status = loanStatusFromAmounts(loan);
+    if (filter === "done") return loanIsDone(loan);
+    if (loanIsDone(loan)) return false;
     if (filter === "outstanding") return loanRemaining(loan) > 0;
     if (filter === "partial") return status === "Money Owed";
     if (filter === "repaid") return status === "Repaid" || status === "Closed";
@@ -5379,7 +5397,8 @@
     const forgivenEndPct = amount ? clamp(((repaid + forgiven) / amount) * 100, forgivenStartPct, 100) : forgivenStartPct;
     const baseBg = dueOrOverdue ? "#fff4f4" : "#ffffff";
     const media = entityImage(loan);
-    return `<article class="loan-card compact-loan-card ${dueOrOverdue ? "overdue" : ""}" style="--repaid-pct:${round1(repaidPct)}%;--forgiven-start-pct:${round1(forgivenStartPct)}%;--forgiven-end-pct:${round1(forgivenEndPct)}%;--loan-base-bg:${baseBg};" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}" title="Click blank space to edit ${esc(loan.borrower)}">
+    const done = loanIsDone(loan);
+    return `<article class="loan-card compact-loan-card ${dueOrOverdue ? "overdue" : ""} ${done ? "loan-done-card" : ""}" style="--repaid-pct:${round1(repaidPct)}%;--forgiven-start-pct:${round1(forgivenStartPct)}%;--forgiven-end-pct:${round1(forgivenEndPct)}%;--loan-base-bg:${baseBg};" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}" title="Click blank space to edit ${esc(loan.borrower)}">
       <div class="loan-card-top">
         <div class="loan-person">${media ? `<span class="media-thumb" ${imageStyleAttr(loan)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:#1d6fd9;background:#e7f3ff;">${esc(loan.borrower.charAt(0))}</span>`}<div><h2 class="entity-title"><button class="link-title" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}">${esc(loan.borrower)}</button></h2><div class="entity-subtitle">${esc(loan.description)}</div>${loan.borrowerPhone || loan.borrowerEmail ? `<div class="entity-subtitle">${esc([loan.borrowerPhone, loan.borrowerEmail].filter(Boolean).join(" · "))}</div>` : ""}</div></div>
         <div class="loan-amount-block"><strong class="amount-large">${money(remaining)}</strong><span class="status ${statusClass(status)}">${esc(status)}</span></div>
@@ -5395,6 +5414,7 @@
         <button class="outline-btn" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}">${icon("edit")} Edit</button>
         <button class="outline-btn" data-action="open-modal" data-modal="repayLoan" data-id="${loan.id}">${icon("wallet")} Pay</button>
         <button class="outline-btn" data-action="open-modal" data-modal="forgiveLoan" data-id="${loan.id}">${icon("check")} Forgive</button>
+        <button class="${done ? "secondary-btn" : "outline-btn"}" data-action="${done ? "restore-loan" : "mark-loan-done"}" data-id="${loan.id}">${icon(done ? "back" : "check")} ${done ? "Restore" : "Done"}</button>
         <button class="outline-btn" data-action="open-loan-alert" data-id="${loan.id}">${icon("bell")} Notify</button>
         <button class="danger-btn loan-delete-btn" data-action="delete-loan" data-id="${loan.id}" aria-label="Delete loan">${icon("trash")} Delete</button>
       </div>
@@ -8681,6 +8701,8 @@
     if (action === "save-repayment") return saveRepayment(el.dataset.id);
     if (action === "save-forgiveness") return saveForgiveness(el.dataset.id);
     if (action === "forgive-loan") return forgiveLoan(el.dataset.id);
+    if (action === "mark-loan-done") return markLoanDone(el.dataset.id);
+    if (action === "restore-loan") return restoreLoan(el.dataset.id);
     if (action === "open-loan-alert") return openLoanAlert(el.dataset.id);
     if (action === "delete-loan") return deleteLoan(el.dataset.id);
     if (action === "save-address") return saveAddress(el.dataset.id);
@@ -10410,6 +10432,8 @@
       date: loanDate,
       dueDate,
       type: "Lent",
+      done: loan?.done === true,
+      doneAt: loan?.doneAt || "",
       image: imageValue("loan"),
       imageZoom: imageZoomValue("loan"),
       imageX: imagePanValue("loan", "x"),
@@ -10530,6 +10554,26 @@
     saveData();
     ui.modal = null;
     showToast(`${money(applied)} forgiven. ${money(remaining)} still outstanding.`);
+  }
+
+  function markLoanDone(loanId) {
+    const loan = data.loans.find((item) => item.id === loanId);
+    if (!loan) return;
+    loan.done = true;
+    loan.doneAt = todayIso();
+    loan.status = "Done";
+    saveData();
+    showToast(`${loan.borrower} moved to Done. Use the Done filter to review it later.`);
+  }
+
+  function restoreLoan(loanId) {
+    const loan = data.loans.find((item) => item.id === loanId);
+    if (!loan) return;
+    loan.done = false;
+    loan.doneAt = "";
+    loan.status = loanStatusFromAmounts({ ...loan, done: false, status: "" });
+    saveData();
+    showToast(`${loan.borrower} restored to active lending.`);
   }
 
   function deleteLoan(loanId) {
