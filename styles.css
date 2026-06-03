@@ -941,6 +941,20 @@ button.round-icon {
   border-color: var(--navy-2);
 }
 
+.primary-btn,
+.secondary-btn,
+.outline-btn,
+.ghost-btn,
+.danger-btn,
+.danger-soft-btn,
+.success-btn,
+.text-btn,
+.mode-toggle,
+.category-filter-bar button,
+.time-period-chip {
+  min-width: 0;
+}
+
 .danger-btn {
   color: var(--red);
   background: #fff;
@@ -1000,6 +1014,7 @@ button.round-icon {
   text-align: center;
   border: 0;
   box-shadow: none;
+  min-width: 0;
 }
 
 .action-tile .round-icon {
@@ -8262,6 +8277,13 @@ canvas {
   .friend-safety-flow {
     grid-template-columns: 1fr 1fr;
   }
+
+  .project-task-list,
+  .notes-compact,
+  .notes-gallery,
+  .notebook-grid {
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 640px) {
@@ -8321,6 +8343,29 @@ canvas {
     max-width: 100%;
   }
 
+  .quick-add {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .quick-add input {
+    min-width: 0;
+  }
+
+  .action-grid,
+  .action-groups .action-grid {
+    gap: 8px;
+  }
+
+  .action-tile {
+    min-height: 76px;
+    padding: 8px 5px;
+  }
+
+  .action-tile .round-icon {
+    width: 34px;
+    height: 34px;
+  }
+
   .prism-hero,
   .sync-panel {
     grid-template-columns: 1fr;
@@ -8328,8 +8373,34 @@ canvas {
 
   .cloud-facts,
   .cloud-actions,
-  .cloud-start-card {
+  .cloud-start-card,
+  .friend-alpha-head,
+  .friend-alpha-checks,
+  .friend-alpha-script,
+  .friend-alpha-actions,
+  .alpha-feedback-summary,
+  .alpha-feedback-list,
+  .friend-safety-grid,
+  .friend-onboarding-steps,
+  .friend-feedback-grid,
+  .media-storage-actions,
+  .google-contact-actions,
+  .notification-actions {
     grid-template-columns: 1fr;
+  }
+
+  .friend-alpha-score {
+    justify-self: start;
+    width: 64px;
+    height: 64px;
+    font-size: 1.65rem;
+  }
+
+  .cloud-sync-status-line strong,
+  .cloud-sync-status-line small,
+  .friend-alpha-check strong,
+  .friend-alpha-check small {
+    overflow-wrap: anywhere;
   }
 
   .cloud-start-actions {
@@ -8402,15 +8473,42 @@ canvas {
   .calendar-title-cluster {
     flex-wrap: wrap;
     gap: 6px;
+    justify-content: center;
   }
 
   .calendar-title-button {
     font-size: 1.08rem;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .today-jump {
     min-height: 30px;
     padding-inline: 9px;
+  }
+
+  .weather-title {
+    min-height: 28px;
+    font-size: 0.68rem;
+  }
+
+  .calendar-controls {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .week-strip {
+    display: flex;
+    gap: 6px;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .week-day {
+    flex: 0 0 112px;
   }
 
   .lending-stats {
@@ -8432,6 +8530,40 @@ canvas {
 
   .block-calendar {
     min-width: 760px;
+  }
+
+  .block-toolbar {
+    align-items: stretch;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .block-toolbar > *,
+  .handle-style-picker,
+  .focus-picker {
+    flex: 0 0 auto;
+  }
+
+  .day-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .day-toolbar > .icon,
+  .day-toolbar > strong,
+  .day-toolbar > .muted {
+    grid-column: 1 / -1;
+  }
+
+  .day-task-card {
+    min-height: 250px;
+  }
+
+  .task-time-preview > span,
+  .task-time-preview > button {
+    white-space: normal;
   }
 
   .loan-grid {
@@ -8461,6 +8593,51 @@ canvas {
   .project-detail-hero,
   .project-task-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .tasks-list.tasks-compact,
+  .tasks-list.tasks-gallery,
+  .project-detail-task-list.project-tasks-compact,
+  .project-detail-task-list.project-tasks-gallery,
+  .notes-compact,
+  .notes-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .task-board-main,
+  .project-task-mini {
+    min-width: 0;
+  }
+
+  .note-action-bar,
+  .notebook-action-bar,
+  .unassigned-note-actions {
+    align-items: stretch;
+  }
+
+  .note-action-bar span {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .note-card-actions {
+    width: auto;
+    min-width: 0;
+  }
+
+  .note-inline-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .note-notebook-drop-grid {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .note-notebook-drop-tile {
+    flex: 0 0 190px;
   }
 
   .project-task-toolbar {
@@ -8559,6 +8736,16 @@ canvas {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .action-tile {
+    min-height: 72px;
+    font-size: 0.72rem;
+  }
+
+  .action-tile span:last-child {
+    min-height: 28px;
+    font-size: 0.72rem;
+  }
+
   .amount-grid,
   .voice-preview-grid,
   .projection-row {
@@ -8597,6 +8784,22 @@ canvas {
     justify-content: flex-start;
   }
 
+  .notes-compact .card-row,
+  .notes-gallery .card-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .notes-compact .note-card-actions,
+  .notes-gallery .note-card-actions {
+    width: 100%;
+    justify-content: start;
+  }
+
+  .notes-compact .note-inline-controls,
+  .notes-gallery .note-inline-controls {
+    grid-template-columns: 1fr;
+  }
+
   .loan-card-top,
   .loan-meta-row {
     align-items: stretch;
@@ -8623,7 +8826,8 @@ canvas {
   .briefing-metrics,
   .briefing-actions,
   .cloud-actions,
-  .cloud-start-actions {
+  .cloud-start-actions,
+  .friend-alpha-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
