@@ -2680,12 +2680,17 @@
           <strong>What feedback means most</strong>
           <span>Could they find things, save things, sync things, and understand what BillMaster helps them decide?</span>
         </div>
+        <div>
+          <strong>After they test</strong>
+          <span>Ask for device, what broke, what confused them, what felt fast, and what money decision they wanted help making.</span>
+        </div>
       </div>
       <div class="sheet-actions friend-alpha-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
         <button class="outline-btn" data-action="copy-hosted-cloud-config" ${cloudConfigured() ? "" : "disabled"}>${icon("note")} Copy config</button>
         <button class="outline-btn" data-action="copy-friend-alpha-invite" ${ready >= checks.length ? "" : "disabled"}>${icon("mail")} Copy invite</button>
         <button class="outline-btn" data-action="copy-friend-alpha-script">${icon("check")} Copy test script</button>
+        <button class="outline-btn" data-action="copy-friend-feedback-request">${icon("note")} Copy feedback ask</button>
         <a class="outline-btn" href="${esc(friendAlphaHostedUrl())}" target="_blank" rel="noopener">${icon("home")} Open live app</a>
         <button class="primary-btn" data-action="open-modal" data-modal="cloudAuth" ${cloudConfigured() ? "" : "disabled"}>${icon("home")} Sign in</button>
         <button class="primary-btn" data-action="cloud-smart-merge" ${cloudSignedIn() ? "" : "disabled"}>${icon("cloud")} Smart merge</button>
@@ -2696,11 +2701,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-5";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-6";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260603-5`;
+    return `${location.origin}${location.pathname}?v=20260603-6`;
   }
 
   function friendPrivacyGatePanel() {
@@ -2788,6 +2793,8 @@
       ${latest.length ? `<div class="alpha-feedback-list">${latest.map((item) => alphaFeedbackCard(item)).join("")}</div>` : `<div class="empty-state compact-empty">${icon("note")}<h3>No feedback yet</h3><p>After a friend test, save what helped, what confused them, and what money decision they wanted help with.</p></div>`}
       <div class="sheet-actions friend-alpha-actions">
         <button class="primary-btn" data-action="open-modal" data-modal="friendFeedback">${icon("plus")} Add feedback</button>
+        <button class="outline-btn" data-action="copy-friend-feedback-request">${icon("note")} Copy feedback request</button>
+        <button class="outline-btn" data-action="email-friend-feedback-request">${icon("mail")} Email request</button>
         <button class="outline-btn" data-action="copy-alpha-feedback" ${feedback.length ? "" : "disabled"}>${icon("note")} Copy feedback</button>
       </div>
     </section>`;
@@ -2878,6 +2885,27 @@
       "- Did saving feel obvious?",
       "- Did sync make sense?",
       "- What would help you make better money decisions from this app?"
+    ].join("\n");
+  }
+
+  function friendAlphaFeedbackRequestText() {
+    return [
+      "BillMaster Alpha Feedback Request",
+      "",
+      "Thank you for testing BillMaster. Please reply with short answers. Honest feedback helps more than polite feedback.",
+      "",
+      `App link: ${friendAlphaHostedUrl()}`,
+      "",
+      "1. What device did you use?",
+      "2. Could you create an account and sign in?",
+      "3. What did you try first?",
+      "4. Did your task, note, loan, picture, or contact save after refresh?",
+      "5. Did anything disappear, duplicate, freeze, or feel confusing?",
+      "6. What felt fast or useful?",
+      "7. What financial decision would you want BillMaster to help you make?",
+      "8. What is the one thing that would make you keep using it?",
+      "",
+      "Please do not enter real bank passwords, full card numbers, or real bill-pay information yet. This alpha is for workflow, organization, sync, notes, tasks, habits, loans, addresses, and manual finance testing."
     ].join("\n");
   }
 
@@ -8614,6 +8642,8 @@
     if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
     if (action === "copy-friend-alpha-invite") return copyFriendAlphaInvite();
     if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
+    if (action === "copy-friend-feedback-request") return copyFriendFeedbackRequest();
+    if (action === "email-friend-feedback-request") return emailFriendFeedbackRequest();
     if (action === "copy-friend-safety-checklist") return copyFriendSafetyChecklist();
     if (action === "copy-friend-onboarding") return copyFriendOnboardingQuickStart();
     if (action === "save-alpha-feedback") return saveAlphaFeedback();
@@ -12653,6 +12683,28 @@
     } catch (error) {
       showToast("Could not copy the test script automatically.", "danger");
     }
+  }
+
+  async function copyFriendFeedbackRequest() {
+    const text = friendAlphaFeedbackRequestText();
+    try {
+      await copyText(text);
+      showToast("Friend feedback request copied.");
+    } catch (error) {
+      ui.modal = {
+        type: "copyFallback",
+        title: "Friend Feedback Request",
+        text,
+        helper: "Clipboard access was blocked. Select this text, then copy it manually."
+      };
+      render();
+      showToast("Select and copy the feedback request.", "danger");
+    }
+  }
+
+  function emailFriendFeedbackRequest() {
+    openExternalUrl(`mailto:?subject=${encodeURIComponent("BillMaster alpha feedback")}&body=${encodeURIComponent(friendAlphaFeedbackRequestText())}`);
+    showToast("Feedback email draft opened.");
   }
 
   async function copyFriendSafetyChecklist() {
