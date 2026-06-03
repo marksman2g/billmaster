@@ -2765,7 +2765,6 @@ button.round-icon {
 .notebook-tile.notebook-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 18px 42px rgba(26, 31, 54, 0.13);
-  transform: translateY(-2px);
 }
 
 .project-drop-hint {
@@ -2960,7 +2959,6 @@ button.round-icon {
 .note-notebook-drop-tile.notebook-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 16px 32px rgba(26, 31, 54, 0.13);
-  transform: translateY(-2px);
 }
 
 .note-notebook-drop-tile.notebook-drop-active .notebook-drop-hint {

@@ -2696,11 +2696,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-1";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-2";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260603-1`;
+    return `${location.origin}${location.pathname}?v=20260603-2`;
   }
 
   function friendPrivacyGatePanel() {
@@ -7407,7 +7407,10 @@
         event.dataTransfer.dropEffect = "move";
         tile.classList.add("notebook-drop-active");
       });
-      tile.addEventListener("dragleave", () => tile.classList.remove("notebook-drop-active"));
+      tile.addEventListener("dragleave", (event) => {
+        if (!isDragOutsideElement(event, tile)) return;
+        tile.classList.remove("notebook-drop-active");
+      });
       tile.addEventListener("drop", (event) => {
         let noteIds = [];
         try {
@@ -7423,6 +7426,13 @@
         assignNotesToNotebook(noteIds, tile.dataset.notebookDrop);
       });
     });
+  }
+
+  function isDragOutsideElement(event, element) {
+    const rect = element.getBoundingClientRect();
+    const x = event.clientX;
+    const y = event.clientY;
+    return x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom;
   }
 
   function startDayTaskDrag(event) {
