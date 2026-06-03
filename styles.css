@@ -2765,6 +2765,7 @@ button.round-icon {
 .notebook-tile.notebook-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 18px 42px rgba(26, 31, 54, 0.13);
+  transform: none;
 }
 
 .project-drop-hint {
@@ -2959,6 +2960,7 @@ button.round-icon {
 .note-notebook-drop-tile.notebook-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 16px 32px rgba(26, 31, 54, 0.13);
+  transform: none;
 }
 
 .note-notebook-drop-tile.notebook-drop-active .notebook-drop-hint {
@@ -2979,6 +2981,7 @@ button.round-icon {
   border-radius: 999px;
   font-size: 0.68rem;
   font-weight: 900;
+  pointer-events: none;
 }
 
 .note-notebook-cover {
@@ -6757,6 +6760,7 @@ canvas {
   padding: 0;
   border-left: 5px solid var(--importance-color, var(--accent));
   cursor: pointer;
+  isolation: isolate;
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
@@ -6764,8 +6768,17 @@ canvas {
   cursor: grab;
 }
 
+.note-card button,
+.note-card select,
+.note-card input,
+.note-card textarea,
+.note-card a {
+  cursor: pointer;
+}
+
 .note-card.is-dragging {
   opacity: 0.62;
+  transform: none;
 }
 
 .note-card.selected,
@@ -6819,6 +6832,10 @@ canvas {
 .note-card:focus-visible {
   box-shadow: 0 10px 26px rgba(26, 31, 54, 0.13);
   transform: translateY(-1px);
+}
+
+.note-card.is-dragging:hover {
+  transform: none;
 }
 
 .note-card .card-row > div:first-child {
@@ -6928,6 +6945,15 @@ canvas {
   flex: 0 0 auto;
   gap: 6px;
   justify-content: flex-end;
+  min-width: max-content;
+  position: relative;
+  z-index: 6;
+}
+
+.note-card-actions .icon-btn {
+  position: relative;
+  z-index: 7;
+  flex: 0 0 auto;
 }
 
 .mini-note-actions {
@@ -6950,6 +6976,7 @@ canvas {
   display: grid;
   gap: 4px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .note-inline-controls span {
@@ -6993,12 +7020,13 @@ canvas {
 }
 
 .notes-compact {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
 }
 
 .notes-compact .note-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  min-height: 224px;
   overflow: visible;
 }
 
@@ -7007,6 +7035,9 @@ canvas {
 }
 
 .notes-compact .note-body {
+  display: grid;
+  align-content: start;
+  gap: 7px;
   padding: 10px;
 }
 
@@ -7032,21 +7063,28 @@ canvas {
 
 .notes-compact .note-card-actions {
   display: grid;
-  grid-template-columns: repeat(3, 26px);
+  grid-template-columns: repeat(3, 28px);
   gap: 4px;
-  width: 86px;
+  width: 92px;
+  justify-self: end;
 }
 
 .notes-compact .note-card-actions .icon-btn {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   border-radius: 7px;
 }
 
 .notes-compact .note-inline-controls {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+}
+
+.notes-compact .note-inline-controls span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notes-compact .note-inline-controls select {
@@ -7068,11 +7106,17 @@ canvas {
 }
 
 .notes-gallery .note-card {
+  display: grid;
+  grid-template-rows: 130px minmax(0, 1fr);
   min-height: 100%;
 }
 
 .notes-gallery .cover-frame {
   height: 130px;
+}
+
+.notes-gallery .cover-frame.empty {
+  display: grid;
 }
 
 .notes-gallery .cover {
