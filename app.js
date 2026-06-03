@@ -2696,11 +2696,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-31";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-1";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-31`;
+    return `${location.origin}${location.pathname}?v=20260603-1`;
   }
 
   function friendPrivacyGatePanel() {
@@ -4657,17 +4657,21 @@
     ui.selectedNotes = ui.selectedNotes.filter((noteId) => !ids.includes(noteId));
     saveData();
     render();
-    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} assigned to ${notebook.title}.`);
+    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}. Undo is available.`);
   }
 
   function noteNotebookDropStrip() {
     const notebooks = data.notebooks;
+    const selectedCount = selectedNoteRecords().length;
+    const dropCopy = selectedCount
+      ? `Drag one selected note onto a notebook to move all ${selectedCount} selected notes together.`
+      : "Drag any note card below onto a notebook to file it without opening the note.";
     return `<section class="notes-notebook-strip" aria-label="Notebook drop targets">
       <div class="section-title compact-title">
         <h2>${icon("book")} Drag Notes To Notebooks</h2>
-        <span class="status info">${notebooks.length}</span>
+        <span class="status info">${selectedCount ? `${selectedCount} selected` : `${notebooks.length} notebooks`}</span>
       </div>
-      <p class="subtle project-drag-note">Drag any note card below onto a notebook to file it without opening the note.</p>
+      <p class="subtle project-drag-note">${esc(dropCopy)}</p>
       <div class="note-notebook-drop-grid">
         ${notebooks.map((nb) => noteNotebookDropTile(nb)).join("") || `<p class="muted">Create a notebook first, then drag notes here.</p>`}
       </div>
@@ -4677,6 +4681,8 @@
   function noteNotebookDropTile(nb) {
     const notes = data.notes.filter((note) => note.notebookId === nb.id);
     const media = entityImage(nb);
+    const selectedCount = selectedNoteRecords().length;
+    const hint = selectedCount ? `Drop ${selectedCount} selected` : "Drop note";
     return `<article class="note-notebook-drop-tile" data-notebook-drop="${nb.id}" title="Drop notes into ${esc(nb.title)}">
       <button class="note-notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)} aria-label="Open ${esc(nb.title)}">
         ${media ? `<img src="${esc(media)}" alt="">` : `<span>${icon(nb.icon || "book")}</span>`}
@@ -4685,7 +4691,7 @@
         <strong>${esc(nb.title)}</strong>
         <span>${notes.length} note${notes.length === 1 ? "" : "s"}</span>
       </div>
-      <span class="notebook-drop-hint">${icon("note")} Drop note</span>
+      <span class="notebook-drop-hint">${icon("note")} ${esc(hint)}</span>
     </article>`;
   }
 
@@ -4750,13 +4756,15 @@
     const latestNote = notes.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
     const accent = nb.color || "#4388f3";
     const selected = ui.selectedNotebooks.includes(nb.id);
+    const selectedNoteCount = selectedNoteRecords().length;
+    const dropHint = selectedNoteCount ? `Drop ${selectedNoteCount} selected` : "Drop note";
     return `<article class="notebook-tile ${selected ? "selected" : ""}" style="--notebook-color:${esc(accent)};" data-action="navigate-notes" data-id="${nb.id}" data-notebook-drop="${nb.id}" title="Open notebook or drop notes here" role="button" tabindex="0">
       <button class="notebook-select-button ${selected ? "active" : ""}" data-action="toggle-notebook-select" data-id="${nb.id}" aria-label="${selected ? "Deselect" : "Select"} notebook">${selected ? icon("check") : ""}</button>
       <div class="notebook-cover-wrap">
         <button class="notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)}>
           ${media ? `<img src="${esc(media)}" alt="">` : `<span class="notebook-fallback-cover"><span class="round-icon" style="color:#fff;background:rgba(255,255,255,.18);">${icon(nb.icon || "book")}</span></span>`}
         </button>
-        <span class="notebook-drop-hint">${icon("note")} Drop note</span>
+        <span class="notebook-drop-hint">${icon("note")} ${esc(dropHint)}</span>
         <button class="cover-edit-badge notebook-cover-edit" data-action="open-modal" data-modal="notebookPicture" data-id="${nb.id}" aria-label="Update ${esc(nb.title)} picture">${icon("camera")}</button>
       </div>
       <div class="notebook-tile-body">
@@ -7375,16 +7383,16 @@
           return;
         }
         const noteId = card.dataset.notebookNoteId || "";
-        const noteIds = noteId && ui.selectedNotes.includes(noteId)
-          ? ui.selectedNotes.filter((idValue) => data.notes.some((note) => note.id === idValue))
-          : [noteId].filter(Boolean);
+        const noteIds = selectedNoteDragIds(noteId);
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", noteIds[0] || "");
         event.dataTransfer.setData("application/x-billmaster-note", noteIds[0] || "");
         event.dataTransfer.setData("application/x-billmaster-notes", JSON.stringify(noteIds));
+        card.dataset.dragCount = String(noteIds.length);
         card.classList.add("is-dragging");
       });
       card.addEventListener("dragend", () => {
+        delete card.dataset.dragCount;
         card.classList.remove("is-dragging");
         document.querySelectorAll(".notebook-drop-active").forEach((tile) => tile.classList.remove("notebook-drop-active"));
       });
@@ -10426,6 +10434,12 @@
 
   function selectedNoteRecords() {
     return ui.selectedNotes.map((noteId) => data.notes.find((note) => note.id === noteId)).filter(Boolean);
+  }
+
+  function selectedNoteDragIds(anchorNoteId = "") {
+    const selectedValidIds = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
+    if (anchorNoteId && selectedValidIds.includes(anchorNoteId)) return selectedValidIds;
+    return anchorNoteId && data.notes.some((note) => note.id === anchorNoteId) ? [anchorNoteId] : [];
   }
 
   function toggleNoteSelect(noteId) {

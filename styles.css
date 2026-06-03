@@ -2967,6 +2967,22 @@ button.round-icon {
   display: inline-flex;
 }
 
+.note-notebook-drop-tile.notebook-drop-active::after,
+.notebook-tile.notebook-drop-active::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 4px 8px;
+  content: "Ready";
+  color: var(--blue);
+  background: rgba(238, 246, 255, 0.96);
+  border: 1px solid #9fd0ff;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
 .note-notebook-cover {
   display: grid;
   place-items: center;
@@ -3012,6 +3028,7 @@ button.round-icon {
 }
 
 .project-task-mini {
+  position: relative;
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 10px;
@@ -6737,6 +6754,7 @@ canvas {
 }
 
 .note-card {
+  position: relative;
   overflow: hidden;
   padding: 0;
   border-left: 5px solid var(--importance-color, var(--accent));
@@ -6750,6 +6768,30 @@ canvas {
 
 .note-card.is-dragging {
   opacity: 0.62;
+}
+
+.note-card.selected,
+.project-task-mini.selected {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.12), 0 14px 32px rgba(26, 31, 54, 0.12);
+}
+
+.note-card.is-dragging::after,
+.project-task-mini.is-dragging::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  min-width: 26px;
+  padding: 4px 8px;
+  content: attr(data-drag-count) " moving";
+  color: #fff;
+  background: var(--blue);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.2);
+  font-size: 0.68rem;
+  font-weight: 900;
+  pointer-events: none;
 }
 
 .note-card .cover-frame.empty {
