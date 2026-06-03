@@ -47,6 +47,7 @@
     taskCategoryFilters: { General: true, Habit: true, Finance: true, Project: true, Personal: true },
     lendingFilter: "all",
     loanQuery: "",
+    loanContactQuery: "",
     blockHandleStyle: "interactive",
     blockZoom: "1",
     blockTimeFocus: "full",
@@ -5227,6 +5228,19 @@
     }).sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  function contactSearchText(contact) {
+    const groups = contactGroupsForContact(contact.id).map((group) => group.name).join(" ");
+    return [
+      contact.name,
+      contact.email,
+      contact.phone,
+      contact.textEmail,
+      contact.source,
+      contact.address,
+      groups
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+
   function contactGroupFilterBar() {
     const groups = safeArray(data.contactGroups).filter((group) => group.name);
     return `<div class="contact-group-toolbar">
@@ -5680,9 +5694,20 @@
     const loan = data.loans.find((item) => item.id === loanId) || { date: defaultDate, dueDate: addDaysIso(defaultDate, 14), amount: "", repaid: 0, forgiven: 0 };
     const editing = Boolean(loan.id);
     const matchedContact = data.contacts.find((contact) => contact.id === loan.contactId) || data.contacts.find((contact) => contact.name.toLowerCase() === String(loan.borrower || "").toLowerCase());
+    const loanContactQuery = String(ui.loanContactQuery || "").trim().toLowerCase();
+    let loanContacts = data.contacts;
+    if (loanContactQuery) {
+      loanContacts = data.contacts.filter((contact) => contactSearchText(contact).includes(loanContactQuery));
+      if (matchedContact && !loanContacts.some((contact) => contact.id === matchedContact.id)) loanContacts = [matchedContact, ...loanContacts];
+    }
     return `${modalHeader(editing ? "Edit Loan Transaction" : "Record Loan", editing ? "Borrower name, amount, repayments, forgiveness, and due date can all be corrected here." : "")}
       <div class="field-grid">
-        ${selectField("loanContact", "Borrower From Contacts", ["", ADD_LOAN_CONTACT_VALUE, ...data.contacts.map((contact) => contact.id)], matchedContact?.id || "", (value) => {
+        <div class="field loan-contact-picker">
+          <label for="loanContactSearch">Search Contacts</label>
+          <label class="search-field">${icon("search")}<input id="loanContactSearch" value="${esc(ui.loanContactQuery || "")}" data-action="loan-contact-search" placeholder="Type name, phone, email, or group..." autocomplete="off"></label>
+          <p class="subtle">${loanContactQuery ? `${loanContacts.length} matching contact${loanContacts.length === 1 ? "" : "s"}` : `${data.contacts.length} contacts available`}</p>
+        </div>
+        ${selectField("loanContact", "Borrower From Contacts", ["", ADD_LOAN_CONTACT_VALUE, ...loanContacts.map((contact) => contact.id)], matchedContact?.id || "", (value) => {
           if (value === ADD_LOAN_CONTACT_VALUE) return "+ Add new contact";
           return value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "Manual / not in contacts";
         })}
@@ -8465,6 +8490,10 @@
       ui.loanQuery = target.value;
       renderPreservingInput(target);
     }
+    if (target && target.dataset.action === "loan-contact-search") {
+      ui.loanContactQuery = target.value;
+      renderPreservingInput(target);
+    }
     if (target && target.dataset.action === "notify-search") {
       filterNotifyPicker(target.value);
     }
@@ -8994,6 +9023,9 @@
     }
     if (type === "taskNotify") {
       ui.notifyQuery = "";
+    }
+    if (type === "addLoan") {
+      ui.loanContactQuery = "";
     }
     render();
   }
