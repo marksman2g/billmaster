@@ -2696,11 +2696,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-30";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260602-31";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260602-30`;
+    return `${location.origin}${location.pathname}?v=20260602-31`;
   }
 
   function friendPrivacyGatePanel() {
@@ -10372,12 +10372,12 @@
 
   function deleteNote(noteId) {
     const note = data.notes.find((item) => item.id === noteId);
-    if (!note || !confirmDelete(note.title)) return;
+    if (!note) return;
     data.notes = data.notes.filter((item) => item.id !== noteId);
     ui.selectedNotes = ui.selectedNotes.filter((idValue) => idValue !== noteId);
     ui.modal = null;
     saveData();
-    showToast("Note deleted.");
+    showToast("Note deleted. Undo is available.");
   }
 
   function updateNoteInline(noteId, field, rawValue) {
@@ -10456,11 +10456,10 @@
   function deleteSelectedNotes() {
     const ids = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
     if (!ids.length) return showToast("Select at least one note first.", "danger");
-    if (!confirmDelete(`${ids.length} selected note${ids.length === 1 ? "" : "s"}`)) return;
     data.notes = data.notes.filter((note) => !ids.includes(note.id));
     ui.selectedNotes = [];
     saveData();
-    showToast(`${ids.length} note${ids.length === 1 ? "" : "s"} deleted.`);
+    showToast(`${ids.length} note${ids.length === 1 ? "" : "s"} deleted. Undo is available.`);
   }
 
   function duplicateNotes(noteId = "") {
@@ -10622,7 +10621,7 @@
 
   function deleteNotebook(notebookId) {
     const notebook = data.notebooks.find((item) => item.id === notebookId);
-    if (!notebook || !confirmDelete(notebook.title)) return;
+    if (!notebook) return;
     data.notes.forEach((note) => {
       if (note.notebookId === notebookId) note.notebookId = null;
     });
@@ -10630,7 +10629,7 @@
     if (ui.notebookId === notebookId) ui.notebookId = null;
     ui.modal = null;
     saveData();
-    showToast("Notebook deleted. Its notes are now unassigned.");
+    showToast("Notebook deleted. Its notes are now unassigned. Undo is available.");
   }
 
   function deleteGoal(goalId) {
