@@ -41,6 +41,7 @@
     taskPicker: null,
     navCollapsed: {},
     goalView: "full",
+    goalStatusFilter: "active",
     habitFilter: "all",
     habitView: "regular",
     taskCategoryFilters: { General: true, Habit: true, Finance: true, Project: true, Personal: true },
@@ -80,6 +81,7 @@
   const ADD_LOAN_CONTACT_VALUE = "__add_loan_contact__";
   const taskPriorityOptions = ["Low", "Medium", "High", "Urgent"];
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
+  const goalScheduleOptions = ["None", "Weekly", "Bi-weekly", "Monthly"];
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
@@ -197,9 +199,9 @@
       { id: "habit_template_5", slot: 5, name: "Custom Slot", payload: { title: "Custom Habit", description: "", type: "Personal", schedule: "Daily", days: [0, 1, 2, 3, 4, 5, 6], start: "08:00", end: "08:15", priority: "Medium", status: "Active", includeHours: true, targetCount: 1, addressId: null, color: "#ff7a1a", image: "", imageZoom: 1, imageX: 0, imageY: 0, imageFit: "cover" } }
     ],
     goals: [
-      { id: "goal_1", name: "Emergency Fund", target: 10000, current: 7000, targetDate: "2026-12-31", color: "green" },
-      { id: "goal_2", name: "Vacation Fund", target: 5000, current: 2100, targetDate: "2026-06-30", color: "teal" },
-      { id: "goal_3", name: "New Car Down Payment", target: 8000, current: 3200, targetDate: "2027-03-31", color: "purple" }
+      { id: "goal_1", name: "Emergency Fund", target: 10000, current: 7000, targetDate: "2026-12-31", color: "green", createdAt: "2026-05-06", contributionSchedule: "Monthly", contributionAmount: 100, contributionAccountId: "acct_1", confirmContributions: true },
+      { id: "goal_2", name: "Vacation Fund", target: 5000, current: 2100, targetDate: "2026-06-30", color: "teal", createdAt: "2026-05-06", contributionSchedule: "Bi-weekly", contributionAmount: 75, contributionAccountId: "acct_1", confirmContributions: true },
+      { id: "goal_3", name: "New Car Down Payment", target: 8000, current: 3200, targetDate: "2027-03-31", color: "purple", createdAt: "2026-05-06", contributionSchedule: "None", contributionAmount: 0, contributionAccountId: "acct_3", confirmContributions: true }
     ],
     goalContributions: [],
     addresses: [
@@ -359,6 +361,7 @@
     "save-notebook",
     "save-goal",
     "save-goal-contribution",
+    "save-goal-plan-contribution",
     "save-contact",
     "save-alpha-feedback",
     "save-profile",
@@ -870,6 +873,7 @@
     });
     normalizeAddresses(nextData);
     normalizeLoans(nextData);
+    normalizeGoals(nextData);
     normalizeProjects(nextData);
     normalizeNotebooks(nextData);
     normalizeHabits(nextData);
@@ -1115,6 +1119,44 @@
       if (loan.repaid + loan.forgiven > loan.amount) loan.forgiven = Math.max(0, loan.amount - loan.repaid);
       loan.status = loanStatusFromAmounts(loan);
     });
+  }
+
+  function normalizeGoals(nextData) {
+    const accountIds = new Set(safeArray(nextData.accounts).map((account) => account.id));
+    nextData.goalContributions = safeArray(nextData.goalContributions).map((entry) => ({
+      ...entry,
+      id: entry.id || id("goal_contribution"),
+      goalId: entry.goalId || "",
+      goalName: String(entry.goalName || ""),
+      accountId: accountIds.has(entry.accountId) ? entry.accountId : "",
+      accountName: String(entry.accountName || ""),
+      amount: Math.max(0, moneyNumber(entry.amount)),
+      date: entry.date || todayIso(),
+      notes: String(entry.notes || ""),
+      source: String(entry.source || "manual"),
+      confirmedAt: String(entry.confirmedAt || "")
+    }));
+    (nextData.goals || []).forEach((goal) => {
+      goal.name = String(goal.name || "Goal");
+      goal.target = Math.max(0, moneyNumber(goal.target));
+      goal.current = Math.max(0, moneyNumber(goal.current));
+      goal.targetDate = goal.targetDate || todayIso();
+      goal.createdAt = goal.createdAt || todayIso();
+      goal.color = ["green", "teal", "purple", "amber"].includes(goal.color) ? goal.color : "green";
+      goal.contributionSchedule = normalizeGoalSchedule(goal.contributionSchedule);
+      goal.contributionAmount = Math.max(0, moneyNumber(goal.contributionAmount));
+      goal.contributionAccountId = accountIds.has(goal.contributionAccountId) ? goal.contributionAccountId : (nextData.accounts?.[0]?.id || "");
+      goal.confirmContributions = goal.confirmContributions !== false;
+      const completed = goal.target > 0 && goal.current >= goal.target;
+      goal.status = completed ? "Completed" : "In Progress";
+      if (completed) goal.completedAt = goal.completedAt || todayIso();
+      else goal.completedAt = "";
+    });
+  }
+
+  function normalizeGoalSchedule(value) {
+    const match = goalScheduleOptions.find((option) => option.toLowerCase() === String(value || "").toLowerCase());
+    return match || "None";
   }
 
   function normalizeContacts(nextData) {
@@ -1546,6 +1588,13 @@
     return Math.round((due - SAMPLE_NOW) / 86400000);
   }
 
+  function dateDiffDays(startIso, endIso) {
+    if (!startIso || !endIso) return 0;
+    const start = new Date(`${startIso}T12:00:00`);
+    const end = new Date(`${endIso}T12:00:00`);
+    return Math.max(0, Math.round((end - start) / 86400000));
+  }
+
   function dueText(iso) {
     const days = daysBetween(iso);
     if (days < 0) return `${Math.abs(days)} days overdue`;
@@ -1884,7 +1933,7 @@
           <section class="section-card">
             <div class="section-title"><h2>Accounts</h2><button class="text-btn" data-action="open-modal" data-modal="accountConnections">Manage</button></div>
             <div class="account-strip">
-              ${data.accounts.map((acct) => `<article class="account-card" style="border-left-color: var(--${acct.color});">
+              ${data.accounts.map((acct) => `<article class="account-card clickable-card" style="border-left-color: var(--${acct.color});" data-action="open-modal" data-modal="accountDetail" data-id="${acct.id}" tabindex="0" role="button">
                 <div class="entity-title">${esc(acct.name)}</div>
                 <div class="entity-subtitle">${esc(acct.type)} ****${esc(acct.last4)}</div>
                 <div class="amount-large money-blue">${money(acct.balance)}</div>
@@ -3384,6 +3433,10 @@
     return isoDate(new Date());
   }
 
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
   function addMonthsIso(iso, months) {
     const date = parseLocalDate(iso);
     const originalDay = date.getDate();
@@ -4469,21 +4522,63 @@
     </section>`;
   }
 
+  function goalContributionHistory(goalId) {
+    return safeArray(data.goalContributions)
+      .filter((entry) => entry.goalId === goalId)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  }
+
+  function goalContributionTotal(goalId) {
+    return sum(goalContributionHistory(goalId), "amount");
+  }
+
+  function goalAccount(goal) {
+    return data.accounts.find((account) => account.id === goal.contributionAccountId) || data.accounts[0] || null;
+  }
+
+  function goalNextContributionLabel(goal) {
+    if (!goal || goal.contributionSchedule === "None" || !goal.contributionAmount) return "No automatic plan";
+    const latest = goalContributionHistory(goal.id)[0]?.date || goal.createdAt || todayIso();
+    const base = new Date(`${latest}T12:00:00`);
+    if (goal.contributionSchedule === "Weekly") base.setDate(base.getDate() + 7);
+    if (goal.contributionSchedule === "Bi-weekly") base.setDate(base.getDate() + 14);
+    if (goal.contributionSchedule === "Monthly") base.setMonth(base.getMonth() + 1);
+    const nextDate = base.toISOString().slice(0, 10);
+    return `${money(goal.contributionAmount)} ${goal.contributionSchedule.toLowerCase()} - next ${dateLabel(nextDate)}`;
+  }
+
+  function goalDurationLabel(goal) {
+    const history = goalContributionHistory(goal.id);
+    const start = goal.createdAt || history[history.length - 1]?.date || "";
+    const end = goal.status === "Completed" ? (goal.completedAt || history[0]?.date || todayIso()) : todayIso();
+    if (!start) return goal.status === "Completed" ? "Reached" : "Tracking";
+    const days = dateDiffDays(start, end);
+    return goal.status === "Completed" ? `Reached in ${days || 1} day${days === 1 ? "" : "s"}` : `${days} day${days === 1 ? "" : "s"} in progress`;
+  }
+
   function renderGoals() {
     const compact = ui.goalView === "compact";
+    const activeGoals = data.goals.filter((goal) => goal.status !== "Completed");
+    const completedGoals = data.goals.filter((goal) => goal.status === "Completed");
+    const visibleGoals = data.goals.filter((goal) => {
+      if (ui.goalStatusFilter === "completed") return goal.status === "Completed";
+      if (ui.goalStatusFilter === "all") return true;
+      return goal.status !== "Completed";
+    });
     return `<section class="screen">
       ${header("Financial Goals", `<button class="icon-btn" data-action="open-modal" data-modal="editGoal">${icon("plus")}</button>`)}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
         <div class="card-row">
-          <div><div class="balance-label">Active Goal Balance</div><div class="balance-amount">${money(sum(data.goals, "current"))}</div></div>
-          <span class="pill dark">${data.goals.length} goals</span>
+          <div><div class="balance-label">Active Goal Balance</div><div class="balance-amount">${money(sum(activeGoals, "current"))}</div></div>
+          <span class="pill dark">${activeGoals.length} active</span>
         </div>
-        <div class="balance-meta"><span>${icon("chart")} Target ${money(sum(data.goals, "target"))}</span><span>${icon("task")} Linked tasks ${data.tasks.filter((task) => task.goalId).length}</span></div>
+        <div class="balance-meta"><span>${icon("chart")} Active target ${money(sum(activeGoals, "target"))}</span><span>${icon("check")} Completed ${completedGoals.length}</span><span>${icon("task")} Linked tasks ${data.tasks.filter((task) => task.goalId).length}</span></div>
       </section>
       <div class="filter-row goal-view-row">
+        ${[["active", "In Progress"], ["completed", "Completed"], ["all", "All"]].map(([status, label]) => `<button class="${ui.goalStatusFilter === status ? "active" : ""}" data-action="set-tab" data-key="goalStatusFilter" data-value="${status}">${label}</button>`).join("")}
         ${[["full", "Full"], ["compact", "Compact"]].map(([view, label]) => `<button class="${ui.goalView === view ? "active" : ""}" data-action="set-tab" data-key="goalView" data-value="${view}">${label}</button>`).join("")}
       </div>
-      <div class="goal-grid ${compact ? "compact-goals" : ""}">${data.goals.map((goal) => goalDetailCard(goal, compact)).join("")}</div>
+      <div class="goal-grid ${compact ? "compact-goals" : ""}">${visibleGoals.length ? visibleGoals.map((goal) => goalDetailCard(goal, compact)).join("") : `<section class="section-card"><p class="muted">No goals in this view yet.</p></section>`}</div>
     </section>`;
   }
 
@@ -4492,13 +4587,19 @@
     const linkedTasks = data.tasks.filter((task) => task.goalId === goal.id);
     const media = entityImage(goal);
     const remaining = Math.max(goal.target - goal.current, 0);
+    const account = goalAccount(goal);
+    const history = goalContributionHistory(goal.id);
+    const contributionTotal = goalContributionTotal(goal.id);
+    const completed = goal.status === "Completed";
+    const cardStyle = `--goal-paid:${pct}%;`;
+    const planLine = goalNextContributionLabel(goal);
     if (compact) {
-      return `<article class="project-card compact-goal-card">
+      return `<article class="project-card compact-goal-card goal-funded-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}">
         <div class="compact-goal-head">
           ${media ? `<span class="media-thumb compact-goal-thumb" ${imageStyleAttr(goal)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${goal.color});background:${softColor(goal.color)};">${icon("chart")}</span>`}
           <div class="compact-goal-title">
             <h2 class="entity-title">${esc(goal.name)}</h2>
-            <div class="entity-subtitle">Target ${dateLabel(goal.targetDate)}</div>
+            <div class="entity-subtitle">${completed ? "Completed" : `Target ${dateLabel(goal.targetDate)}`}</div>
           </div>
           <div class="compact-goal-tools">
             <button class="icon-btn" data-action="open-modal" data-modal="editGoal" data-id="${goal.id}" aria-label="Edit goal">${icon("edit")}</button>
@@ -4513,21 +4614,24 @@
         <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
         <div class="compact-goal-meta">
           <span class="${pct >= 50 ? "positive" : "money-blue"}">${pct}% complete</span>
-          <span>${linkedTasks.length} linked tasks</span>
+          <span>${goalDurationLabel(goal)}</span>
         </div>
+        <div class="goal-plan-mini">${icon("wallet")} ${esc(account?.name || "No account")} ${goal.contributionSchedule !== "None" ? `- ${esc(planLine)}` : ""}</div>
         <div class="compact-goal-actions">
-          <button class="outline-btn" data-action="open-modal" data-modal="goalContribution" data-id="${goal.id}">${icon("plus")} Add</button>
+          ${!completed ? `<button class="outline-btn" data-action="open-modal" data-modal="goalContribution" data-id="${goal.id}">${icon("plus")} Add</button>` : ""}
+          ${goal.contributionSchedule !== "None" && !completed ? `<button class="success-btn" data-action="open-modal" data-modal="goalPlanConfirm" data-id="${goal.id}">${icon("check")} Confirm</button>` : ""}
           <button class="outline-btn" data-action="navigate" data-view="calendar">${icon("calendar")} Calendar</button>
         </div>
       </article>`;
     }
-    return `<article class="project-card">
+    return `<article class="project-card goal-funded-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}">
       <div class="card-row">
         <div style="display:flex;gap:12px;align-items:center;">
           ${media ? `<span class="media-thumb" ${imageStyleAttr(goal)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${goal.color});background:${softColor(goal.color)};">${icon("chart")}</span>`}
-          <div><h2 class="entity-title">${esc(goal.name)}</h2><div class="entity-subtitle">Target by ${dateLabel(goal.targetDate)}</div></div>
+          <div><h2 class="entity-title">${esc(goal.name)}</h2><div class="entity-subtitle">${completed ? `Completed ${dateLabel(goal.completedAt)}` : `Target by ${dateLabel(goal.targetDate)}`} - ${goalDurationLabel(goal)}</div></div>
         </div>
         <div style="display:flex;gap:6px;">
+          <span class="status ${completed ? "success" : "info"}">${esc(goal.status)}</span>
           <button class="icon-btn" data-action="open-modal" data-modal="editGoal" data-id="${goal.id}">${icon("edit")}</button>
           <button class="icon-btn danger-text" data-action="delete-goal" data-id="${goal.id}" aria-label="Delete goal">${icon("trash")}</button>
         </div>
@@ -4541,8 +4645,17 @@
         <strong class="${pct >= 50 ? "positive" : "money-blue"}">${pct}% Complete</strong>
         <span class="status info">${linkedTasks.length} linked tasks</span>
       </div>
-      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
-        <button class="outline-btn" data-action="open-modal" data-modal="goalContribution" data-id="${goal.id}">${icon("plus")} Add Contribution</button>
+      <div class="goal-plan-card">
+        <div><strong>${icon("wallet")} Funding account</strong><button class="link-title" data-action="open-modal" data-modal="accountDetail" data-id="${account?.id || ""}">${esc(account?.name || "Choose account")}</button></div>
+        <div><strong>${icon("calendar")} Plan</strong><span>${esc(planLine)}</span></div>
+        <div><strong>${icon("note")} Confirmed</strong><span>${history.length} contributions - ${money(contributionTotal)}</span></div>
+      </div>
+      ${history.length ? `<div class="goal-history">
+        ${history.slice(0, 3).map((entry) => `<div class="goal-history-row"><span>${dateLabel(entry.date)}</span><strong>${money(entry.amount)}</strong><small>${esc(entry.accountName || "Account")}</small>${entry.notes ? `<p>${esc(entry.notes)}</p>` : ""}</div>`).join("")}
+      </div>` : `<p class="muted goal-empty-history">No confirmed contributions yet.</p>`}
+      <div class="sheet-actions" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+        ${!completed ? `<button class="outline-btn" data-action="open-modal" data-modal="goalContribution" data-id="${goal.id}">${icon("plus")} Add Contribution</button>` : ""}
+        ${goal.contributionSchedule !== "None" && !completed ? `<button class="success-btn" data-action="open-modal" data-modal="goalPlanConfirm" data-id="${goal.id}">${icon("check")} Confirm Plan</button>` : ""}
         <button class="outline-btn" data-action="navigate" data-view="calendar">${icon("calendar")} Milestones</button>
       </div>
     </article>`;
@@ -5378,6 +5491,7 @@
     if (type === "notebookPicture") content = modalNotebookPicture(modalId);
     if (type === "editGoal") content = modalGoal(modalId);
     if (type === "goalContribution") content = modalGoalContribution(modalId);
+    if (type === "goalPlanConfirm") content = modalGoalPlanConfirm(modalId);
     if (type === "editContact") content = modalContact(modalId);
     if (type === "addressRoute") content = modalAddressRoute();
     if (type === "calendarSync") content = modalCalendarSync();
@@ -5394,6 +5508,7 @@
     if (type === "friendFeedback") content = modalFriendFeedback();
     if (type === "importStatement") content = modalImportStatement();
     if (type === "accountConnections") content = modalAccountConnections();
+    if (type === "accountDetail") content = modalAccountDetail(modalId);
     if (type === "addSubscription") content = modalAddSubscription();
     if (type === "dataTools") content = modalDataTools();
     if (!content) return "";
@@ -6659,6 +6774,7 @@
 
   function modalGoal(goalId) {
     const goal = data.goals.find((item) => item.id === goalId) || { targetDate: "2026-12-31", color: "green" };
+    const accountOptions = data.accounts.map((acct) => acct.id);
     return `${modalHeader(goal.id ? "Edit Goal" : "New Goal")}
       <div class="field-grid">
         ${field("goalName", "Goal Name", goal.name || "", "Emergency Fund")}
@@ -6666,6 +6782,13 @@
         ${field("goalCurrent", "Current Amount", goal.current || "", "4200", "number")}
         ${field("goalDate", "Target Date", goal.targetDate || "2026-12-31", "", "date")}
         ${selectField("goalColor", "Color", ["green", "teal", "purple", "amber"], goal.color || "green", filterLabel)}
+        ${selectField("goalContributionSchedule", "Automatic Contribution Plan", goalScheduleOptions, goal.contributionSchedule || "None")}
+        ${field("goalContributionPlanAmount", "Planned Contribution Amount", goal.contributionAmount || "", "100", "number")}
+        ${selectField("goalContributionPlanAccount", "Default Funding Account", accountOptions, goal.contributionAccountId || data.accounts[0]?.id || "", (value) => {
+          const account = data.accounts.find((acct) => acct.id === value);
+          return account ? `${account.name} - ${money(account.balance)}` : "Choose an account";
+        })}
+        <div class="info-note">${icon("check")} Automatic contributions are planned only. You still confirm each one before money moves.</div>
         ${imageAttachmentField("goal", goal.image || "", "Goal Picture / Graphic", goal.imageZoom, goal.imageX, goal.imageY, goal.imageFit, goal.imageOpacity)}
       </div>
       <div class="sheet-actions"><button class="primary-btn" data-action="save-goal" data-id="${goal.id || ""}">Save Goal</button></div>`;
@@ -6677,8 +6800,8 @@
     const accountOptions = data.accounts.map((acct) => acct.id);
     return `${modalHeader("Add Contribution", goal.name)}
       <div class="field-grid">
-        ${field("goalContributionAmount", "Contribution Amount", "", "100", "number")}
-        ${selectField("goalContributionAccount", "From Account", accountOptions, data.accounts[0]?.id || "", (value) => {
+        ${field("goalContributionAmount", "Contribution Amount", goal.contributionAmount || "", "100", "number")}
+        ${selectField("goalContributionAccount", "From Account", accountOptions, goal.contributionAccountId || data.accounts[0]?.id || "", (value) => {
           const account = data.accounts.find((acct) => acct.id === value);
           return account ? `${account.name} - ${money(account.balance)}` : "Choose an account";
         })}
@@ -6686,6 +6809,28 @@
         ${textArea("goalContributionNote", "Note", "", "Optional note")}
       </div>
       <div class="sheet-actions"><button class="success-btn" data-action="save-goal-contribution" data-id="${goal.id}">Add Contribution</button></div>`;
+  }
+
+  function modalGoalPlanConfirm(goalId) {
+    const goal = data.goals.find((item) => item.id === goalId);
+    if (!goal) return "";
+    const accountOptions = data.accounts.map((acct) => acct.id);
+    const account = goalAccount(goal);
+    return `${modalHeader("Confirm Planned Contribution", goal.name)}
+      <div class="section-card soft-panel">
+        <strong>${esc(goalNextContributionLabel(goal))}</strong>
+        <p class="muted">Nothing moves until you confirm. After confirmation, the selected account balance decreases and the goal balance increases.</p>
+      </div>
+      <div class="field-grid">
+        ${field("goalContributionAmount", "Contribution Amount", goal.contributionAmount || "", "100", "number")}
+        ${selectField("goalContributionAccount", "From Account", accountOptions, account?.id || data.accounts[0]?.id || "", (value) => {
+          const selected = data.accounts.find((acct) => acct.id === value);
+          return selected ? `${selected.name} - ${money(selected.balance)}` : "Choose an account";
+        })}
+        ${field("goalContributionDate", "Confirmation Date", todayIso(), "", "date")}
+        ${textArea("goalContributionNote", "Contribution Note", "", "What was this contribution for?")}
+      </div>
+      <div class="sheet-actions"><button class="success-btn" data-action="save-goal-plan-contribution" data-id="${goal.id}">${icon("check")} Confirm Contribution</button></div>`;
   }
 
   function modalContact(contactId) {
@@ -6739,6 +6884,29 @@
     return `${modalHeader("Account Connections")}
       <div class="list">${data.accounts.map((acct) => `<article class="data-row" style="border:1px solid var(--line);border-radius:8px;padding:12px;"><span class="round-icon">${icon("wallet")}</span><div><strong>${esc(acct.name)}</strong><div class="subtle">${esc(acct.type)} ****${esc(acct.last4)}</div></div><span class="status success">Connected</span></article>`).join("")}</div>
       <div class="sheet-actions"><button class="primary-btn">${icon("plus")} Link New Account</button></div>`;
+  }
+
+  function modalAccountDetail(accountId) {
+    const account = data.accounts.find((acct) => acct.id === accountId);
+    if (!account) return `${modalHeader("Account Detail")}<p class="muted">Account not found.</p>`;
+    const contributions = safeArray(data.goalContributions)
+      .filter((entry) => entry.accountId === account.id)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const transfers = data.transactions.filter((tx) => tx.accountId === account.id).slice(0, 8);
+    return `${modalHeader(account.name, `${account.type} ****${account.last4}`)}
+      <section class="section-card account-detail-card" style="box-shadow:none;">
+        <div class="amount-large money-blue">${money(account.balance)}</div>
+        <p class="muted">Current prototype balance. Goal contributions deduct from here after confirmation.</p>
+      </section>
+      <div class="account-detail-grid">
+        <span><strong>${money(sum(contributions, "amount"))}</strong><small>goal contributions</small></span>
+        <span><strong>${contributions.length}</strong><small>confirmed moves</small></span>
+        <span><strong>${transfers.length}</strong><small>account ledger rows</small></span>
+      </div>
+      <h3 class="section-kicker">Contribution History</h3>
+      <div class="goal-history">
+        ${contributions.length ? contributions.slice(0, 8).map((entry) => `<div class="goal-history-row"><span>${dateLabel(entry.date)}</span><strong>${money(entry.amount)}</strong><small>${esc(entry.goalName || data.goals.find((goal) => goal.id === entry.goalId)?.name || "Goal")}</small>${entry.notes ? `<p>${esc(entry.notes)}</p>` : ""}</div>`).join("") : `<p class="muted">No confirmed goal contributions from this account yet.</p>`}
+      </div>`;
   }
 
   function modalAddSubscription() {
@@ -8641,6 +8809,7 @@
     if (action === "delete-goal") return deleteGoal(el.dataset.id);
     if (action === "delete-project") return deleteProject(el.dataset.id);
     if (action === "save-goal-contribution") return saveGoalContribution(el.dataset.id);
+    if (action === "save-goal-plan-contribution") return saveGoalContribution(el.dataset.id, "planned");
     if (action === "save-contact") return saveContact(el.dataset.id);
     if (action === "delete-contact") return deleteContact(el.dataset.id);
     if (action === "save-profile") return saveProfile();
@@ -12481,12 +12650,22 @@
 
   function saveGoal(goalId) {
     const goal = data.goals.find((item) => item.id === goalId);
+    const target = numberValue("goalTarget");
+    const current = numberValue("goalCurrent");
+    const completed = target > 0 && current >= target;
     const payload = {
       name: value("goalName") || "Goal",
-      target: numberValue("goalTarget"),
-      current: numberValue("goalCurrent"),
+      target,
+      current,
       targetDate: value("goalDate") || "2026-12-31",
       color: value("goalColor") || "green",
+      contributionSchedule: normalizeGoalSchedule(value("goalContributionSchedule")),
+      contributionAmount: numberValue("goalContributionPlanAmount"),
+      contributionAccountId: value("goalContributionPlanAccount") || data.accounts[0]?.id || "",
+      confirmContributions: true,
+      status: completed ? "Completed" : "In Progress",
+      completedAt: completed ? (goal?.completedAt || todayIso()) : "",
+      createdAt: goal?.createdAt || todayIso(),
       image: imageValue("goal"),
       imageZoom: imageZoomValue("goal"),
       imageX: imagePanValue("goal", "x"),
@@ -12500,33 +12679,28 @@
     closeModal();
   }
 
-  function saveGoalContribution(goalId) {
-    const goal = data.goals.find((item) => item.id === goalId);
-    if (!goal) return;
-    const amount = numberValue("goalContributionAmount");
-    const account = data.accounts.find((item) => item.id === value("goalContributionAccount"));
-    if (amount <= 0) {
-      showToast("Enter a contribution amount first.", "danger");
-      return;
-    }
-    if (!account) {
-      showToast("Choose the account this contribution comes from.", "danger");
-      return;
-    }
-    const contributionDate = value("goalContributionDate") || todayIso();
-    const note = value("goalContributionNote") || `Goal contribution from ${account.name}.`;
+  function applyGoalContribution(goal, account, amount, contributionDate, note, source = "manual") {
+    const wasCompleted = goal.target > 0 && goal.current >= goal.target;
     account.balance = moneyNumber(account.balance - amount);
     goal.current = moneyNumber(goal.current + amount);
+    const completed = goal.target > 0 && goal.current >= goal.target;
+    goal.status = completed ? "Completed" : "In Progress";
+    if (completed && !wasCompleted) goal.completedAt = contributionDate;
+    if (!goal.createdAt) goal.createdAt = contributionDate;
     data.goalContributions = safeArray(data.goalContributions);
-    data.goalContributions.unshift({
+    const contribution = {
       id: id("goal_contribution"),
       goalId: goal.id,
+      goalName: goal.name,
       accountId: account.id,
       accountName: account.name,
       amount,
       date: contributionDate,
-      notes: note
-    });
+      notes: note,
+      source,
+      confirmedAt: nowIso()
+    };
+    data.goalContributions.unshift(contribution);
     data.transactions.unshift({
       id: id("tx"),
       type: "expense",
@@ -12544,9 +12718,28 @@
       status: "Paid",
       notes: note
     });
+    return contribution;
+  }
+
+  function saveGoalContribution(goalId, source = "manual") {
+    const goal = data.goals.find((item) => item.id === goalId);
+    if (!goal) return;
+    const amount = numberValue("goalContributionAmount");
+    const account = data.accounts.find((item) => item.id === value("goalContributionAccount"));
+    if (amount <= 0) {
+      showToast("Enter a contribution amount first.", "danger");
+      return;
+    }
+    if (!account) {
+      showToast("Choose the account this contribution comes from.", "danger");
+      return;
+    }
+    const contributionDate = value("goalContributionDate") || todayIso();
+    const note = value("goalContributionNote") || `Goal contribution from ${account.name}.`;
+    applyGoalContribution(goal, account, amount, contributionDate, note, source);
     saveData();
     closeModal();
-    showToast(`${money(amount)} moved from ${account.name} to ${goal.name}.`);
+    showToast(`${money(amount)} moved from ${account.name} to ${goal.name}. Account updated.`);
   }
 
   function saveContact(contactId) {

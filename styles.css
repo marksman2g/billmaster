@@ -1251,6 +1251,19 @@ button.round-icon {
   border-left: 4px solid var(--teal);
 }
 
+.clickable-card {
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.clickable-card:hover,
+.clickable-card:focus-visible {
+  border-color: #98c8ff;
+  box-shadow: 0 14px 30px rgba(18, 49, 92, .13);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .goal-card:nth-child(2n) {
   border-color: #b7e0ec;
 }
@@ -1373,6 +1386,122 @@ button.round-icon {
   min-height: 34px;
   padding: 0 8px;
   font-size: 0.78rem;
+}
+
+.goal-funded-card {
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(76, 175, 80, .18) 0 var(--goal-paid, 0%), rgba(255, 255, 255, .95) var(--goal-paid, 0%) 100%),
+    var(--surface);
+}
+
+.goal-completed-card {
+  border-color: rgba(76, 175, 80, .55);
+}
+
+.goal-plan-card,
+.account-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.goal-plan-card > div,
+.account-detail-grid span,
+.goal-history-row {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 251, 255, .9);
+}
+
+.goal-plan-card strong,
+.goal-plan-card span,
+.goal-plan-card button,
+.account-detail-grid strong,
+.account-detail-grid small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-plan-card strong,
+.section-kicker {
+  margin: 0 0 6px;
+  color: var(--navy);
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+.goal-plan-card span,
+.goal-plan-card button,
+.goal-plan-mini {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 750;
+}
+
+.goal-history {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.goal-history-row {
+  display: grid;
+  grid-template-columns: minmax(85px, .8fr) minmax(72px, .6fr) minmax(90px, 1fr);
+  align-items: start;
+  gap: 8px;
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.goal-history-row strong {
+  color: #25a95d;
+}
+
+.goal-history-row p {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: var(--navy-2);
+}
+
+.goal-empty-history,
+.goal-plan-mini {
+  margin: 0;
+}
+
+.info-note,
+.soft-panel {
+  border: 1px solid #bee0ff;
+  border-radius: 10px;
+  background: #eff7ff;
+  color: var(--navy-2);
+}
+
+.info-note {
+  padding: 10px;
+  font-size: .84rem;
+  font-weight: 800;
+}
+
+.account-detail-card {
+  margin-bottom: 12px;
+}
+
+.account-detail-grid strong {
+  color: var(--navy-2);
+  font-size: 1rem;
+}
+
+.account-detail-grid small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
 }
 
 .progress {
@@ -8086,6 +8215,15 @@ canvas {
 }
 
 @media (max-width: 620px) {
+  .goal-plan-card,
+  .account-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-history-row {
+    grid-template-columns: minmax(70px, .8fr) minmax(70px, .7fr) minmax(80px, 1fr);
+  }
+
   .briefing-metrics,
   .briefing-actions,
   .hub-note {
