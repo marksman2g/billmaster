@@ -1399,6 +1399,33 @@ button.round-icon {
   border-color: rgba(76, 175, 80, .55);
 }
 
+.goal-money-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin: 12px 0 8px;
+}
+
+.goal-money-line span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.goal-money-line small {
+  color: var(--muted);
+  font-size: .92rem;
+  font-weight: 800;
+}
+
+.goal-remaining {
+  color: var(--red);
+  font-size: .98rem;
+  font-weight: 900;
+}
+
 .goal-plan-card,
 .account-detail-grid {
   display: grid;

@@ -4610,7 +4610,7 @@
     const cardStyle = `--goal-paid:${pct}%;`;
     const planLine = goalNextContributionLabel(goal);
     if (compact) {
-      return `<article class="project-card compact-goal-card goal-funded-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}">
+      return `<article class="project-card compact-goal-card goal-funded-card clickable-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}" data-action="open-modal" data-modal="editGoal" data-id="${goal.id}" title="Click blank space to edit ${esc(goal.name)}">
         <div class="compact-goal-head">
           ${media ? `<span class="media-thumb compact-goal-thumb" ${imageStyleAttr(goal)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${goal.color});background:${softColor(goal.color)};">${icon("chart")}</span>`}
           <div class="compact-goal-title">
@@ -4640,7 +4640,7 @@
         </div>
       </article>`;
     }
-    return `<article class="project-card goal-funded-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}">
+    return `<article class="project-card goal-funded-card clickable-card ${completed ? "goal-completed-card" : ""}" style="${cardStyle}" data-action="open-modal" data-modal="editGoal" data-id="${goal.id}" title="Click blank space to edit ${esc(goal.name)}">
       <div class="card-row">
         <div style="display:flex;gap:12px;align-items:center;">
           ${media ? `<span class="media-thumb" ${imageStyleAttr(goal)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${goal.color});background:${softColor(goal.color)};">${icon("chart")}</span>`}
@@ -4652,9 +4652,9 @@
           <button class="icon-btn danger-text" data-action="delete-goal" data-id="${goal.id}" aria-label="Delete goal">${icon("trash")}</button>
         </div>
       </div>
-      <div class="card-row" style="margin:12px 0 8px;">
-        <strong class="amount-large positive">${money(goal.current)}</strong>
-        <span class="muted">of ${money(goal.target)} - ${money(remaining)} to go</span>
+      <div class="goal-money-line">
+        <span><strong class="amount-large positive">${money(goal.current)}</strong><small>of ${money(goal.target)}</small></span>
+        <strong class="goal-remaining">${money(remaining)} to go</strong>
       </div>
       <div class="progress ${goal.color}" style="--value:${pct}%"><span></span></div>
       <div class="card-row" style="margin-top:10px;">
@@ -5368,6 +5368,8 @@
 
   function renderLending() {
     const summary = lendingSummary();
+    const lendingFilters = ["all", "outstanding", "partial", "repaid", "forgiven"];
+    if (!lendingFilters.includes(ui.lendingFilter)) ui.lendingFilter = "all";
     const query = ui.loanQuery.trim().toLowerCase();
     const filteredLoans = data.loans
       .filter((loan) => matchesLendingFilter(loan, ui.lendingFilter))
@@ -5379,11 +5381,10 @@
         <div class="stat-card" style="border-color:#cbe9ff;"><span class="muted">${icon("chart")}</span><strong class="amount-large money-blue">${money(summary.partial)}</strong><div class="subtle">Money Owed</div></div>
         <div class="stat-card" style="border-color:#c5ebce;"><span class="muted">${icon("check")}</span><strong class="amount-large positive">${money(summary.repaid)}</strong><div class="subtle">Repaid</div></div>
         <div class="stat-card" style="border-color:#d9dce5;"><span class="muted">${icon("close")}</span><strong class="amount-large muted">${money(summary.forgiven)}</strong><div class="subtle">Forgiven</div></div>
-        <div class="stat-card" style="border-color:#c5ebce;"><span class="muted">${icon("check")}</span><strong class="amount-large positive">${summary.done}</strong><div class="subtle">Done</div></div>
         <div class="stat-card" style="border-color:#d0ccff;"><span class="muted">${icon("loan")}</span><strong class="amount-large" style="color:var(--accent)">${summary.total}</strong><div class="subtle">Total Loans</div></div>
       </div>
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="loanSearch" value="${esc(ui.loanQuery)}" data-action="loan-search" placeholder="Search borrower name..." /></label>
-      <div class="filter-row">${["all", "outstanding", "partial", "repaid", "forgiven", "done"].map((filter) => `<button class="${ui.lendingFilter === filter ? "active" : ""}" data-action="set-tab" data-key="lendingFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}</div>
+      <div class="filter-row">${lendingFilters.map((filter) => `<button class="${ui.lendingFilter === filter ? "active" : ""}" data-action="set-tab" data-key="lendingFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}</div>
       <div class="loan-grid">${filteredLoans.length ? filteredLoans.map((loan) => loanCard(loan)).join("") : `<section class="section-card loan-grid-empty"><p class="muted">No ${esc(filterLabel(ui.lendingFilter).toLowerCase())} loans right now.</p></section>`}</div>
     </section>`;
   }
