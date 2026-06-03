@@ -201,6 +201,7 @@
       { id: "goal_2", name: "Vacation Fund", target: 5000, current: 2100, targetDate: "2026-06-30", color: "teal" },
       { id: "goal_3", name: "New Car Down Payment", target: 8000, current: 3200, targetDate: "2027-03-31", color: "purple" }
     ],
+    goalContributions: [],
     addresses: [
       { id: "addr_1", label: "LGA", street: "Terminal 1", city: "Queens", state: "NY", zip: "", country: "USA", entity: "task" },
       { id: "addr_2", label: "Big Address", street: "291 Big Blanket Ave", city: "Bronx", state: "NY", zip: "10454", country: "USA", entity: "bill" },
@@ -1515,6 +1516,10 @@
     return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
 
+  function reportableTransactions(type = "") {
+    return data.transactions.filter((tx) => !tx.isTransfer && (!type || tx.type === type));
+  }
+
   function dateLabel(iso) {
     if (!iso) return "No date";
     return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -1798,8 +1803,8 @@
   }
 
   function renderDashboard() {
-    const income = sum(data.transactions.filter((t) => t.type === "income"));
-    const expenses = sum(data.transactions.filter((t) => t.type === "expense"));
+    const income = sum(reportableTransactions("income"));
+    const expenses = sum(reportableTransactions("expense"));
     const balance = sum(data.accounts, "balance") + income - expenses;
     const upcomingBills = data.bills
       .filter((bill) => daysBetween(bill.dueDate) <= 14)
@@ -2074,8 +2079,8 @@
   }
 
   function summaryRows() {
-    const expenses = data.transactions.filter((t) => t.type === "expense");
-    const income = data.transactions.filter((t) => t.type === "income");
+    const expenses = reportableTransactions("expense");
+    const income = reportableTransactions("income");
     return [3, 6, 12].map((months) => {
       const inc = monthlyProjection(income, months);
       const exp = monthlyProjection(expenses, months);
@@ -2295,7 +2300,7 @@
 
   function renderTracking() {
     const type = ui.trackingTab === "income" ? "income" : "expense";
-    const items = data.transactions.filter((tx) => tx.type === type).sort((a, b) => b.date.localeCompare(a.date));
+    const items = reportableTransactions(type).sort((a, b) => b.date.localeCompare(a.date));
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Income & Expense Tracking", `<button class="icon-btn" data-action="navigate" data-view="lending" title="Money Lending Tracker">${icon("loan")}</button>`)}
@@ -2319,7 +2324,7 @@
   }
 
   function trackingSummary(type) {
-    const items = data.transactions.filter((tx) => tx.type === type);
+    const items = reportableTransactions(type);
     return [1, 3, 6, 12].map((months) => {
       const actual = monthlyProjection(items, months);
       const projected = monthlyProjection(items, months, "projected");
@@ -2343,7 +2348,7 @@
 
   function renderAnalytics() {
     const type = ui.analyticsTab === "income" ? "income" : "expense";
-    const items = data.transactions.filter((tx) => tx.type === type);
+    const items = reportableTransactions(type);
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Budget Analytics")}
@@ -2410,7 +2415,7 @@
   }
 
   function legendRow(row) {
-    const total = sum(categoryBreakdown(data.transactions.filter((t) => t.type === (ui.analyticsTab === "income" ? "income" : "expense"))), "actual");
+    const total = sum(categoryBreakdown(reportableTransactions(ui.analyticsTab === "income" ? "income" : "expense")), "actual");
     const pct = total ? Math.round((row.actual / total) * 100) : 0;
     return `<div class="legend-row"><span class="dot ${legendColor(row.name)}"></span><span>${esc(row.name)}</span><strong>${pct}%</strong></div>`;
   }
@@ -6669,10 +6674,15 @@
   function modalGoalContribution(goalId) {
     const goal = data.goals.find((item) => item.id === goalId);
     if (!goal) return "";
+    const accountOptions = data.accounts.map((acct) => acct.id);
     return `${modalHeader("Add Contribution", goal.name)}
       <div class="field-grid">
         ${field("goalContributionAmount", "Contribution Amount", "", "100", "number")}
-        ${field("goalContributionDate", "Date", "2026-05-06", "", "date")}
+        ${selectField("goalContributionAccount", "From Account", accountOptions, data.accounts[0]?.id || "", (value) => {
+          const account = data.accounts.find((acct) => acct.id === value);
+          return account ? `${account.name} - ${money(account.balance)}` : "Choose an account";
+        })}
+        ${field("goalContributionDate", "Date", todayIso(), "", "date")}
         ${textArea("goalContributionNote", "Note", "", "Optional note")}
       </div>
       <div class="sheet-actions"><button class="success-btn" data-action="save-goal-contribution" data-id="${goal.id}">Add Contribution</button></div>`;
@@ -8157,7 +8167,7 @@
     const ctx = canvas.getContext("2d");
     const type = canvas.dataset.type;
     const chart = canvas.dataset.chart;
-    const rows = categoryBreakdown(data.transactions.filter((tx) => tx.type === type));
+    const rows = categoryBreakdown(reportableTransactions(type));
     const colors = ["#00bcd4", "#4caf50", "#2196f3", "#ff6b6b", "#ffc107", "#6c63ff"];
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!rows.length) return;
@@ -12494,7 +12504,29 @@
     const goal = data.goals.find((item) => item.id === goalId);
     if (!goal) return;
     const amount = numberValue("goalContributionAmount");
-    goal.current += amount;
+    const account = data.accounts.find((item) => item.id === value("goalContributionAccount"));
+    if (amount <= 0) {
+      showToast("Enter a contribution amount first.", "danger");
+      return;
+    }
+    if (!account) {
+      showToast("Choose the account this contribution comes from.", "danger");
+      return;
+    }
+    const contributionDate = value("goalContributionDate") || todayIso();
+    const note = value("goalContributionNote") || `Goal contribution from ${account.name}.`;
+    account.balance = moneyNumber(account.balance - amount);
+    goal.current = moneyNumber(goal.current + amount);
+    data.goalContributions = safeArray(data.goalContributions);
+    data.goalContributions.unshift({
+      id: id("goal_contribution"),
+      goalId: goal.id,
+      accountId: account.id,
+      accountName: account.name,
+      amount,
+      date: contributionDate,
+      notes: note
+    });
     data.transactions.unshift({
       id: id("tx"),
       type: "expense",
@@ -12503,14 +12535,18 @@
       category: "Savings",
       amount,
       projected: amount,
-      date: value("goalContributionDate") || "2026-05-06",
+      date: contributionDate,
       frequency: "One time",
-      method: "Chase Checking",
+      method: account.name,
+      accountId: account.id,
+      goalId: goal.id,
+      isTransfer: true,
       status: "Paid",
-      notes: value("goalContributionNote") || "Goal contribution."
+      notes: note
     });
     saveData();
     closeModal();
+    showToast(`${money(amount)} moved from ${account.name} to ${goal.name}.`);
   }
 
   function saveContact(contactId) {
