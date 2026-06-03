@@ -6925,7 +6925,9 @@ canvas {
 
 .note-card-actions {
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
+  justify-content: flex-end;
 }
 
 .mini-note-actions {
@@ -6997,6 +6999,7 @@ canvas {
 .notes-compact .note-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  overflow: visible;
 }
 
 .notes-compact .cover-frame {
@@ -7008,18 +7011,48 @@ canvas {
 }
 
 .notes-compact .card-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
+  gap: 8px;
 }
 
 .notes-compact .note-heading-line {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 8px;
+  grid-template-columns: 28px 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
 }
 
 .notes-compact .note-heading-line .entity-title {
   grid-column: 1 / -1;
-  margin-top: 2px;
+  margin-top: 4px;
+  max-width: 100%;
+}
+
+.notes-compact .note-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  gap: 4px;
+  width: 86px;
+}
+
+.notes-compact .note-card-actions .icon-btn {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 7px;
+}
+
+.notes-compact .note-inline-controls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.notes-compact .note-inline-controls select {
+  height: 32px;
+  padding: 5px 6px;
+  font-size: 0.74rem;
 }
 
 .notes-compact .note-body p {

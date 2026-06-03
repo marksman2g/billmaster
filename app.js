@@ -2696,11 +2696,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-2";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-3";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260603-2`;
+    return `${location.origin}${location.pathname}?v=20260603-3`;
   }
 
   function friendPrivacyGatePanel() {
