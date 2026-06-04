@@ -6216,10 +6216,13 @@ canvas {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .block-scroll {
   overflow-x: auto;
+  touch-action: pan-x pan-y pinch-zoom;
+  overscroll-behavior: auto;
 }
 
 .time-label {
@@ -6252,7 +6255,7 @@ canvas {
   grid-row: 2;
   height: var(--block-day-height, 1440px);
   cursor: crosshair;
-  touch-action: none;
+  touch-action: pan-x pan-y pinch-zoom;
   border-right: 1px solid var(--line);
   background:
     linear-gradient(to bottom, var(--line) 1px, transparent 1px) 0 0 / 100% var(--block-hour-height, 60px),
@@ -6968,6 +6971,10 @@ canvas {
 
 .block-toolbar {
   align-items: center;
+}
+
+.block-mobile-actions {
+  display: none;
 }
 
 .handle-style-picker {
@@ -9153,17 +9160,41 @@ canvas {
     grid-template-columns: 1fr;
   }
 
+  .block-mobile-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 10px 12px;
+    margin: -2px 0 10px;
+    background: #eaf4ff;
+    border: 1px solid #c8e2ff;
+    border-radius: 8px;
+  }
+
+  .block-mobile-actions .primary-btn {
+    width: 100%;
+    min-height: 46px;
+  }
+
   .block-scroll {
     width: 100%;
     margin-inline: -12px;
     padding-inline: 12px;
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y pinch-zoom;
+    overscroll-behavior: auto;
   }
 
   .block-calendar {
     min-width: 760px;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .block-col {
+    cursor: default;
+    touch-action: pan-x pan-y pinch-zoom;
   }
 
   .block-toolbar {
@@ -9189,6 +9220,11 @@ canvas {
   .day-toolbar > strong,
   .day-toolbar > .muted {
     grid-column: 1 / -1;
+  }
+
+  .day-add-task-btn {
+    grid-column: 1 / -1;
+    min-height: 46px;
   }
 
   .day-task-card {
@@ -9346,13 +9382,25 @@ canvas {
   }
 
   .sheet-backdrop {
-    padding-inline: 8px;
+    align-items: flex-start;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
   .sheet {
     width: min(100%, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 14px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     padding-inline: 14px;
+    border-radius: 16px;
+  }
+
+  .sheet > .sheet-actions {
+    position: sticky;
+    bottom: -1px;
+    z-index: 3;
+    margin-inline: -14px;
+    padding: 10px 14px 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), #fff 34%);
   }
 }
 

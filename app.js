@@ -3859,7 +3859,7 @@
     const selectedDayAddresses = selectedDayTasks.map((task) => taskAddress(task)).filter(Boolean);
     const selectedDayCanRoute = selectedDayCount > 0 && selectedDayAddresses.length === selectedDayCount;
     return `<div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
+      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
       ${dayTimeOfDayLegend()}
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit. Press and hold for duplicate/time actions. Drag one event onto another to swap times.</p>
       <div class="list day-task-grid">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
@@ -4019,7 +4019,8 @@
       return `<div class="block-col ${stateClass}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
-    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
+    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
+      <div class="block-mobile-actions"><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button><span class="subtle">On phones, drag the grid to move or zoom. Use this button to add a timed task.</span></div>
       <div class="block-scroll"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
@@ -8192,6 +8193,7 @@
 
   function startBlockCreate(event) {
     if (event.button !== undefined && event.button !== 0) return;
+    if (event.pointerType === "touch" || event.pointerType === "pen" || event.isPrimary === false) return;
     if (event.target.closest(".event-block")) return;
     const column = event.currentTarget;
     const calendar = column.closest(".block-calendar");
@@ -8847,6 +8849,8 @@
 
   document.addEventListener("change", (event) => {
     const target = event.target;
+    if (target && target.id === "taskStart") focusPairedEndTime("taskStart", "taskEnd", 60);
+    if (target && target.id === "habitStart") focusPairedEndTime("habitStart", "habitEnd", 30);
     if (target && target.id === "taskAddress") toggleTaskAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.id === "taskCategory") toggleTaskCategoryPanel(target.value === ADD_TASK_CATEGORY_VALUE);
     if (target && target.id === "habitAddress") toggleHabitAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
@@ -8869,6 +8873,27 @@
       updateTaskNotifyPreview();
     }
   });
+
+  function focusPairedEndTime(startId, endId, defaultMinutes) {
+    const startEl = document.getElementById(startId);
+    const endEl = document.getElementById(endId);
+    if (!startEl || !endEl || !startEl.value) return;
+    const startValue = minutes(startEl.value);
+    const endValue = minutes(endEl.value);
+    if (!endEl.value || endValue <= startValue) {
+      endEl.value = timeFromMinutes(startValue + defaultMinutes);
+    }
+    window.setTimeout(() => {
+      endEl.focus({ preventScroll: false });
+      if (typeof endEl.showPicker === "function") {
+        try {
+          endEl.showPicker();
+        } catch (error) {
+          // Some mobile browsers only allow showPicker directly in the tap handler.
+        }
+      }
+    }, 120);
+  }
 
   document.addEventListener("change", (event) => {
     const target = event.target;
