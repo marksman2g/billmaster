@@ -4485,6 +4485,10 @@
     return data.tasks.filter((task) => task.projectId === project.id);
   }
 
+  function projectNotes(project) {
+    return data.notes.filter((note) => note.projectId === project.id);
+  }
+
   function projectName(projectId) {
     return data.projects.find((project) => project.id === projectId)?.name || "";
   }
@@ -4522,22 +4526,25 @@
   function projectTile(project) {
     const media = entityImage(project);
     const tasks = projectTasks(project);
+    const notes = projectNotes(project);
     const completed = tasks.filter((task) => task.status === "Completed").length;
     const lastTask = projectLastEditedTask(project);
-    return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" title="Open project or drop an unassigned task here">
+    return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" data-project-note-drop="${project.id}" title="Open project or drop tasks/notes here">
       <span class="project-tile-cover" ${imageStyleAttr(project)}>
         ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
       </span>
       <span class="project-tile-title">${esc(project.name)}</span>
       <span class="project-tile-row">${projectLevelBadge(project.level)}</span>
       <span class="project-tile-meta">${tasks.length} tasks - ${completed} done</span>
+      <span class="project-tile-meta">${notes.length} project note${notes.length === 1 ? "" : "s"}</span>
       <span class="project-tile-last" title="${esc(projectLastTaskText(lastTask))}">${esc(projectLastTaskText(lastTask))}</span>
-      <span class="project-drop-hint">${icon("task")} Drop task here</span>
+      <span class="project-drop-hint">${icon("task")} Drop task or note here</span>
     </button>`;
   }
 
   function renderProjectDetail(project) {
     const tasks = projectTasks(project);
+    const notes = projectNotes(project);
     const notebooks = data.notebooks.filter((notebook) => notebook.projectId === project.id);
     const media = entityImage(project);
     const done = tasks.filter((task) => task.status === "Completed").length;
@@ -4545,6 +4552,9 @@
     const taskIds = tasks.map((task) => task.id);
     const selectedIds = taskIds.filter((taskId) => ui.selectedTasks.includes(taskId));
     const allSelected = taskIds.length > 0 && selectedIds.length === taskIds.length;
+    const noteIds = notes.map((note) => note.id);
+    const selectedNoteIds = noteIds.filter((noteId) => ui.selectedNotes.includes(noteId));
+    const allNotesSelected = noteIds.length > 0 && selectedNoteIds.length === noteIds.length;
     return `<section class="screen">
       ${header(project.name, `<button class="icon-btn" data-action="open-modal" data-modal="editTask">${icon("plus")}</button><button class="icon-btn" data-action="close-project">${icon("close")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}">${icon("edit")}</button>`)}
       <section class="project-detail-hero">
@@ -4555,7 +4565,7 @@
         <div>
           <h2>${esc(project.name)}</h2>
           <p>${esc(project.description || "No project description yet.")}</p>
-          <div class="task-meta">${projectLevelBadge(project.level)}<span class="status info">${tasks.length} tasks</span><span class="status muted">${notebooks.length} notebooks</span><span class="status warn">Due ${dateLabel(project.dueDate)}</span></div>
+          <div class="task-meta">${projectLevelBadge(project.level)}<span class="status info">${tasks.length} tasks</span><span class="status info">${notes.length} notes</span><span class="status muted">${notebooks.length} notebooks</span><span class="status warn">Due ${dateLabel(project.dueDate)}</span></div>
           <p class="project-last-edited-line">${esc(projectLastTaskText(lastTask))}</p>
         </div>
       </section>
@@ -4578,6 +4588,21 @@
       </section>
       <div class="list project-detail-task-list project-tasks-${esc(ui.projectTaskView)}">
         ${tasks.length ? tasks.map((task) => taskBoardCard(task)).join("") : `<section class="section-card"><p class="muted">No tasks are assigned to this project yet.</p></section>`}
+      </div>
+      <section class="section-card project-task-toolbar project-note-toolbar" data-project-note-drop="${project.id}">
+        <div>
+          <h2 class="panel-title">Project Notes</h2>
+          <p class="muted">${notes.length} note${notes.length === 1 ? "" : "s"} attached. Drag notes onto this project, or add one here and it will stay with ${esc(project.name)}.</p>
+          <div class="project-bulk-toolbar project-detail-bulk-toolbar">
+            <button class="outline-btn" data-action="select-visible-project-notes" data-project-id="${project.id}">${icon("check")} ${allNotesSelected ? "Deselect visible" : "Select visible"}</button>
+            ${selectedNoteIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="outline-btn" data-action="unassign-selected-project-notes" data-project-id="${project.id}">${icon("close")} Remove from project</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">${icon("close")} Clear</button>` : ""}
+            <span class="muted">${selectedNoteIds.length}/${notes.length} selected</span>
+          </div>
+        </div>
+        <button class="primary-btn" data-action="open-project-note" data-id="${project.id}">${icon("plus")} Add Note</button>
+      </section>
+      <div class="project-detail-note-list notes-list notes-compact" data-project-note-drop="${project.id}">
+        ${notes.length ? notes.map((note) => noteCard(note)).join("") : `<section class="section-card project-note-empty"><p class="muted">No notes are attached yet. Drag a note here from Notes/Notebooks, or use Add Note.</p></section>`}
       </div>
     </section>`;
   }
@@ -4866,6 +4891,50 @@
     showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}. Undo is available.`);
   }
 
+  function assignNotesToProject(noteIds, projectId) {
+    const ids = Array.from(new Set((Array.isArray(noteIds) ? noteIds : [noteIds]).filter(Boolean)));
+    const project = data.projects.find((item) => item.id === projectId);
+    const notes = ids.map((noteId) => data.notes.find((item) => item.id === noteId)).filter(Boolean);
+    if (!notes.length) return;
+    notes.forEach((note) => {
+      note.projectId = project ? project.id : null;
+      note.updatedAt = new Date().toISOString();
+    });
+    ui.selectedNotes = ui.selectedNotes.filter((noteId) => !ids.includes(noteId));
+    saveData();
+    render();
+    showToast(project ? `${notes.length} note${notes.length === 1 ? "" : "s"} attached to ${project.name}.` : `${notes.length} note${notes.length === 1 ? "" : "s"} removed from project.`);
+  }
+
+  function selectedProjectNoteIds(projectId) {
+    const scoped = new Set(projectNotes({ id: projectId }).map((note) => note.id));
+    return ui.selectedNotes.filter((noteId) => scoped.has(noteId));
+  }
+
+  function selectVisibleProjectNotes(projectId) {
+    const noteIds = projectNotes({ id: projectId }).map((note) => note.id);
+    if (!noteIds.length) return;
+    const allSelected = noteIds.every((noteId) => ui.selectedNotes.includes(noteId));
+    ui.selectedNotes = allSelected
+      ? ui.selectedNotes.filter((noteId) => !noteIds.includes(noteId))
+      : Array.from(new Set([...ui.selectedNotes, ...noteIds]));
+    render();
+  }
+
+  function unassignSelectedProjectNotes(projectId) {
+    const ids = selectedProjectNoteIds(projectId);
+    if (!ids.length) return showToast("Select at least one project note first.", "danger");
+    assignNotesToProject(ids, "");
+  }
+
+  function openProjectNote(projectId) {
+    const project = data.projects.find((item) => item.id === projectId);
+    if (!project) return showToast("Choose a project first.", "danger");
+    ui.modal = { type: "editNote", id: "", projectId };
+    ui.noteColor = null;
+    render();
+  }
+
   function noteNotebookDropStrip(options = {}) {
     const notebooks = data.notebooks;
     const selectedCount = selectedNoteRecords().length;
@@ -4902,6 +4971,31 @@
       </div>
       <span class="notebook-drop-hint">${icon("note")} ${esc(hint)}</span>
     </article>`;
+  }
+
+  function noteProjectDropStrip() {
+    const selectedCount = selectedNoteRecords().length;
+    const hint = selectedCount ? `Drop ${selectedCount} selected` : "Drop note";
+    return `<section class="notes-notebook-strip note-project-strip" aria-label="Project drop targets">
+      <div class="section-title compact-title">
+        <h2>${icon("folder")} Drag Notes To Projects</h2>
+        <span class="status info">${selectedCount ? `${selectedCount} selected` : `${data.projects.length} projects`}</span>
+      </div>
+      <p class="subtle project-drag-note">${selectedCount ? `Drag one selected note onto a project to attach all ${selectedCount} selected notes together.` : "Project notes live with project tasks. Drag a note here when it belongs to a project."}</p>
+      <div class="note-project-drop-grid">
+        ${data.projects.map((project) => {
+          const media = entityImage(project);
+          const notes = projectNotes(project);
+          return `<article class="note-project-drop-tile" data-project-note-drop="${project.id}" title="Drop notes into ${esc(project.name)}">
+            <span class="note-project-drop-cover ${media ? "has-image" : ""}" ${imageStyleAttr(project)}>
+              ${media ? `<img src="${esc(media)}" alt="">` : icon("folder")}
+            </span>
+            <div><strong>${esc(project.name)}</strong><span>${notes.length} note${notes.length === 1 ? "" : "s"}</span></div>
+            <span class="project-drop-hint">${icon("note")} ${esc(hint)}</span>
+          </article>`;
+        }).join("") || `<p class="muted">Create a project first, then drag notes here.</p>`}
+      </div>
+    </section>`;
   }
 
   function renderNotebooks() {
@@ -5055,7 +5149,7 @@
           </select>
         </label>
       </div>
-      ${nb ? "" : noteNotebookDropStrip()}
+      ${nb ? "" : `${noteNotebookDropStrip()}${noteProjectDropStrip()}`}
       <div class="filter-row notes-importance-filters" style="margin-bottom:14px;">
         <button class="${ui.notesFilter === "all" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="all">All</button>
         <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned" title="No Subject">None <span class="filter-count">${unassignedCount}</span></button>
@@ -6813,8 +6907,10 @@
 
   function modalNote(noteId) {
     const defaultNotebookId = ui.notebookId || "";
-    const note = data.notes.find((item) => item.id === noteId) || { date: "2026-05-06", importance: "Low", notebookId: defaultNotebookId, color: "#6c63ff", icon: "note" };
+    const defaultProjectId = ui.modal?.projectId || (ui.view === "projects" ? ui.projectId : "") || "";
+    const note = data.notes.find((item) => item.id === noteId) || { date: "2026-05-06", importance: "Low", notebookId: defaultNotebookId, projectId: defaultProjectId, color: "#6c63ff", icon: "note" };
     const insideNotebook = !note.id && ui.notebookId;
+    const project = data.projects.find((item) => item.id === (note.projectId || defaultProjectId));
     return `${modalHeader(note.id ? "Edit Note" : "New Note")}
       <div class="field-grid">
         ${field("noteTitle", "Note Title", note.title || "", "Note Title")}
@@ -6824,6 +6920,7 @@
         ${selectField("noteImportance", "Importance Level", ["Low", "Medium", "High", "Critical"], note.importance || "Low")}
         ${noteNotebookField(note)}
         ${insideNotebook ? `<p class="subtle notebook-auto-note">${icon("book")} This note defaults to ${esc(data.notebooks.find((nb) => nb.id === ui.notebookId)?.title || "this notebook")}, or you can choose + New notebook above.</p>` : ""}
+        ${project ? `<p class="subtle notebook-auto-note">${icon("folder")} Project: ${esc(project.name)}</p>` : ""}
         ${selectField("noteCover", "Stock Image", ["", "cherries", "bananas"], note.cover || "", (value) => value ? filterLabel(value) : "No stock image")}
         ${imageAttachmentField("note", note.image || note.cover || "", "Note Picture / Graphic", note.imageZoom, note.imageX, note.imageY, note.imageFit, note.imageOpacity)}
         <div class="field"><label>Color</label><div class="swatches">${["#4388f3", "#6c63ff", "#10b981", "#ff9800", "#f44336", "#8b5cf6", "#ec4899", "#14b8a6"].map((c) => `<button class="swatch ${note.color === c ? "active" : ""}" style="background:${c}" data-action="pick-note-color" data-color="${c}"></button>`).join("")}</div></div>
@@ -7741,7 +7838,7 @@
       tile.dataset.dropBound = "true";
       tile.addEventListener("dragover", (event) => {
         const types = Array.from(event.dataTransfer.types || []);
-        if (!types.includes("application/x-billmaster-tasks") && !types.includes("application/x-billmaster-task") && !types.includes("text/plain")) return;
+        if (!types.includes("application/x-billmaster-tasks") && !types.includes("application/x-billmaster-task")) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         tile.classList.add("project-drop-active");
@@ -7754,7 +7851,7 @@
         } catch (error) {
           taskIds = [];
         }
-        const taskId = event.dataTransfer.getData("application/x-billmaster-task") || event.dataTransfer.getData("text/plain");
+        const taskId = event.dataTransfer.getData("application/x-billmaster-task");
         if (!taskIds.length && taskId) taskIds = [taskId];
         if (!taskIds.length) return;
         event.preventDefault();
@@ -7765,7 +7862,7 @@
   }
 
   function attachNoteNotebookInteractions() {
-    if (!["notebooks", "notes"].includes(ui.view)) return;
+    if (!["notebooks", "notes", "projects"].includes(ui.view)) return;
     document.querySelectorAll("[data-notebook-note-id]").forEach((card) => {
       if (card.dataset.dragBound === "true") return;
       card.dataset.dragBound = "true";
@@ -7787,6 +7884,7 @@
         delete card.dataset.dragCount;
         card.classList.remove("is-dragging");
         document.querySelectorAll(".notebook-drop-active").forEach((tile) => tile.classList.remove("notebook-drop-active"));
+        document.querySelectorAll(".project-note-drop-active").forEach((tile) => tile.classList.remove("project-note-drop-active"));
       });
     });
     document.querySelectorAll("[data-notebook-drop]").forEach((tile) => {
@@ -7816,6 +7914,35 @@
         event.preventDefault();
         tile.classList.remove("notebook-drop-active");
         assignNotesToNotebook(noteIds, tile.dataset.notebookDrop);
+      });
+    });
+    document.querySelectorAll("[data-project-note-drop]").forEach((tile) => {
+      if (tile.dataset.noteProjectDropBound === "true") return;
+      tile.dataset.noteProjectDropBound = "true";
+      tile.addEventListener("dragover", (event) => {
+        const types = Array.from(event.dataTransfer.types || []);
+        if (!types.includes("application/x-billmaster-notes") && !types.includes("application/x-billmaster-note")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        tile.classList.add("project-note-drop-active");
+      });
+      tile.addEventListener("dragleave", (event) => {
+        if (!isDragOutsideElement(event, tile)) return;
+        tile.classList.remove("project-note-drop-active");
+      });
+      tile.addEventListener("drop", (event) => {
+        let noteIds = [];
+        try {
+          noteIds = JSON.parse(event.dataTransfer.getData("application/x-billmaster-notes") || "[]");
+        } catch (error) {
+          noteIds = [];
+        }
+        const noteId = event.dataTransfer.getData("application/x-billmaster-note");
+        if (!noteIds.length && noteId) noteIds = [noteId];
+        if (!noteIds.length) return;
+        event.preventDefault();
+        tile.classList.remove("project-note-drop-active");
+        assignNotesToProject(noteIds, tile.dataset.projectNoteDrop);
       });
     });
   }
@@ -8968,6 +9095,7 @@
       ui.projectId = null;
       return render();
     }
+    if (action === "open-project-note") return openProjectNote(el.dataset.id);
     if (action === "clear-selected-tasks") return clearSelectedTasks();
     if (action === "delete-selected-tasks") return deleteSelectedTasks();
     if (action === "navigate-notes") {
@@ -8978,9 +9106,11 @@
     if (action === "delete-note") return deleteNote(el.dataset.id);
     if (action === "toggle-note-select") return toggleNoteSelect(el.dataset.id);
     if (action === "select-visible-notes") return selectVisibleNotes();
+    if (action === "select-visible-project-notes") return selectVisibleProjectNotes(el.dataset.projectId);
     if (action === "select-unassigned-notes") return selectUnassignedNotes();
     if (action === "clear-selected-notes") return clearSelectedNotes();
     if (action === "delete-selected-notes") return deleteSelectedNotes();
+    if (action === "unassign-selected-project-notes") return unassignSelectedProjectNotes(el.dataset.projectId);
     if (action === "duplicate-notes") return duplicateNotes(el.dataset.id);
     if (action === "save-selected-note-subject") return saveSelectedNoteSubject();
     if (action === "save-selected-note-notebook") return saveSelectedNoteNotebook();
@@ -12799,8 +12929,10 @@
     }
     const subject = noteSubjectValue();
     if (notebookId && subject) ensureNotebookSubject(notebookId, subject);
+    const projectId = note?.projectId || ui.modal?.projectId || (ui.view === "projects" ? ui.projectId : "") || null;
     const payload = {
       notebookId,
+      projectId,
       title: value("noteTitle") || "Note",
       content: value("noteContent"),
       date: value("noteDate") || "2026-05-06",

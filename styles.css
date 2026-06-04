@@ -3116,7 +3116,8 @@ button.round-icon {
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
-.project-picture-tile.project-drop-active {
+.project-picture-tile.project-drop-active,
+.project-picture-tile.project-note-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), var(--shadow);
   transform: translateY(-2px);
@@ -3142,7 +3143,8 @@ button.round-icon {
   font-weight: 850;
 }
 
-.project-picture-tile.project-drop-active .project-drop-hint {
+.project-picture-tile.project-drop-active .project-drop-hint,
+.project-picture-tile.project-note-drop-active .project-drop-hint {
   display: inline-flex;
 }
 
@@ -3386,6 +3388,79 @@ button.round-icon {
   display: inline-flex;
 }
 
+.note-project-strip {
+  margin-top: 10px;
+}
+
+.note-project-drop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.note-project-drop-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 56px;
+  padding: 8px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.note-project-drop-tile strong,
+.note-project-drop-tile span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-project-drop-tile span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.note-project-drop-cover {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  color: #fff;
+  background: var(--navy);
+  border-radius: 8px;
+}
+
+.note-project-drop-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.note-project-drop-tile.project-note-drop-active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 16px 32px rgba(26, 31, 54, 0.13);
+}
+
+.note-project-drop-tile .project-drop-hint {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  min-height: 24px;
+  background: rgba(238, 246, 255, 0.96);
+}
+
+.note-project-drop-tile.project-note-drop-active .project-drop-hint {
+  display: inline-flex;
+}
+
 .note-notebook-drop-tile.notebook-drop-active::after,
 .notebook-tile.notebook-drop-active::after {
   position: absolute;
@@ -3611,6 +3686,41 @@ button.round-icon {
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
+}
+
+.project-note-toolbar {
+  margin-top: 18px;
+  background: #f8fbff;
+  border-color: #bfe0ff;
+}
+
+.project-note-toolbar.project-note-drop-active,
+.project-detail-note-list.project-note-drop-active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.14), var(--shadow);
+}
+
+.project-detail-note-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(248, 251, 255, 0.72);
+  border: 1px dashed #bfe0ff;
+  border-radius: 8px;
+}
+
+.project-detail-note-list .note-card {
+  min-height: 220px;
+}
+
+.project-note-empty {
+  min-height: 128px;
+  display: grid;
+  place-items: center;
+  box-shadow: none;
+  background: #fff;
 }
 
 .segmented-mini {
