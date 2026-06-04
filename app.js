@@ -4866,30 +4866,33 @@
     showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}. Undo is available.`);
   }
 
-  function noteNotebookDropStrip() {
+  function noteNotebookDropStrip(options = {}) {
     const notebooks = data.notebooks;
     const selectedCount = selectedNoteRecords().length;
+    const compact = options.compact || options.mode === "organized";
     const dropCopy = selectedCount
       ? `Drag one selected note onto a notebook to move all ${selectedCount} selected notes together.`
       : "Drag any note card below onto a notebook to file it without opening the note.";
-    return `<section class="notes-notebook-strip" aria-label="Notebook drop targets">
+    const title = options.title || "Drag Notes To Notebooks";
+    const subtitle = options.subtitle || dropCopy;
+    return `<section class="notes-notebook-strip ${compact ? "organizer-drop-strip" : ""}" aria-label="Notebook drop targets">
       <div class="section-title compact-title">
-        <h2>${icon("book")} Drag Notes To Notebooks</h2>
+        <h2>${icon("book")} ${esc(title)}</h2>
         <span class="status info">${selectedCount ? `${selectedCount} selected` : `${notebooks.length} notebooks`}</span>
       </div>
-      <p class="subtle project-drag-note">${esc(dropCopy)}</p>
+      <p class="subtle project-drag-note">${esc(subtitle)}</p>
       <div class="note-notebook-drop-grid">
-        ${notebooks.map((nb) => noteNotebookDropTile(nb)).join("") || `<p class="muted">Create a notebook first, then drag notes here.</p>`}
+        ${notebooks.map((nb) => noteNotebookDropTile(nb, { compact })).join("") || `<p class="muted">Create a notebook first, then drag notes here.</p>`}
       </div>
     </section>`;
   }
 
-  function noteNotebookDropTile(nb) {
+  function noteNotebookDropTile(nb, options = {}) {
     const notes = data.notes.filter((note) => note.notebookId === nb.id);
     const media = entityImage(nb);
     const selectedCount = selectedNoteRecords().length;
     const hint = selectedCount ? `Drop ${selectedCount} selected` : "Drop note";
-    return `<article class="note-notebook-drop-tile" data-notebook-drop="${nb.id}" title="Drop notes into ${esc(nb.title)}">
+    return `<article class="note-notebook-drop-tile ${options.compact ? "organizer-drop-tile" : ""}" data-notebook-drop="${nb.id}" title="Drop notes into ${esc(nb.title)}">
       <button class="note-notebook-cover ${media ? "has-image" : ""}" data-action="navigate-notes" data-id="${nb.id}" ${imageStyleAttr(nb)} aria-label="Open ${esc(nb.title)}">
         ${media ? `<img src="${esc(media)}" alt="">` : `<span>${icon(nb.icon || "book")}</span>`}
       </button>
@@ -4913,6 +4916,7 @@
     const visibleNotebookIds = notebooks.map((nb) => nb.id);
     const selectedVisibleNotebooks = visibleNotebookIds.filter((idValue) => ui.selectedNotebooks.includes(idValue)).length;
     const selectedUnassignedNotes = unassignedNotes.filter((note) => ui.selectedNotes.includes(note.id)).length;
+    const organizedView = ui.notebookView === "organized";
     return `<section class="screen">
       ${header("Notebooks", `<button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
       <section class="notebook-library-head">
@@ -4929,20 +4933,26 @@
       </section>
       <label class="search-field notebook-search">${icon("search")}<input id="notebookSearch" value="${esc(ui.notebookQuery)}" data-action="notebook-search" placeholder="Search notebooks, subjects, descriptions..." /></label>
       <div class="filter-row notebook-view-switcher">
-        ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+        ${["regular", "compact", "gallery", "organized"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
       </div>
-      <div class="note-action-bar notebook-action-bar">
+      ${organizedView ? "" : `<div class="note-action-bar notebook-action-bar">
         <span>${ui.selectedNotebooks.length ? `${ui.selectedNotebooks.length} notebook${ui.selectedNotebooks.length === 1 ? "" : "s"} selected` : "Select notebooks to duplicate the notebook and every note inside it"}</span>
         <button class="outline-btn" data-action="select-visible-notebooks">${selectedVisibleNotebooks === visibleNotebookIds.length && visibleNotebookIds.length ? "Deselect visible" : "Select visible"}</button>
         ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
-      </div>
-      <div class="notebook-grid notebooks-${esc(ui.notebookView)}">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>
-      <section class="section-card unassigned-notes-section">
+      </div>`}
+      ${organizedView ? noteNotebookDropStrip({
+        compact: true,
+        title: "Organized Filing View",
+        subtitle: selectedUnassignedNotes
+          ? `Drag one selected unassigned note onto a notebook tile to move all ${selectedUnassignedNotes} selected notes.`
+          : "Use these compact notebook tiles as drop targets. Drag loose notes below into the right notebook."
+      }) : `<div class="notebook-grid notebooks-${esc(ui.notebookView)}">${notebooks.length ? notebooks.map((nb) => notebookCard(nb)).join("") : `<section class="section-card notebook-grid-empty"><p class="muted">No notebooks match this search.</p></section>`}</div>`}
+      <section class="section-card unassigned-notes-section ${organizedView ? "organized-unassigned-section" : ""}">
         <div class="section-title compact-title">
-          <h2>${icon("note")} Unassigned Notes</h2>
+          <h2>${icon("note")} ${organizedView ? "Unassigned Notes To File" : "Unassigned Notes"}</h2>
           <span class="status info">${unassignedNotes.length}</span>
         </div>
-        <p class="subtle project-drag-note">Quick notes can live here first. Drag any unassigned note onto a notebook tile above when you are ready.</p>
+        <p class="subtle project-drag-note">${organizedView ? "This view is built for clean-up: select one or many unassigned notes, then drag a selected note onto the compact notebook row above." : "Quick notes can live here first. Drag any unassigned note onto a notebook tile above when you are ready."}</p>
         <div class="note-action-bar unassigned-note-actions">
           <span>${selectedUnassignedNotes ? `${selectedUnassignedNotes} unassigned note${selectedUnassignedNotes === 1 ? "" : "s"} selected` : "Select unassigned notes, then copy them or drag one selected note onto a notebook to move them all"}</span>
           <button class="outline-btn" data-action="select-unassigned-notes">${selectedUnassignedNotes === unassignedNotes.length && unassignedNotes.length ? "Deselect unassigned" : "Select unassigned"}</button>

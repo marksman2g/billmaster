@@ -3317,6 +3317,65 @@ button.round-icon {
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
+.organizer-drop-strip {
+  padding: 12px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(238, 246, 255, 0.98), rgba(250, 253, 255, 0.98));
+  border-color: #a9d2ff;
+}
+
+.organizer-drop-strip .compact-title {
+  margin-bottom: 3px;
+}
+
+.organizer-drop-strip .project-drag-note {
+  margin: 0 0 8px;
+}
+
+.organizer-drop-strip .note-notebook-drop-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 136px), 1fr));
+  gap: 7px;
+}
+
+.organizer-drop-tile {
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 46px;
+  padding: 6px;
+  gap: 7px;
+  box-shadow: 0 6px 14px rgba(26, 31, 54, 0.05);
+}
+
+.organizer-drop-tile .note-notebook-cover {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+}
+
+.organizer-drop-tile .note-notebook-drop-copy {
+  gap: 1px;
+}
+
+.organizer-drop-tile .note-notebook-drop-copy strong {
+  font-size: 0.76rem;
+}
+
+.organizer-drop-tile .note-notebook-drop-copy span {
+  font-size: 0.63rem;
+}
+
+.organizer-drop-tile .notebook-drop-hint {
+  display: none;
+}
+
+.organized-unassigned-section {
+  border-color: #b9d9ff;
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.organized-unassigned-section .unassigned-note-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
 .note-notebook-drop-tile.notebook-drop-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16), 0 16px 32px rgba(26, 31, 54, 0.13);
