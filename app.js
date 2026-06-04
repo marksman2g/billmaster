@@ -2564,25 +2564,16 @@
     const needsAuth = connections.filter((item) => item.needsAuth).length;
     return `<section class="screen">
       ${header("Sync Center", `<button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button><button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button>`)}
-      <section class="section-card balance-panel sync-hero">
-        <div class="card-row">
-          <div><div class="balance-label">Connection Health</div><div class="balance-amount">${connected}/${connections.length}</div><div class="small-label">${needsAuth ? `${needsAuth} connection needs setup` : "All prototype connections healthy"}</div></div>
-          <span class="pill dark">${icon("settings")} Prism-plus rails</span>
-        </div>
-        <div class="balance-meta"><span>${icon("wallet")} Bank/Card sync</span><span>${icon("receipt")} Biller sync</span><span>${icon("note")} Import inbox</span></div>
-      </section>
+      ${syncCommandPanel(connected, connections.length, needsAuth)}
       ${cloudWorkspacePanel()}
-      ${friendAlphaLaunchPanel()}
-      ${friendPrivacyGatePanel()}
-      ${friendAlphaOnboardingPanel()}
-      ${friendAlphaFeedbackPanel()}
-      ${mobileCodexAccessPanel()}
-      ${mediaStoragePanel()}
-      ${googleContactsPanel()}
-      ${notificationFoundationPanel()}
+      <div class="sync-priority-grid">
+        ${googleContactsPanel()}
+        ${notificationFoundationPanel()}
+      </div>
+      ${syncDetailsDisclosure("Friend readiness", "Private accounts, safe alpha steps, onboarding, and feedback tools.", `${friendAlphaLaunchPanel()}${friendPrivacyGatePanel()}${friendAlphaOnboardingPanel()}${friendAlphaFeedbackPanel()}`)}
+      ${syncDetailsDisclosure("Mobile and picture storage", "Phone/iPad access plus the Supabase media plan for uploads.", `${mobileCodexAccessPanel()}${mediaStoragePanel()}`)}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
-      <section class="section-card">
-        <div class="section-title"><h2>Production Integration Plan</h2><span class="status info">Staged</span></div>
+      ${syncDetailsDisclosure("Production Integration Plan", "Bank/card sync, bill pay, cancellation, contacts, and notifications staged safely.", `
         <div class="roadmap-grid">
           ${syncRoadmapStep("1", "Transactions", "Connect Plaid/MX/Finicity to pull balances, credit-card transactions, and recurring charge streams.")}
           ${syncRoadmapStep("2", "Liabilities", "Pull credit-card and loan due dates, statement balances, minimum due, and APR where supported.")}
@@ -2591,8 +2582,47 @@
           ${syncRoadmapStep("5", "Contacts + Groups", "Read Google Contacts first, then later add create/update access after the privacy and consent flow is stable.")}
           ${syncRoadmapStep("6", "Notifications", "Queue task status alerts now. Add Resend/SendGrid email next, then SMS as a premium provider feature.")}
         </div>
-      </section>
+      `)}
     </section>`;
+  }
+
+  function syncCommandPanel(connected, total, needsAuth) {
+    const signedIn = cloudSignedIn();
+    const autoOn = cloudAutoSyncEnabled();
+    const title = signedIn ? (autoOn ? "Auto sync is watching" : "Ready to turn Auto On") : cloudConfigured() ? "Sign in to sync devices" : "Finish cloud setup";
+    const copy = signedIn
+      ? autoOn
+        ? "BillMaster is watching for saved changes and can smart-merge this device with your phone, iPad, and desktop."
+        : "Best next move: run Smart Merge once, then turn Auto On when the result looks right."
+      : cloudConfigured()
+        ? "Your Supabase keys are saved. Sign in with your BillMaster account to sync this workspace."
+        : "Add the Supabase project URL and publishable key before inviting friends or testing on another device.";
+    return `<section class="section-card sync-command-panel">
+      <div class="sync-command-copy">
+        <span class="round-icon">${icon(autoOn ? "check" : signedIn ? "cloud" : "settings")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>${esc(title)}</h2><span class="status ${autoOn ? "success" : signedIn ? "info" : "warn"}">${connected}/${total} rails</span></div>
+          <p class="muted">${esc(copy)}</p>
+        </div>
+      </div>
+      <div class="sync-command-stats">
+        <span><strong>${connected}</strong><small>ready</small></span>
+        <span><strong>${needsAuth}</strong><small>need setup</small></span>
+        <span><strong>${cloudNextActionLabel()}</strong><small>next best action</small></span>
+      </div>
+      <div class="sheet-actions sync-command-actions">
+        ${signedIn ? `<button class="primary-btn" data-action="cloud-smart-merge">${icon("cloud")} Smart merge</button><button class="outline-btn" data-action="toggle-cloud-auto-sync">${icon(autoOn ? "check" : "settings")} Auto ${autoOn ? "On" : "Off"}</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in" : "Setup"}</button>`}
+        <button class="outline-btn" data-action="cloud-pull-workspace" ${signedIn ? "" : "disabled"}>${icon("note")} Pull cloud</button>
+        <button class="outline-btn" data-action="cloud-push-workspace" ${signedIn ? "" : "disabled"}>${icon("wallet")} Push local</button>
+      </div>
+    </section>`;
+  }
+
+  function syncDetailsDisclosure(title, copy, content, open = false) {
+    return `<details class="section-card sync-disclosure" ${open ? "open" : ""}>
+      <summary><span><strong>${esc(title)}</strong><small>${esc(copy)}</small></span>${icon("back")}</summary>
+      <div class="sync-disclosure-body">${content}</div>
+    </details>`;
   }
 
   function notificationFoundationPanel(context = "sync") {
@@ -2683,11 +2713,16 @@
         <span><strong>Account</strong><small>${esc(cloudSafeEmail())}</small></span>
         <span><strong>Last sync</strong><small>${esc(lastSync)}</small></span>
         <span><strong>Mode</strong><small>${esc(cloudAutoSyncLabel())}</small></span>
+      </div>
+      <details class="cloud-advanced-facts">
+        <summary>${icon("settings")} More sync details</summary>
+        <div class="cloud-facts">
         <span><strong>Next</strong><small>${esc(cloudNextActionLabel())}</small></span>
         <span><strong>Last push</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPushedAt))}</small></span>
         <span><strong>Last pull</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPulledAt))}</small></span>
         <span><strong>Last check</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastAutoCheckAt))}</small></span>
-      </div>
+        </div>
+      </details>
       <div class="cloud-sync-status-line ${cloudSyncStateClass(syncState)}">
         <span>${icon(cloudSyncStateClass(syncState) === "danger" ? "alert" : cloudSyncStateClass(syncState) === "success" ? "check" : "settings")}</span>
         <div><strong>${esc(cloudSyncStateLabel(syncState))}</strong><small>${esc(syncMessage)}</small></div>
@@ -5250,6 +5285,89 @@
     ].filter(Boolean).join(" ").toLowerCase();
   }
 
+  function loanContactMatches(query = "", pinnedContact = null) {
+    const normalized = String(query || "").trim().toLowerCase();
+    let matches = normalized && normalized !== "+ add new contact"
+      ? data.contacts.filter((contact) => contactSearchText(contact).includes(normalized))
+      : data.contacts.slice(0, 12);
+    if (pinnedContact && !matches.some((contact) => contact.id === pinnedContact.id)) matches = [pinnedContact, ...matches];
+    return matches.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function findLoanContactFromText(text) {
+    const normalized = String(text || "").trim().toLowerCase();
+    if (!normalized || normalized === "+ add new contact") return null;
+    return data.contacts.find((contact) => contact.name.toLowerCase() === normalized)
+      || data.contacts.find((contact) => contactSearchText(contact).includes(normalized));
+  }
+
+  function fillLoanContactFields(contact) {
+    const hidden = document.getElementById("loanContact");
+    const search = document.getElementById("loanContactSearch");
+    const borrower = document.getElementById("loanBorrower");
+    const phone = document.getElementById("loanPhone");
+    const email = document.getElementById("loanEmail");
+    if (hidden) hidden.value = contact?.id || "";
+    if (search && contact) search.value = contact.name || "";
+    if (borrower && contact) borrower.value = contact.name || "";
+    if (phone && contact) phone.value = contact.phone || "";
+    if (email && contact) email.value = contact.email || "";
+  }
+
+  function syncLoanContactCombo(input) {
+    const typed = input?.value || "";
+    const hidden = document.getElementById("loanContact");
+    const panel = document.getElementById("loanNewContactPanel");
+    const help = document.getElementById("loanContactHelp");
+    if (typed.trim() === "+ Add new contact") {
+      if (hidden) hidden.value = ADD_LOAN_CONTACT_VALUE;
+      if (panel) panel.hidden = false;
+      document.getElementById("loanBorrower")?.focus();
+      if (help) help.textContent = "New contact mode. Fill borrower name, phone, and email, then save.";
+      return;
+    }
+    const contact = findLoanContactFromText(typed);
+    if (contact && contact.name.toLowerCase() === typed.trim().toLowerCase()) {
+      fillLoanContactFields(contact);
+      if (panel) panel.hidden = true;
+      if (help) help.textContent = `Matched ${contact.name}. Phone and email filled when available.`;
+      return;
+    }
+    if (hidden) hidden.value = contact?.id || "";
+    if (panel) panel.hidden = true;
+    const borrower = document.getElementById("loanBorrower");
+    if (borrower && typed.trim() && !borrower.value.trim()) borrower.value = typed.trim();
+    const count = loanContactMatches(typed).length;
+    if (help) help.textContent = typed.trim() ? `${count} matching contact${count === 1 ? "" : "s"}. Choose one or keep this as a manual borrower.` : `${data.contacts.length} contacts available.`;
+  }
+
+  function pickLoanContact(contactId) {
+    const search = document.getElementById("loanContactSearch");
+    const hidden = document.getElementById("loanContact");
+    const panel = document.getElementById("loanNewContactPanel");
+    const help = document.getElementById("loanContactHelp");
+    if (contactId === ADD_LOAN_CONTACT_VALUE) {
+      if (search) search.value = "+ Add new contact";
+      if (hidden) hidden.value = ADD_LOAN_CONTACT_VALUE;
+      if (panel) panel.hidden = false;
+      if (help) help.textContent = "New contact mode. Fill borrower name, phone, and email, then save.";
+      document.getElementById("loanBorrower")?.focus();
+      return;
+    }
+    if (!contactId) {
+      if (hidden) hidden.value = "";
+      if (panel) panel.hidden = true;
+      if (help) help.textContent = "Manual borrower selected. Type the borrower name below.";
+      document.getElementById("loanBorrower")?.focus();
+      return;
+    }
+    const contact = data.contacts.find((item) => item.id === contactId);
+    if (!contact) return;
+    fillLoanContactFields(contact);
+    if (panel) panel.hidden = true;
+    if (help) help.textContent = `Matched ${contact.name}. Phone and email filled when available.`;
+  }
+
   function contactGroupFilterBar() {
     const groups = safeArray(data.contactGroups).filter((group) => group.name);
     return `<div class="contact-group-toolbar">
@@ -5704,23 +5822,26 @@
     const loan = data.loans.find((item) => item.id === loanId) || { date: defaultDate, dueDate: addDaysIso(defaultDate, 14), amount: "", repaid: 0, forgiven: 0 };
     const editing = Boolean(loan.id);
     const matchedContact = data.contacts.find((contact) => contact.id === loan.contactId) || data.contacts.find((contact) => contact.name.toLowerCase() === String(loan.borrower || "").toLowerCase());
-    const loanContactQuery = String(ui.loanContactQuery || "").trim().toLowerCase();
-    let loanContacts = data.contacts;
-    if (loanContactQuery) {
-      loanContacts = data.contacts.filter((contact) => contactSearchText(contact).includes(loanContactQuery));
-      if (matchedContact && !loanContacts.some((contact) => contact.id === matchedContact.id)) loanContacts = [matchedContact, ...loanContacts];
-    }
+    const comboValue = ui.loanContactQuery || matchedContact?.name || loan.borrower || "";
+    const loanContactQuery = String(comboValue || "").trim().toLowerCase();
+    const loanContacts = loanContactMatches(loanContactQuery, matchedContact);
     return `${modalHeader(editing ? "Edit Loan Transaction" : "Record Loan", editing ? "Borrower name, amount, repayments, forgiveness, and due date can all be corrected here." : "")}
       <div class="field-grid">
-        <div class="field loan-contact-picker">
-          <label for="loanContactSearch">Search Contacts</label>
-          <label class="search-field">${icon("search")}<input id="loanContactSearch" value="${esc(ui.loanContactQuery || "")}" data-action="loan-contact-search" placeholder="Type name, phone, email, or group..." autocomplete="off"></label>
-          <p class="subtle">${loanContactQuery ? `${loanContacts.length} matching contact${loanContacts.length === 1 ? "" : "s"}` : `${data.contacts.length} contacts available`}</p>
+        <div class="field loan-contact-picker contact-combo-field">
+          <label for="loanContactSearch">Borrower From Contacts</label>
+          <label class="search-field">${icon("search")}<input id="loanContactSearch" value="${esc(comboValue)}" data-action="loan-contact-search" list="loanContactOptions" placeholder="Search contacts or type a borrower name..." autocomplete="off"></label>
+          <input id="loanContact" type="hidden" value="${esc(matchedContact?.id || "")}">
+          <datalist id="loanContactOptions">
+            <option value="+ Add new contact"></option>
+            ${data.contacts.map((contact) => `<option value="${esc(contact.name)}">${esc([contact.phone, contact.email].filter(Boolean).join(" | "))}</option>`).join("")}
+          </datalist>
+          <p id="loanContactHelp" class="subtle">${loanContactQuery ? `${loanContacts.length} matching contact${loanContacts.length === 1 ? "" : "s"}` : "Start typing, choose a contact, or type a manual borrower."}</p>
+          <div class="contact-suggestion-row">
+            <button type="button" class="contact-suggestion-chip" data-action="pick-loan-contact" data-id="">Manual borrower</button>
+            <button type="button" class="contact-suggestion-chip" data-action="pick-loan-contact" data-id="${ADD_LOAN_CONTACT_VALUE}">+ Add new contact</button>
+            ${loanContacts.slice(0, 6).map((contact) => `<button type="button" class="contact-suggestion-chip" data-action="pick-loan-contact" data-id="${esc(contact.id)}">${esc(contact.name)}</button>`).join("")}
+          </div>
         </div>
-        ${selectField("loanContact", "Borrower From Contacts", ["", ADD_LOAN_CONTACT_VALUE, ...loanContacts.map((contact) => contact.id)], matchedContact?.id || "", (value) => {
-          if (value === ADD_LOAN_CONTACT_VALUE) return "+ Add new contact";
-          return value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "Manual / not in contacts";
-        })}
         <section id="loanNewContactPanel" class="inline-add-panel" hidden>
           <div class="inline-add-heading">${icon("plus")} New contact will be saved with this loan</div>
           <p class="subtle">Fill in Borrower Name, Phone, and Email below. When you save, BillMaster will add that person to Contacts and link the loan.</p>
@@ -8502,7 +8623,7 @@
     }
     if (target && target.dataset.action === "loan-contact-search") {
       ui.loanContactQuery = target.value;
-      renderPreservingInput(target);
+      syncLoanContactCombo(target);
     }
     if (target && target.dataset.action === "notify-search") {
       filterNotifyPicker(target.value);
@@ -8737,6 +8858,7 @@
     if (action === "cancel-subscription") return setSubscriptionStatus(el.dataset.id, "Cancelled");
     if (action === "set-sub-status") return setSubscriptionStatus(el.dataset.id, el.dataset.status);
     if (action === "save-loan") return saveLoan(el.dataset.id);
+    if (action === "pick-loan-contact") return pickLoanContact(el.dataset.id || "");
     if (action === "save-repayment") return saveRepayment(el.dataset.id);
     if (action === "save-forgiveness") return saveForgiveness(el.dataset.id);
     if (action === "forgive-loan") return forgiveLoan(el.dataset.id);
@@ -10446,11 +10568,13 @@
     const previousBorrower = loan ? loan.borrower : "";
     const amount = numberValue("loanAmount");
     const selectedContactId = value("loanContact");
-    let contact = data.contacts.find((item) => item.id === selectedContactId);
-    const borrower = value("loanBorrower") || contact?.name || "Borrower";
+    const contactSearchValue = value("loanContactSearch");
+    const wantsNewContact = selectedContactId === ADD_LOAN_CONTACT_VALUE || contactSearchValue === "+ Add new contact";
+    let contact = data.contacts.find((item) => item.id === selectedContactId) || findLoanContactFromText(contactSearchValue);
+    const borrower = value("loanBorrower") || contact?.name || (wantsNewContact ? "" : contactSearchValue) || "Borrower";
     const loanDate = value("loanDate") || todayIso();
     const dueDate = value("loanDue") || addDaysIso(loanDate, 14);
-    if (selectedContactId === ADD_LOAN_CONTACT_VALUE) {
+    if (wantsNewContact) {
       if (!value("loanBorrower")) {
         showToast("Enter a borrower name before adding a new contact.", "danger");
         return;
