@@ -2570,7 +2570,7 @@
         ${googleContactsPanel()}
         ${notificationFoundationPanel()}
       </div>
-      ${syncDetailsDisclosure("Friend readiness", "Private accounts, safe alpha steps, onboarding, and feedback tools.", `${friendAlphaLaunchPanel()}${friendPrivacyGatePanel()}${friendAlphaOnboardingPanel()}${friendAlphaFeedbackPanel()}`)}
+      ${syncDetailsDisclosure("Friend readiness", "Private accounts, safe alpha steps, onboarding, and feedback tools.", `${friendAlphaLaunchPanel()}${friendMobileReadyPanel()}${friendPrivacyGatePanel()}${friendAlphaOnboardingPanel()}${friendAlphaFeedbackPanel()}`)}
       ${syncDetailsDisclosure("Mobile and picture storage", "Phone/iPad access plus the Supabase media plan for uploads.", `${mobileCodexAccessPanel()}${mediaStoragePanel()}`)}
       <div class="sync-grid">${connections.map((connection) => syncConnectionCard(connection)).join("")}</div>
       ${syncDetailsDisclosure("Production Integration Plan", "Bank/card sync, bill pay, cancellation, contacts, and notifications staged safely.", `
@@ -2815,11 +2815,45 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260603-6";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260604-3";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260603-6`;
+    return `${location.origin}${location.pathname}?v=20260604-3`;
+  }
+
+  function friendMobileReadyPanel() {
+    const signedIn = cloudSignedIn();
+    const autoOn = cloudAutoSyncEnabled();
+    const lastSync = data.settings?.cloudLastSyncAt ? cloudTimeLabel(data.settings.cloudLastSyncAt) : "Not synced yet";
+    const steps = [
+      { label: "Sign in", ready: signedIn, detail: signedIn ? cloudSafeEmail() : "Create or use a BillMaster account" },
+      { label: "Save one item", ready: Boolean(data.settings?.cloudLastSyncAt), detail: "Task, note, loan, or address" },
+      { label: "Auto sync", ready: autoOn, detail: autoOn ? "Watching this device" : "Turn on after a good push/pull" },
+      { label: "Phone/iPad check", ready: signedIn && Boolean(data.settings?.cloudLastPulledAt || data.settings?.cloudLastSyncAt), detail: "Open live app, sign in, confirm same item" }
+    ];
+    return `<section class="section-card friend-mobile-panel">
+      <div class="section-title compact-title">
+        <h2>Phone/iPad Friend Test</h2>
+        <span class="status ${signedIn && autoOn ? "success" : signedIn ? "info" : "warning"}">${esc(cloudSyncStateLabel(data.settings?.cloudSyncState || "idle"))}</span>
+      </div>
+      <p class="muted">Use this quick pass before handing BillMaster to a friend. The tester should always know who is signed in, whether auto-sync is on, and when the last save reached the cloud.</p>
+      <div class="friend-mobile-status">
+        <span><strong>Private account</strong><small>${esc(signedIn ? cloudSafeEmail() : "Not signed in")}</small></span>
+        <span><strong>Auto sync</strong><small>${esc(autoOn ? "On - saved changes are watched" : "Off - manual push/pull")}</small></span>
+        <span><strong>Last cloud save</strong><small>${esc(lastSync)}</small></span>
+      </div>
+      <div class="friend-mobile-steps">
+        ${steps.map((item, index) => `<div class="${item.ready ? "is-ready" : ""}">
+          <strong>${index + 1}. ${esc(item.label)}</strong>
+          <small>${esc(item.detail)}</small>
+        </div>`).join("")}
+      </div>
+      <div class="friend-mobile-script">
+        <strong>Five-minute phone test:</strong>
+        <span>Open Dashboard, Calendar Day, Block, Tasks, Notes, Projects, Goals, Lending, and Sync Center. Nothing should spill off the screen, buttons should be tappable, and Sync Center should say whether the data is saved.</span>
+      </div>
+    </section>`;
   }
 
   function friendPrivacyGatePanel() {

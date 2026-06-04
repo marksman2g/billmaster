@@ -2820,6 +2820,67 @@ button.round-icon {
   line-height: 1.25;
 }
 
+.friend-mobile-panel {
+  display: grid;
+  gap: 12px;
+  background: linear-gradient(135deg, #f8fbff, #eef7ff);
+  border-color: #b7d7ff;
+}
+
+.friend-mobile-status,
+.friend-mobile-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.friend-mobile-status span,
+.friend-mobile-steps div {
+  min-width: 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.friend-mobile-steps div.is-ready {
+  background: #edfff5;
+  border-color: #bdebd0;
+}
+
+.friend-mobile-status strong,
+.friend-mobile-status small,
+.friend-mobile-steps strong,
+.friend-mobile-steps small,
+.friend-mobile-script strong,
+.friend-mobile-script span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.friend-mobile-status strong,
+.friend-mobile-steps strong {
+  color: var(--navy-2);
+  font-size: 0.82rem;
+}
+
+.friend-mobile-status small,
+.friend-mobile-steps small,
+.friend-mobile-script span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.friend-mobile-script {
+  padding: 10px;
+  background: #fffaf0;
+  border: 1px solid #f3d493;
+  border-radius: 8px;
+}
+
 .friend-onboarding-panel {
   border-color: #cfd8ff;
   background: linear-gradient(135deg, rgba(247, 246, 255, 0.94), rgba(248, 251, 255, 0.96));
@@ -8822,6 +8883,32 @@ canvas {
     grid-template-columns: 1fr 1fr;
   }
 
+  .friend-mobile-status,
+  .friend-mobile-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .note-project-drop-grid,
+  .sync-priority-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .note-project-drop-grid {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .note-project-drop-tile {
+    flex: 0 0 190px;
+  }
+
+  .project-detail-note-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  }
+
   .project-task-list,
   .notes-compact,
   .notes-gallery,
@@ -8918,6 +9005,8 @@ canvas {
   .cloud-facts,
   .cloud-actions,
   .cloud-start-card,
+  .friend-mobile-status,
+  .friend-mobile-steps,
   .friend-alpha-head,
   .friend-alpha-checks,
   .friend-alpha-script,
@@ -8953,7 +9042,8 @@ canvas {
   }
 
   .cloud-start-actions,
-  .briefing-actions {
+  .briefing-actions,
+  .sync-command-actions {
     gap: 8px;
   }
 
@@ -9137,6 +9227,22 @@ canvas {
   .project-detail-hero,
   .project-task-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .project-task-toolbar-actions,
+  .sync-command-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .sync-command-stats,
+  .sync-priority-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .friend-mobile-script {
+    padding: 9px;
   }
 
   .tasks-list.tasks-compact,
