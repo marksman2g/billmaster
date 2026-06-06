@@ -6243,6 +6243,20 @@ canvas {
   touch-action: none;
 }
 
+.block-draw-active {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.block-draw-active .main-view,
+.block-draw-active .screen,
+.block-draw-active .block-scroll,
+.block-draw-active .block-calendar,
+.block-draw-active .block-col {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
 .block-calendar.block-draw-mode .block-col {
   cursor: crosshair;
 }
@@ -6254,6 +6268,13 @@ canvas {
 }
 
 .block-scroll.block-draw-scroll {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.block-scroll.block-draw-scroll,
+.block-scroll.block-draw-scroll .block-calendar,
+.block-scroll.block-draw-scroll .block-col {
   touch-action: none;
   overscroll-behavior: contain;
 }
@@ -9239,6 +9260,13 @@ canvas {
 
   .block-scroll.block-draw-scroll {
     overflow-x: hidden;
+    touch-action: none;
+    overscroll-behavior: contain;
+  }
+
+  .block-scroll.block-draw-scroll,
+  .block-scroll.block-draw-scroll .block-calendar,
+  .block-scroll.block-draw-scroll .block-col {
     touch-action: none;
     overscroll-behavior: contain;
   }

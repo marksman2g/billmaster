@@ -1762,6 +1762,7 @@
 
   function render() {
     try {
+      syncGestureLocks();
       if (!currentProfileId) {
         app.innerHTML = `<div class="app-shell auth-shell"><main class="main-view">${renderAuth()}</main>${renderModal()}${renderToast()}</div>`;
         return;
@@ -1781,6 +1782,11 @@
       console.error("BillMaster render failed.", error);
       app.innerHTML = renderRecoveryScreen(error);
     }
+  }
+
+  function syncGestureLocks() {
+    const blockDrawActive = Boolean(currentProfileId && ui.view === "calendar" && ui.calendarView === "block" && ui.blockDrawMode);
+    document.body?.classList?.toggle("block-draw-active", blockDrawActive);
   }
 
   function renderPreservingInput(input) {
@@ -8117,7 +8123,7 @@
     document.querySelectorAll(".block-col").forEach((column) => {
       if (column.dataset.createBound === "true") return;
       column.dataset.createBound = "true";
-      column.addEventListener("pointerdown", startBlockCreate);
+      column.addEventListener("pointerdown", startBlockCreate, { passive: false });
     });
     document.querySelectorAll(".event-block").forEach((block) => {
       if (block.dataset.bound === "true") return;
@@ -8225,7 +8231,8 @@
     const startIndex = columns.indexOf(startColumn);
     if (startIndex < 0) return;
     const rect = startColumn.getBoundingClientRect();
-    const startMinute = snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top));
+    const range = blockFocusRange();
+    const startMinute = clamp(snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top)), range.start, range.end - 15);
     startColumn.setPointerCapture?.(event.pointerId);
     blockCreateState = {
       columns,
@@ -8239,7 +8246,7 @@
       touchLike,
       previews: []
     };
-    document.addEventListener("pointermove", moveBlockCreate);
+    document.addEventListener("pointermove", moveBlockCreate, { passive: false });
     document.addEventListener("pointerup", endBlockCreate, { once: true });
     document.addEventListener("pointercancel", cancelBlockCreate, { once: true });
   }
@@ -8264,11 +8271,22 @@
       event.preventDefault();
       event.stopPropagation();
     }
-    const selection = blockCreateSelection(event, state);
+    let selection = blockCreateSelection(event, state);
     clearBlockCreatePreview(state);
     state.pointerColumn?.releasePointerCapture?.(state.pointerId);
     blockCreateState = null;
-    if (!state.moved) return;
+    if (!state.moved && ui.blockDrawMode) {
+      const range = blockFocusRange();
+      selection = {
+        startIndex: state.startIndex,
+        endIndex: state.startIndex,
+        startMinute: state.startMinute,
+        endMinute: clamp(state.startMinute + 30, range.start + 15, range.end),
+        columns: state.columns
+      };
+    } else if (!state.moved) {
+      return;
+    }
     const duration = selection.endMinute - selection.startMinute;
     if (duration < 15) return;
     createTasksFromBlockSelection(selection);
