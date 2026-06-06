@@ -52,6 +52,7 @@
     blockZoom: "1",
     blockTimeFocus: "full",
     blockSelectMode: false,
+    blockDrawMode: false,
     selectedTasks: [],
     selectedAddresses: [],
     notifyQuery: "",
@@ -4019,9 +4020,10 @@
       return `<div class="block-col ${stateClass}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
+    const drawMode = Boolean(ui.blockDrawMode);
     return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
-      <div class="block-mobile-actions"><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button><span class="subtle">On phones, drag the grid to move or zoom. Use this button to add a timed task.</span></div>
-      <div class="block-scroll"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
+      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""}"><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Draw Task On" : "Draw Task"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button><span class="subtle">${drawMode ? "Draw mode on: drag white space to create. Turn it off to move or zoom." : "Move or zoom normally. Turn Draw Task on to create by dragging white space."}</span></div>
+      <div class="block-scroll"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
   function blockEvent(task, dayTasks = []) {
@@ -8193,7 +8195,8 @@
 
   function startBlockCreate(event) {
     if (event.button !== undefined && event.button !== 0) return;
-    if (event.pointerType === "touch" || event.pointerType === "pen" || event.isPrimary === false) return;
+    const touchLike = event.pointerType === "touch" || event.pointerType === "pen";
+    if (event.isPrimary === false || (touchLike && !ui.blockDrawMode)) return;
     if (event.target.closest(".event-block")) return;
     const column = event.currentTarget;
     const calendar = column.closest(".block-calendar");
@@ -9093,6 +9096,7 @@
     if (action === "set-task-priority") return setTaskPriority(el.dataset.id, el.dataset.value);
     if (action === "set-task-status") return setTaskStatus(el.dataset.id, el.dataset.value);
     if (action === "toggle-subtask") return toggleSubtask(el.dataset.id, el.dataset.subtask);
+    if (action === "toggle-block-draw-mode") return toggleBlockDrawMode();
     if (action === "toggle-block-select-mode") return toggleBlockSelectMode();
     if (action === "start-block-multi-select") return startBlockMultiSelect(el.dataset.id);
     if (action === "select-visible-block-tasks") return selectVisibleBlockTasks();
@@ -12145,11 +12149,19 @@
 
   function toggleBlockSelectMode() {
     ui.blockSelectMode = !ui.blockSelectMode;
+    if (ui.blockSelectMode) ui.blockDrawMode = false;
     if (!ui.blockSelectMode) {
       const visible = new Set(blockWeekTaskIds());
       ui.selectedTasks = ui.selectedTasks.filter((taskId) => !visible.has(taskId));
     }
     render();
+  }
+
+  function toggleBlockDrawMode() {
+    ui.blockDrawMode = !ui.blockDrawMode;
+    if (ui.blockDrawMode) ui.blockSelectMode = false;
+    render();
+    showToast(ui.blockDrawMode ? "Draw Task is on. Drag white space to create a block task." : "Draw Task is off. You can move and zoom the block calendar.");
   }
 
   function startBlockMultiSelect(taskId) {
