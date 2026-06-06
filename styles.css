@@ -5642,8 +5642,27 @@ canvas {
 
 .day-task-card {
   cursor: grab;
-  touch-action: none;
+  touch-action: pan-x pan-y pinch-zoom;
   transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.day-task-grid.day-swap-mode .day-task-card {
+  touch-action: none;
+}
+
+.day-task-grid.day-swap-mode .day-task-card::before {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 3px 7px;
+  content: "Swap";
+  color: #17406f;
+  background: #eaf4ff;
+  border: 1px solid #b9d9ff;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
 }
 
 .compact-day-task {
@@ -6232,6 +6251,16 @@ canvas {
   overflow-x: auto;
   touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior: auto;
+}
+
+.block-scroll.block-draw-scroll {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.block-scroll.block-select-scroll {
+  touch-action: pan-x pan-y pinch-zoom;
+  overscroll-behavior: contain;
 }
 
 .time-label {
@@ -9187,7 +9216,8 @@ canvas {
   }
 
   .block-mobile-actions .primary-btn,
-  .block-mobile-actions .outline-btn {
+  .block-mobile-actions .outline-btn,
+  .block-mobile-actions .danger-btn {
     width: 100%;
     min-height: 46px;
   }
@@ -9205,6 +9235,17 @@ canvas {
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y pinch-zoom;
     overscroll-behavior: auto;
+  }
+
+  .block-scroll.block-draw-scroll {
+    overflow-x: hidden;
+    touch-action: none;
+    overscroll-behavior: contain;
+  }
+
+  .block-scroll.block-select-scroll {
+    touch-action: pan-x pan-y pinch-zoom;
+    overscroll-behavior: contain;
   }
 
   .block-calendar {

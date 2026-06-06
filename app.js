@@ -53,6 +53,7 @@
     blockTimeFocus: "full",
     blockSelectMode: false,
     blockDrawMode: false,
+    daySwapMode: false,
     selectedTasks: [],
     selectedAddresses: [],
     notifyQuery: "",
@@ -290,7 +291,7 @@
   let voiceRecognition = null;
   let voiceStopRequested = false;
   const dayHoldDelay = 520;
-  const blockHoldDelay = 950;
+  const blockHoldDelay = 1250;
   const blockHoldMoveTolerance = 8;
   const singleSubmitActions = new Set([
     "save-bill",
@@ -3860,10 +3861,10 @@
     const selectedDayAddresses = selectedDayTasks.map((task) => taskAddress(task)).filter(Boolean);
     const selectedDayCanRoute = selectedDayCount > 0 && selectedDayAddresses.length === selectedDayCount;
     return `<div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
+      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
       ${dayTimeOfDayLegend()}
-      <p class="subtle" style="margin-top:-6px;">Tap an event to edit. Press and hold for duplicate/time actions. Drag one event onto another to swap times.</p>
-      <div class="list day-task-grid">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
+      <p class="subtle" style="margin-top:-6px;">Tap an event to edit.${ui.daySwapMode ? " Drag one task onto another to swap times." : " Turn Swap mode on before dragging tasks on touch screens."}</p>
+      <div class="list day-task-grid ${ui.daySwapMode ? "day-swap-mode" : ""}">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
   }
 
   function dayTimeOfDayLegend() {
@@ -4022,8 +4023,8 @@
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
     return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Drag empty space to create tasks. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
-      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""}"><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Draw Task On" : "Draw Task"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button><span class="subtle">${drawMode ? "Draw mode on: drag white space to create. Turn it off to move or zoom." : "Move or zoom normally. Turn Draw Task on to create by dragging white space."}</span></div>
-      <div class="block-scroll"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
+      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Draw Task On" : "Draw Task"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Draw mode on: drag white space to create. Turn it off to move or zoom." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Move or zoom normally. Turn Draw Task on to create by dragging white space."}</span></div>
+      <div class="block-scroll ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
   function blockEvent(task, dayTasks = []) {
@@ -7993,9 +7994,15 @@
 
   function startDayTaskDrag(event) {
     if (event.target.closest("button,a,input,select,textarea")) return;
+    const touchLike = event.pointerType === "touch" || event.pointerType === "pen";
+    if (touchLike && !ui.daySwapMode) return;
     const card = event.currentTarget;
     const task = findCalendarItemById(card.dataset.taskId);
     if (!task) return;
+    if (ui.daySwapMode) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     card.setPointerCapture?.(event.pointerId);
     dayDragState = {
       taskId: task.id,
@@ -8005,6 +8012,7 @@
       startY: event.clientY,
       moved: false,
       targetId: "",
+      touchLike,
       holdOpened: false,
       holdTimer: null
     };
@@ -8017,6 +8025,10 @@
   function moveDayTaskDrag(event) {
     if (!dayDragState) return;
     const state = dayDragState;
+    if (state.touchLike || ui.daySwapMode) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const dx = event.clientX - state.startX;
     const dy = event.clientY - state.startY;
     state.moved = state.moved || Math.abs(dx) > 6 || Math.abs(dy) > 6;
@@ -8037,10 +8049,14 @@
     return target;
   }
 
-  function endDayTaskDrag() {
+  function endDayTaskDrag(event) {
     document.removeEventListener("pointermove", moveDayTaskDrag);
     if (!dayDragState) return;
     const state = dayDragState;
+    if (state.touchLike || ui.daySwapMode) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+    }
     clearDayHoldTimer(state);
     state.card.classList.remove("is-dragging");
     state.card.style.transform = "";
@@ -8198,6 +8214,10 @@
     const touchLike = event.pointerType === "touch" || event.pointerType === "pen";
     if (event.isPrimary === false || (touchLike && !ui.blockDrawMode)) return;
     if (event.target.closest(".event-block")) return;
+    if (touchLike || ui.blockDrawMode) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const column = event.currentTarget;
     const calendar = column.closest(".block-calendar");
     const columns = Array.from(calendar?.querySelectorAll(".block-col") || []);
@@ -8206,7 +8226,6 @@
     if (startIndex < 0) return;
     const rect = startColumn.getBoundingClientRect();
     const startMinute = snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top));
-    event.preventDefault();
     startColumn.setPointerCapture?.(event.pointerId);
     blockCreateState = {
       columns,
@@ -8217,6 +8236,7 @@
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
+      touchLike,
       previews: []
     };
     document.addEventListener("pointermove", moveBlockCreate);
@@ -8227,6 +8247,10 @@
   function moveBlockCreate(event) {
     if (!blockCreateState) return;
     const state = blockCreateState;
+    if (state.touchLike || ui.blockDrawMode) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const selection = blockCreateSelection(event, state);
     state.moved = state.moved || Math.abs(event.clientX - state.startX) > 5 || Math.abs(event.clientY - state.startY) > 5;
     renderBlockCreatePreview(state, selection);
@@ -8236,6 +8260,10 @@
     document.removeEventListener("pointermove", moveBlockCreate);
     if (!blockCreateState) return;
     const state = blockCreateState;
+    if (state.touchLike || ui.blockDrawMode) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const selection = blockCreateSelection(event, state);
     clearBlockCreatePreview(state);
     state.pointerColumn?.releasePointerCapture?.(state.pointerId);
@@ -9098,10 +9126,12 @@
     if (action === "toggle-subtask") return toggleSubtask(el.dataset.id, el.dataset.subtask);
     if (action === "toggle-block-draw-mode") return toggleBlockDrawMode();
     if (action === "toggle-block-select-mode") return toggleBlockSelectMode();
+    if (action === "toggle-day-swap-mode") return toggleDaySwapMode();
     if (action === "start-block-multi-select") return startBlockMultiSelect(el.dataset.id);
     if (action === "select-visible-block-tasks") return selectVisibleBlockTasks();
     if (action === "select-all-day-tasks") return selectAllDayTasks();
     if (action === "deselect-all-day-tasks") return deselectAllDayTasks();
+    if (action === "swap-selected-day-tasks") return swapSelectedDayTasks();
     if (action === "select-date") {
       const changed = ui.selectedDate !== el.dataset.date;
       ui.selectedDate = el.dataset.date;
@@ -12162,6 +12192,22 @@
     if (ui.blockDrawMode) ui.blockSelectMode = false;
     render();
     showToast(ui.blockDrawMode ? "Draw Task is on. Drag white space to create a block task." : "Draw Task is off. You can move and zoom the block calendar.");
+  }
+
+  function toggleDaySwapMode() {
+    ui.daySwapMode = !ui.daySwapMode;
+    render();
+    showToast(ui.daySwapMode ? "Swap mode is on. Drag one day task onto another, or select two and tap Swap selected." : "Swap mode is off. Day View will scroll and zoom normally.");
+  }
+
+  function swapSelectedDayTasks() {
+    const dayIds = new Set(tasksForDay(ui.selectedDate).map((task) => task.id));
+    const ids = ui.selectedTasks.filter((taskId) => dayIds.has(taskId));
+    if (ids.length !== 2) {
+      showToast("Select exactly two tasks on this day to swap.", "danger");
+      return;
+    }
+    swapTaskTimes(ids[0], ids[1]);
   }
 
   function startBlockMultiSelect(taskId) {
