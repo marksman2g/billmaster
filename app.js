@@ -57,6 +57,7 @@
     selectedTasks: [],
     selectedAddresses: [],
     notifyQuery: "",
+    blockQuickCreateDraft: null,
     modal: null,
     aiDraft: "",
     voiceTranscript: "",
@@ -4030,8 +4031,8 @@
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
-    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Tap start and end in Draw mode, or drag empty space on desktop. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
-      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Draw Task On" : "Draw Task"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Draw mode on: tap a start time, then tap an end time. Turn it off to move or zoom." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Move or zoom normally. Turn Draw Task on for phone-safe tap creation."}</span></div>
+    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Use Phone Create on mobile, or drag empty space on desktop. Drag either side of a task to duplicate it across days."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-modal" data-modal="editTask">${icon("plus")} Timed Task</button></div>
+      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Tap the grid once to place a task. Use Phone Create if the grid still moves." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: use Phone Create for exact times. Leave Tap Place off when scrolling or zooming."}</span></div>
       <div class="block-scroll ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
@@ -4196,6 +4197,13 @@
     if (!time) return 0;
     const [h, m] = time.split(":").map(Number);
     return h * 60 + m;
+  }
+
+  function addMinutesToTime(time, deltaMinutes) {
+    const total = ((minutes(time) + Number(deltaMinutes || 0)) % (24 * 60) + 24 * 60) % (24 * 60);
+    const hour = Math.floor(total / 60);
+    const minute = total % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
   }
 
   function totalTaskHours(tasks) {
@@ -5776,6 +5784,7 @@
     if (type === "forgiveLoan") content = modalForgiveLoan(modalId);
     if (type === "editAddress") content = modalAddress(modalId);
     if (type === "editTask") content = modalTask(modalId);
+    if (type === "blockQuickCreate") content = modalBlockQuickCreate();
     if (type === "editHabit") content = modalHabit(modalId);
     if (type === "saveHabitTemplate") content = modalSaveHabitTemplate(modalId);
     if (type === "voiceTask") content = modalVoiceTask();
@@ -6199,6 +6208,30 @@
         </label>
       </div>
       <div class="sheet-actions"><button class="secondary-btn" data-action="save-task" data-id="${task.id || ""}">Save Changes</button></div>`;
+  }
+
+  function modalBlockQuickCreate() {
+    const draft = ui.blockQuickCreateDraft || {};
+    const date = draft.date || ui.selectedDate;
+    const start = draft.start || "09:00";
+    const end = draft.end || addMinutesToTime(start, 60);
+    return `${modalHeader("Create Block Task", "Phone-safe task creation: choose the exact time here instead of dragging the grid.")}
+      <div class="field-grid block-quick-create-form">
+        ${field("blockQuickTitle", "Task Title", draft.title || "", "New timed task")}
+        ${field("blockQuickDate", "Date", date, "", "date")}
+        <div class="field-row">${field("blockQuickStart", "Start Time", start, "", "time")}${field("blockQuickEnd", "End Time", end, "", "time")}</div>
+        ${selectField("blockQuickCategory", "Category", taskCategories, draft.category || "General", taskCategoryLabel)}
+        ${choiceField("blockQuickPriority", "Priority", taskPriorityOptions, draft.priority || "Medium", priorityColor)}
+        ${choiceField("blockQuickStatus", "Status", taskStatusOptions, draft.status || "Not Started", statusHandleColor)}
+        <label class="section-card block-quick-hours" style="box-shadow:none;background:#f0f7ff;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <span><strong>Include in hour totals</strong><br><span class="subtle">Turn this off when the task should not count toward the day total.</span></span>
+          <input id="blockQuickIncludeHours" type="checkbox" ${draft.includeHours === false ? "" : "checked"} style="width:24px;height:24px;">
+        </label>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-block-quick-task">${icon("plus")} Create Task</button>
+      </div>`;
   }
 
   function modalProfiles() {
@@ -8236,6 +8269,10 @@
     const rect = startColumn.getBoundingClientRect();
     const range = blockFocusRange();
     const startMinute = clamp(snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top)), range.start, range.end - 15);
+    if (touchLike && ui.blockDrawMode) {
+      openBlockQuickCreate(startColumn.dataset.date || ui.selectedDate, startMinute);
+      return;
+    }
     startColumn.setPointerCapture?.(event.pointerId);
     blockCreateState = {
       columns,
@@ -9176,7 +9213,9 @@
     if (action === "toggle-address-select") return toggleAddressSelect(el.dataset.id);
     if (action === "clear-address-selection") return clearAddressSelection();
     if (action === "copy-route-link") return copyRouteLink();
+    if (action === "open-block-quick-create") return openBlockQuickCreate();
     if (action === "save-task") return saveTask(el.dataset.id);
+    if (action === "save-block-quick-task") return saveBlockQuickTask();
     if (action === "save-habit") return saveHabit(el.dataset.id);
     if (action === "edit-habit-instance") return editHabitInstance(el.dataset.id);
     if (action === "delete-habit") return deleteHabit(el.dataset.id);
@@ -11742,6 +11781,75 @@
     closeModal();
     if (newAddressId) showToast("Task saved with new address.");
     else if (queuedNotice) showToast("Task saved and notification queued.");
+  }
+
+  function openBlockQuickCreate(date = ui.selectedDate, startMinute = null) {
+    const range = blockFocusRange();
+    const safeStartMinute = Number.isFinite(startMinute)
+      ? clamp(startMinute, range.start, range.end - 15)
+      : clamp(Math.max(range.start, 9 * 60), range.start, range.end - 15);
+    const start = timeFromBlockMinute(safeStartMinute);
+    const end = timeFromBlockMinute(Math.min(safeStartMinute + 60, range.end));
+    ui.blockQuickCreateDraft = {
+      title: "",
+      date: date || ui.selectedDate,
+      start,
+      end,
+      priority: "Medium",
+      status: "Not Started",
+      category: "General",
+      includeHours: true
+    };
+    ui.blockDrawMode = false;
+    ui.modal = { type: "blockQuickCreate", id: "" };
+    render();
+  }
+
+  function saveBlockQuickTask() {
+    const title = value("blockQuickTitle") || "New timed task";
+    const date = value("blockQuickDate") || ui.selectedDate;
+    const start = value("blockQuickStart") || "09:00";
+    const end = value("blockQuickEnd") || addMinutesToTime(start, 60);
+    const startMinute = minutes(start);
+    let endMinute = minutes(end);
+    if (endMinute <= startMinute) endMinute += 24 * 60;
+    const writeKey = `block-quick:${title.toLowerCase()}:${date}:${start}:${end}`;
+    if (shouldSkipRecentWrite(writeKey)) {
+      showToast("That block task was already saved.", "danger");
+      return;
+    }
+    const category = ensureTaskCategory(value("blockQuickCategory") || "General");
+    data.tasks.unshift({
+      id: id("task"),
+      title,
+      description: "",
+      date,
+      endDate: blockEndDateFor(date, startMinute, endMinute),
+      start,
+      end,
+      priority: value("blockQuickPriority") || "Medium",
+      status: value("blockQuickStatus") || "Not Started",
+      repeat: "None",
+      category,
+      bgColor: defaultTaskBgColor(),
+      fontFamily: "System",
+      includeHours: document.getElementById("blockQuickIncludeHours")?.checked !== false,
+      projectId: null,
+      billId: null,
+      goalId: null,
+      contactId: null,
+      addressId: null,
+      tags: category === "Habit" ? ["habit"] : [],
+      subtasks: [],
+      updatedAt: new Date().toISOString()
+    });
+    ui.selectedDate = date;
+    ui.calendarView = "block";
+    ui.blockQuickCreateDraft = null;
+    ui.blockDrawMode = false;
+    closeModal();
+    saveData();
+    showToast("Block task created. Undo is available.");
   }
 
   function createTaskAddressFromForm() {
