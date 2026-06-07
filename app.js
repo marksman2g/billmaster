@@ -8108,6 +8108,7 @@
     if (event.target.closest("button,a,input,select,textarea")) return;
     const touchLike = event.pointerType === "touch" || event.pointerType === "pen";
     if (touchLike && !ui.daySwapMode) return;
+    const swapTouch = touchLike && ui.daySwapMode;
     const card = event.currentTarget;
     const task = findCalendarItemById(card.dataset.taskId);
     if (!task) return;
@@ -8116,6 +8117,10 @@
       event.stopPropagation();
     }
     card.setPointerCapture?.(event.pointerId);
+    if (swapTouch) {
+      document.body.classList.add("day-touch-swap-active");
+      card.classList.add("swap-ready");
+    }
     dayDragState = {
       taskId: task.id,
       card,
@@ -8125,11 +8130,12 @@
       moved: false,
       targetId: "",
       touchLike,
+      swapTouch,
       holdOpened: false,
       holdTimer: null
     };
-    scheduleDayHoldMenu(dayDragState);
-    document.addEventListener("pointermove", moveDayTaskDrag);
+    if (!swapTouch) scheduleDayHoldMenu(dayDragState);
+    document.addEventListener("pointermove", moveDayTaskDrag, { passive: false });
     document.addEventListener("pointerup", endDayTaskDrag, { once: true });
     document.addEventListener("pointercancel", cancelDayTaskDrag, { once: true });
   }
@@ -8147,7 +8153,7 @@
     if (!state.moved) return;
     clearDayHoldTimer(state);
     state.card.classList.add("is-dragging");
-    state.card.style.transform = `translateY(${dy}px)`;
+    state.card.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
     const target = dayTaskDropTarget(event.clientX, event.clientY, state);
     document.querySelectorAll(".day-task-card.drop-target").forEach((card) => card.classList.remove("drop-target"));
     state.targetId = target && target.dataset.taskId !== state.taskId ? target.dataset.taskId : "";
@@ -8170,9 +8176,10 @@
       event?.stopPropagation?.();
     }
     clearDayHoldTimer(state);
-    state.card.classList.remove("is-dragging");
+    state.card.classList.remove("is-dragging", "swap-ready");
     state.card.style.transform = "";
     state.card.releasePointerCapture?.(state.pointerId);
+    document.body.classList.remove("day-touch-swap-active");
     document.querySelectorAll(".day-task-card.drop-target").forEach((card) => card.classList.remove("drop-target"));
     if (state.holdOpened) {
       suppressNextDayCardClick(state.card);
@@ -8193,15 +8200,17 @@
     document.removeEventListener("pointermove", moveDayTaskDrag);
     if (dayDragState) {
       clearDayHoldTimer(dayDragState);
-      dayDragState.card.classList.remove("is-dragging");
+      dayDragState.card.classList.remove("is-dragging", "swap-ready");
       dayDragState.card.style.transform = "";
       dayDragState.card.releasePointerCapture?.(dayDragState.pointerId);
+      document.body.classList.remove("day-touch-swap-active");
       document.querySelectorAll(".day-task-card.drop-target").forEach((card) => card.classList.remove("drop-target"));
       dayDragState = null;
     }
   }
 
   function scheduleDayHoldMenu(state) {
+    if (state?.swapTouch) return;
     clearDayHoldTimer(state);
     state.holdTimer = setTimeout(() => {
       if (dayDragState !== state || state.moved) return;

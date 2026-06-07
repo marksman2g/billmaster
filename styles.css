@@ -5704,6 +5704,21 @@ canvas {
   touch-action: none;
 }
 
+.day-task-grid.day-swap-mode,
+.day-task-grid.day-swap-mode .day-task-card,
+.day-task-grid.day-swap-mode .day-task-card * {
+  touch-action: none;
+}
+
+.day-touch-swap-active {
+  overscroll-behavior: contain;
+  user-select: none;
+}
+
+.day-touch-swap-active .day-task-grid {
+  touch-action: none;
+}
+
 .day-task-grid.day-swap-mode .day-task-card::before {
   position: absolute;
   top: 8px;
@@ -5791,8 +5806,30 @@ canvas {
 .day-task-card.is-dragging {
   cursor: grabbing;
   opacity: 0.88;
-  z-index: 4;
+  z-index: 30;
+  pointer-events: none;
   box-shadow: 0 18px 34px rgba(26, 31, 54, 0.22);
+}
+
+.day-task-card.swap-ready {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.22), var(--shadow);
+}
+
+.day-task-card.swap-ready::after {
+  position: absolute;
+  right: 12px;
+  bottom: 54px;
+  z-index: 3;
+  padding: 4px 8px;
+  content: "Drag to swap";
+  color: #0f5132;
+  background: #e9f8ef;
+  border: 1px solid #b9ebca;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  pointer-events: none;
 }
 
 .day-task-card.drop-target {
