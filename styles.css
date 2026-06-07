@@ -7372,6 +7372,8 @@ canvas {
   justify-content: center;
   padding: 10px 10px calc(var(--nav-height) + 14px + env(safe-area-inset-bottom, 0px));
   background: rgba(10, 15, 25, 0.54);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .sheet {
@@ -9543,7 +9545,8 @@ canvas {
   }
 
   .sheet-backdrop {
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
     padding: calc(6px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -9551,6 +9554,7 @@ canvas {
     width: min(100%, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
     max-height: calc(100dvh - 14px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    margin: auto 0;
     padding-inline: 14px;
     border-radius: 16px;
   }

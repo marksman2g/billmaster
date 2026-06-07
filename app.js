@@ -292,6 +292,7 @@
   let blockRepeatState = null;
   let blockLastCreateAnchor = null;
   let blockLastTouchAnchor = null;
+  let blockDeferredCreateTimer = null;
   let dayDragState = null;
   let voiceRecognition = null;
   let voiceStopRequested = false;
@@ -4053,7 +4054,7 @@
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
     return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
-      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Tap a grid spot to open the exact-time creator. Double-tap also works." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: tap the grid spot, then Phone Create, or double-tap a spot to create there."}</span></div>
+      <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
       <div class="block-scroll ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
@@ -5855,7 +5856,7 @@
     if (type === "dataTools") content = modalDataTools();
     if (!content) return "";
     return `<div class="sheet-backdrop" data-action="close-modal">
-      <section class="sheet" role="dialog" aria-modal="true" data-sheet>
+      <section class="sheet" role="dialog" aria-modal="true" tabindex="-1" data-sheet>
         <div class="sheet-handle"></div>
         ${content}
       </section>
@@ -6236,7 +6237,7 @@
     const date = draft.date || ui.selectedDate;
     const start = draft.start || "09:00";
     const end = draft.end || addMinutesToTime(start, 60);
-    return `${modalHeader("Create Block Task", "Phone-safe task creation: choose the exact time here instead of dragging the grid.")}
+    return `${modalHeader("Create Block Task", "Phone-safe task creation: double-tap to create, or double-tap and hold-drag to draw the time before this dialog opens.")}
       <div class="field-grid block-quick-create-form">
         ${field("blockQuickTitle", "Task Title", draft.title || "", "New timed task")}
         ${field("blockQuickDate", "Date", date, "", "date")}
@@ -8208,9 +8209,9 @@
         if (event.target.closest(".event-block")) return;
         event.preventDefault();
         event.stopPropagation();
+        if (blockLastTouchAnchor?.createdAt && Date.now() - blockLastTouchAnchor.createdAt < 800) return;
         const anchor = blockCreateAnchorFromPointer(event, column);
-        rememberBlockCreateAnchor(anchor);
-        if (anchor) openBlockQuickCreate(anchor);
+        if (anchor) scheduleBlockQuickCreate(anchor, { delay: 90 });
       });
     });
     document.querySelectorAll(".event-block").forEach((block) => {
@@ -8330,11 +8331,28 @@
     blockLastCreateAnchor = {
       date: anchor.date,
       startMinute: anchor.startMinute,
+      endMinute: Number.isFinite(anchor.endMinute) ? anchor.endMinute : null,
       x: anchor.x,
       y: anchor.y,
       createdAt: Date.now()
     };
     ui.selectedDate = anchor.date;
+  }
+
+  function scheduleBlockQuickCreate(anchor, options = {}) {
+    if (!anchor?.date || !Number.isFinite(anchor.startMinute)) return;
+    const delay = Number.isFinite(options.delay) ? options.delay : 120;
+    const createAnchor = {
+      ...anchor,
+      endMinute: Number.isFinite(options.endMinute) ? options.endMinute : anchor.endMinute
+    };
+    rememberBlockCreateAnchor(createAnchor);
+    if (blockDeferredCreateTimer) clearTimeout(blockDeferredCreateTimer);
+    blockDeferredCreateTimer = setTimeout(() => {
+      blockDeferredCreateTimer = null;
+      if (ui.modal?.type === "blockQuickCreate") return;
+      openBlockQuickCreate(createAnchor);
+    }, delay);
   }
 
   function isBlockDoubleTap(anchor) {
@@ -8363,24 +8381,16 @@
     const anchor = blockCreateAnchorFromPointer(event, column);
     if (!anchor) return;
     rememberBlockCreateAnchor(anchor);
-    if (touchLike && !ui.blockDrawMode) {
-      if (isBlockDoubleTap(anchor)) {
-        event.preventDefault();
-        event.stopPropagation();
-        openBlockQuickCreate(anchor);
-      }
+    const doubleTapDrag = touchLike && !ui.blockDrawMode && isBlockDoubleTap(anchor);
+    if (touchLike && !ui.blockDrawMode && !doubleTapDrag) {
       return;
     }
-    if (touchLike || ui.blockDrawMode) {
+    if (touchLike || ui.blockDrawMode || doubleTapDrag) {
       event.preventDefault();
       event.stopPropagation();
     }
     const { columns, column: startColumn, startIndex, startMinute } = anchor;
     if (startIndex < 0) return;
-    if (touchLike && ui.blockDrawMode) {
-      openBlockQuickCreate(anchor);
-      return;
-    }
     startColumn.setPointerCapture?.(event.pointerId);
     blockCreateState = {
       columns,
@@ -8392,6 +8402,7 @@
       startY: event.clientY,
       moved: false,
       touchLike,
+      doubleTapDrag,
       previews: []
     };
     document.addEventListener("pointermove", moveBlockCreate, { passive: false });
@@ -8425,6 +8436,22 @@
     clearBlockCreatePreview(state);
     state.pointerColumn?.releasePointerCapture?.(state.pointerId);
     blockCreateState = null;
+    if (state.touchLike && (ui.blockDrawMode || state.doubleTapDrag)) {
+      const touchDate = state.columns[state.startIndex]?.dataset.date || ui.selectedDate;
+      const range = blockFocusRange();
+      const startMinute = selection.startMinute;
+      const endMinute = state.moved
+        ? selection.endMinute
+        : clamp(state.startMinute + 60, range.start + 15, range.end);
+      scheduleBlockQuickCreate({
+        date: touchDate,
+        startMinute,
+        endMinute: clamp(Math.max(startMinute + 15, endMinute), range.start + 15, range.end),
+        x: event.clientX || state.startX,
+        y: event.clientY || state.startY
+      }, { delay: 90 });
+      return;
+    }
     if (!state.moved && ui.blockDrawMode) {
       if (finishBlockTapCreate(state)) return;
     } else if (!state.moved) {
@@ -9682,15 +9709,32 @@
     render();
   }
 
-  function focusCurrentModal(preferredId = "") {
+  function focusCurrentModal(preferredId = "", options = {}) {
     if (typeof window === "undefined" || typeof document === "undefined") return;
-    window.setTimeout(() => {
+    const repeats = Number.isFinite(options.repeats) ? Math.max(1, options.repeats) : 1;
+    const avoidKeyboardOnMobile = options.avoidKeyboardOnMobile !== false;
+    const settleDelays = [70, 170, 320, 520].slice(0, repeats);
+    const settleModal = () => {
       const sheet = document.querySelector("[data-sheet]");
       if (!sheet) return;
-      sheet.scrollIntoView?.({ block: "center", inline: "nearest", behavior: "smooth" });
-      const target = preferredId ? document.getElementById(preferredId) : sheet.querySelector("input, select, textarea, button");
+      const backdrop = sheet.closest(".sheet-backdrop");
+      const mobile = window.innerWidth <= 760;
+      if (mobile) {
+        window.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        document.documentElement.scrollLeft = 0;
+        document.body.scrollLeft = 0;
+        backdrop?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        sheet.scrollTop = 0;
+      }
+      (backdrop || sheet).scrollIntoView?.({ block: "center", inline: "nearest", behavior: "smooth" });
+      const target = mobile && avoidKeyboardOnMobile
+        ? sheet
+        : preferredId
+          ? document.getElementById(preferredId)
+          : sheet.querySelector("input, select, textarea, button");
       target?.focus?.({ preventScroll: true });
-    }, 80);
+    };
+    settleDelays.forEach((delay) => window.setTimeout(settleModal, delay));
   }
 
   function paintToastWithoutRender() {
@@ -11967,22 +12011,25 @@
     if (dateOrAnchor && typeof dateOrAnchor === "object") {
       return {
         date: dateOrAnchor.date || ui.selectedDate,
-        startMinute: Number.isFinite(dateOrAnchor.startMinute) ? dateOrAnchor.startMinute : null
+        startMinute: Number.isFinite(dateOrAnchor.startMinute) ? dateOrAnchor.startMinute : null,
+        endMinute: Number.isFinite(dateOrAnchor.endMinute) ? dateOrAnchor.endMinute : null
       };
     }
     if (typeof dateOrAnchor === "string") {
       return {
         date: dateOrAnchor || ui.selectedDate,
-        startMinute: Number.isFinite(startMinute) ? startMinute : null
+        startMinute: Number.isFinite(startMinute) ? startMinute : null,
+        endMinute: null
       };
     }
     if (blockLastCreateAnchor?.date && Date.now() - blockLastCreateAnchor.createdAt <= 20 * 60 * 1000) {
       return {
         date: blockLastCreateAnchor.date,
-        startMinute: blockLastCreateAnchor.startMinute
+        startMinute: blockLastCreateAnchor.startMinute,
+        endMinute: blockLastCreateAnchor.endMinute
       };
     }
-    return { date: ui.selectedDate, startMinute: null };
+    return { date: ui.selectedDate, startMinute: null, endMinute: null };
   }
 
   function openBlockQuickCreate(dateOrAnchor = null, startMinute = null) {
@@ -11991,8 +12038,11 @@
     const safeStartMinute = Number.isFinite(target.startMinute)
       ? clamp(target.startMinute, range.start, range.end - 15)
       : clamp(Math.max(range.start, 9 * 60), range.start, range.end - 15);
+    const safeEndMinute = Number.isFinite(target.endMinute)
+      ? clamp(Math.max(safeStartMinute + 15, target.endMinute), range.start + 15, range.end)
+      : Math.min(safeStartMinute + 60, range.end);
     const start = timeFromBlockMinute(safeStartMinute);
-    const end = timeFromBlockMinute(Math.min(safeStartMinute + 60, range.end));
+    const end = timeFromBlockMinute(safeEndMinute);
     const date = target.date || ui.selectedDate;
     ui.blockQuickCreateDraft = {
       title: "",
@@ -12008,7 +12058,7 @@
     ui.blockDrawMode = false;
     ui.modal = { type: "blockQuickCreate", id: "" };
     render();
-    focusCurrentModal("blockQuickTitle");
+    focusCurrentModal("blockQuickTitle", { repeats: 4, avoidKeyboardOnMobile: true });
   }
 
   function saveBlockQuickTask() {
