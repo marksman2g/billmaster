@@ -3982,9 +3982,10 @@
   function taskDayCard(task) {
     const selected = ui.selectedTasks.includes(task.id);
     const taskImage = entityImage(task);
-    const editModal = task.isHabit ? "editHabit" : "editTask";
-    const editId = task.isHabit ? task.habitId : task.id;
     const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
+    const editButton = task.isHabit
+      ? `<button class="outline-btn" data-action="edit-habit-instance" data-id="${task.id}">${icon("edit")} Edit</button>`
+      : `<button class="outline-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${icon("edit")} Edit</button>`;
     const habit = task.isHabit ? data.habits.find((item) => item.id === task.habitId) : null;
     const habitDone = Boolean(task.isHabit && habitCompletedOn(habit, task.date));
     const doneButton = task.isHabit
@@ -4008,14 +4009,14 @@
               <button class="end-time-row" data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("end")} <span class="task-time-label">End: ${dateLabel(taskEndDate(task))} ${timeLabel(task.end)}</span></button>
               <button class="duration-chip" data-action="open-modal" data-modal="quickTime" data-id="${task.id}"><span class="task-time-label">${durationText(task)}</span></button>
             </div>
-            <div class="task-quick-controls"><span class="task-quick-badge-stack">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span><button class="icon-btn danger-text task-delete-inline" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit" : "task"}">${icon("trash")}</button></div>
+            <div class="task-quick-controls"><span class="task-quick-badge-stack">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span><button class="icon-btn danger-text task-delete-inline" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit occurrence" : "task"}">${icon("trash")}</button></div>
           </div>
         </div>
       </div>
       ${taskAddressRow(task, true)}
       ${taskChecklistPreview(task, 3)}
       <div class="sheet-actions compact-card-actions">
-        <button class="outline-btn" data-action="open-modal" data-modal="${editModal}" data-id="${editId}">${icon("edit")} Edit</button>
+        ${editButton}
         ${task.isHabit ? `<button class="outline-btn" data-action="navigate" data-view="habits">${icon("chart")} Stats</button>` : `<button class="outline-btn" data-action="open-modal" data-modal="taskNotify" data-id="${task.id}">${icon("bell")} Notify</button>`}
         ${doneButton}
       </div>
@@ -6625,17 +6626,29 @@
   function modalBlockTaskMenu(taskId) {
     const task = findCalendarItemById(taskId);
     if (!task) return "";
-    const editModal = task.isHabit ? "editHabit" : "editTask";
-    const editId = task.isHabit ? task.habitId : task.id;
-    const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
+    const editRows = task.isHabit
+      ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="edit-habit-instance" data-id="${task.id}">
+          <span class="round-icon" style="color:#0b7b4b;background:#edf9f2;">${icon("edit")}</span><span>Edit this occurrence</span><span class="muted">${dateLabel(task.date)}</span>
+        </button>
+        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="editHabit" data-id="${task.habitId}">
+          <span class="round-icon">${icon("edit")}</span><span>Edit whole habit</span><span class="muted">All dates</span>
+        </button>`
+      : `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="editTask" data-id="${task.id}">
+          <span class="round-icon">${icon("edit")}</span><span>Edit task</span><span class="muted">Double-click</span>
+        </button>`;
+    const deleteRows = task.isHabit
+      ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-habit" data-id="${task.id}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete this occurrence</span><span class="muted">${dateLabel(task.date)}</span>
+        </button>
+        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-habit-series" data-id="${task.habitId}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete whole habit</span><span class="muted">All dates</span>
+        </button>`
+      : `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-task" data-id="${task.id}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete task</span><span></span>
+        </button>`;
     return `${modalHeader("Block Actions", task.title)}
       <div class="list">
-        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="${editModal}" data-id="${editId}">
-          <span class="round-icon">${icon("edit")}</span><span>Edit ${task.isHabit ? "habit" : "task"}</span><span class="muted">Double-click</span>
-        </button>
-        ${task.isHabit ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="edit-habit-instance" data-id="${task.id}">
-          <span class="round-icon" style="color:#0b7b4b;background:#edf9f2;">${icon("edit")}</span><span>Edit this date only</span><span class="muted">${dateLabel(task.date)}</span>
-        </button>` : ""}
+        ${editRows}
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="blockDuplicateHorizontal" data-id="${task.id}">
           <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("calendar")}</span><span>Duplicate across</span><span class="muted">Choose count</span>
         </button>
@@ -6645,9 +6658,7 @@
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="start-block-multi-select" data-id="${task.id}">
           <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("check")}</span><span>Multi-select tasks</span><span class="muted">Then delete selected</span>
         </button>
-        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="${deleteAction}" data-id="${task.id}">
-          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete ${task.isHabit ? "habit" : "task"}</span><span></span>
-        </button>
+        ${deleteRows}
       </div>`;
   }
 
@@ -6669,15 +6680,30 @@
   function modalDayEventActions(taskId) {
     const task = findCalendarItemById(taskId);
     if (!task) return "";
-    const editModal = task.isHabit ? "editHabit" : "editTask";
-    const editId = task.isHabit ? task.habitId : task.id;
-    const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
     const selected = ui.selectedTasks.includes(task.id);
+    const editRows = task.isHabit
+      ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="edit-habit-instance" data-id="${task.id}">
+          <span class="round-icon" style="color:#0b7b4b;background:#edf9f2;">${icon("edit")}</span><span>Edit this occurrence</span><span class="muted">${dateLabel(task.date)}</span>
+        </button>
+        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="editHabit" data-id="${task.habitId}">
+          <span class="round-icon">${icon("edit")}</span><span>Edit whole habit</span><span class="muted">All dates</span>
+        </button>`
+      : `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="editTask" data-id="${task.id}">
+          <span class="round-icon">${icon("edit")}</span><span>Edit task</span><span class="muted">Tap event</span>
+        </button>`;
+    const deleteRows = task.isHabit
+      ? `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-habit" data-id="${task.id}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete this occurrence</span><span class="muted">${dateLabel(task.date)}</span>
+        </button>
+        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-habit-series" data-id="${task.habitId}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete whole habit</span><span class="muted">All dates</span>
+        </button>`
+      : `<button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="delete-task" data-id="${task.id}">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete task</span><span></span>
+        </button>`;
     return `${modalHeader("Event Actions", task.title)}
       <div class="list">
-        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="${editModal}" data-id="${editId}">
-          <span class="round-icon">${icon("edit")}</span><span>Edit ${task.isHabit ? "habit" : "task"}</span><span class="muted">Tap event</span>
-        </button>
+        ${editRows}
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="quickTime" data-id="${task.id}">
           <span class="round-icon" style="color:#1d73d9;background:#eaf4ff;">${icon("bell")}</span><span>Quick change times</span><span class="muted">${timeLabel(task.start)}-${timeLabel(task.end)}</span>
         </button>
@@ -6690,9 +6716,7 @@
         <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;" data-action="open-modal" data-modal="taskActions" ${ui.selectedTasks.length ? "" : "disabled"}>
           <span class="round-icon" style="color:#6c63ff;background:#efedff;">${icon("note")}</span><span>Duplicate selected</span><span class="muted">${ui.selectedTasks.length || "Select first"}</span>
         </button>
-        <button class="data-row" style="background:transparent;border:0;width:100%;text-align:left;color:var(--red);" data-action="${deleteAction}" data-id="${task.id}">
-          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><span>Delete ${task.isHabit ? "habit" : "task"}</span><span></span>
-        </button>
+        ${deleteRows}
       </div>`;
   }
 
@@ -8169,7 +8193,8 @@
   function openCalendarItemEditor(taskId) {
     const item = findCalendarItemById(taskId);
     if (!item) return;
-    openModal(item.isHabit ? "editHabit" : "editTask", item.isHabit ? item.habitId : item.id);
+    if (item.isHabit) return editHabitInstance(item.id);
+    openModal("editTask", item.id);
   }
 
   function attachBlockInteractions() {
@@ -8186,14 +8211,12 @@
         event.preventDefault();
         event.stopPropagation();
         clearBlockHoldTimer(blockDragState);
-        const item = findCalendarItemById(block.dataset.taskId);
-        openModal(item?.isHabit ? "editHabit" : "editTask", item?.isHabit ? item.habitId : block.dataset.taskId);
+        openCalendarItemEditor(block.dataset.taskId);
       });
       block.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          const item = findCalendarItemById(block.dataset.taskId);
-          openModal(item?.isHabit ? "editHabit" : "editTask", item?.isHabit ? item.habitId : block.dataset.taskId);
+          openCalendarItemEditor(block.dataset.taskId);
         }
       });
     });
@@ -8218,7 +8241,7 @@
     if (!resize && event.detail && event.detail > 1) {
       event.preventDefault();
       event.stopPropagation();
-      openModal(task.isHabit ? "editHabit" : "editTask", task.isHabit ? task.habitId : task.id);
+      openCalendarItemEditor(task.id);
       return;
     }
     event.preventDefault();
@@ -8699,18 +8722,55 @@
     };
   }
 
+  function skipHabitOccurrence(habit, iso) {
+    if (!habit || !iso) return false;
+    habit.skippedDates = Array.from(new Set([...(habit.skippedDates || []), iso])).sort();
+    habit.completions = Array.isArray(habit.completions) ? habit.completions.filter((date) => date !== iso) : [];
+    return true;
+  }
+
+  function detachHabitOccurrenceToTask(itemOrId, overrides = {}) {
+    const item = typeof itemOrId === "string" ? findCalendarItemById(itemOrId) : itemOrId;
+    const parsed = parseHabitInstanceId(item?.id);
+    if (!item?.isHabit || !parsed) return null;
+    const habit = data.habits.find((entry) => entry.id === parsed.habitId);
+    if (!habit) return null;
+    const task = taskCopyFromCalendarItem(item, {
+      title: item.title,
+      date: item.date,
+      endDate: taskEndDate(item),
+      repeat: "None",
+      status: item.status || "Not Started",
+      ...overrides
+    });
+    skipHabitOccurrence(habit, parsed.date);
+    data.tasks.unshift(task);
+    ui.selectedTasks = ui.selectedTasks.map((idValue) => idValue === item.id ? task.id : idValue);
+    return task;
+  }
+
+  function deleteHabitOccurrence(taskId) {
+    const parsed = parseHabitInstanceId(taskId);
+    if (!parsed) return false;
+    const habit = data.habits.find((item) => item.id === parsed.habitId);
+    if (!habit) return false;
+    skipHabitOccurrence(habit, parsed.date);
+    ui.selectedTasks = ui.selectedTasks.filter((idValue) => idValue !== taskId);
+    ui.modal = null;
+    saveData();
+    render();
+    showToast("This habit occurrence was deleted. The rest of the habit stays.");
+    return true;
+  }
+
   function updateCalendarItemSchedule(item, updates) {
     if (!item) return;
     if (item.isHabit) {
-      const habit = data.habits.find((entry) => entry.id === item.habitId);
-      if (!habit) return;
-      if (updates.start !== undefined) habit.start = updates.start;
-      if (updates.end !== undefined) habit.end = updates.end;
-      if (updates.date !== undefined) {
-        habit.startDate = updates.date;
-        if (habit.schedule === "Weekly") habit.days = [parseLocalDate(updates.date).getDay()];
+      const nextUpdates = { ...updates };
+      if (updates.date !== undefined && updates.endDate === undefined) {
+        nextUpdates.endDate = addDaysIso(updates.date, dateSpanDays(item.date, taskEndDate(item)));
       }
-      if (updates.endDate !== undefined && updates.endDate && updates.endDate !== updates.date) habit.endDate = updates.endDate;
+      detachHabitOccurrenceToTask(item, nextUpdates);
       return;
     }
     Object.assign(item, updates, { updatedAt: new Date().toISOString() });
@@ -8783,7 +8843,8 @@
     }
     saveData();
     blockDragState = null;
-    showToast(task.isHabit ? "Habit time updated." : "Task time updated.");
+    render();
+    showToast(task.isHabit ? "Habit occurrence updated." : "Task time updated.");
   }
 
   function cancelBlockDrag() {
@@ -9249,6 +9310,7 @@
     if (action === "save-habit") return saveHabit(el.dataset.id);
     if (action === "edit-habit-instance") return editHabitInstance(el.dataset.id);
     if (action === "delete-habit") return deleteHabit(el.dataset.id);
+    if (action === "delete-habit-series") return deleteHabitSeries(el.dataset.id);
     if (action === "toggle-habit-completion") return toggleHabitCompletion(el.dataset.id, el.dataset.date);
     if (action === "adjust-habit-end") return adjustHabitEnd(el.dataset.id, Number(el.dataset.delta || 0));
     if (action === "toggle-habit-select") return toggleHabitSelect(el.dataset.id);
@@ -12171,17 +12233,21 @@
   }
 
   function deleteHabit(habitId) {
-    let idValue = habitId;
     const parsed = parseHabitInstanceId(habitId);
-    if (parsed) idValue = parsed.habitId;
-    const habit = data.habits.find((item) => item.id === idValue);
+    if (parsed) return deleteHabitOccurrence(habitId);
+    return deleteHabitSeries(habitId);
+  }
+
+  function deleteHabitSeries(habitId) {
+    const habit = data.habits.find((item) => item.id === habitId);
     if (!habit) return;
-    data.habits = data.habits.filter((item) => item.id !== idValue);
-    ui.selectedTasks = ui.selectedTasks.filter((item) => parseHabitInstanceId(item)?.habitId !== idValue);
-    ui.selectedHabits = ui.selectedHabits.filter((item) => item !== idValue);
+    data.habits = data.habits.filter((item) => item.id !== habitId);
+    ui.selectedTasks = ui.selectedTasks.filter((item) => parseHabitInstanceId(item)?.habitId !== habitId);
+    ui.selectedHabits = ui.selectedHabits.filter((item) => item !== habitId);
     ui.modal = null;
     saveData();
-    showToast("Habit deleted. Undo is available.");
+    render();
+    showToast("Whole habit series deleted. Undo is available.");
   }
 
   function toggleHabitCompletion(habitId, iso = todayIso()) {
@@ -12282,26 +12348,12 @@
   }
 
   function editHabitInstance(taskId) {
-    const parsed = parseHabitInstanceId(taskId);
-    if (!parsed) return;
-    const habit = data.habits.find((item) => item.id === parsed.habitId);
-    if (!habit) return;
-    const instance = habitInstance(habit, parsed.date);
-    const task = taskCopyFromCalendarItem(instance, {
-      title: instance.title,
-      date: parsed.date,
-      endDate: parsed.date,
-      repeat: "None",
-      status: instance.status || "Not Started"
-    });
-    habit.skippedDates = Array.from(new Set([...(habit.skippedDates || []), parsed.date])).sort();
-    habit.completions = Array.isArray(habit.completions) ? habit.completions.filter((date) => date !== parsed.date) : [];
-    data.tasks.unshift(task);
-    ui.selectedTasks = ui.selectedTasks.filter((idValue) => idValue !== taskId);
+    const task = detachHabitOccurrenceToTask(taskId);
+    if (!task) return;
     ui.modal = { type: "editTask", id: task.id };
     saveData();
     render();
-    showToast("This date is now its own editable task.");
+    showToast("This occurrence is now its own editable task.");
   }
 
   function duplicateBlockHorizontal(taskId, count = 1) {
@@ -12349,12 +12401,14 @@
   }
 
   function setTaskPriority(taskId, priority) {
-    const habit = findHabitFromInstanceId(taskId);
-    if (habit && taskPriorityOptions.includes(priority)) {
-      habit.priority = priority;
+    const habitInstance = findCalendarItemById(taskId);
+    if (habitInstance?.isHabit && taskPriorityOptions.includes(priority)) {
+      const task = detachHabitOccurrenceToTask(habitInstance, { priority });
+      if (!task) return;
       ui.taskPicker = null;
       saveData();
-      showToast(`Habit priority changed to ${habit.priority}.`);
+      render();
+      showToast(`This occurrence priority changed to ${task.priority}.`);
       return;
     }
     const task = data.tasks.find((item) => item.id === taskId);
@@ -12363,17 +12417,29 @@
     task.updatedAt = new Date().toISOString();
     ui.taskPicker = null;
     saveData();
+    render();
     showToast(`Priority changed to ${task.priority}.`);
   }
 
   function setTaskStatus(taskId, status) {
-    const habitInstance = parseHabitInstanceId(taskId);
-    if (habitInstance && taskStatusOptions.includes(status)) {
-      setHabitCompletion(habitInstance.habitId, habitInstance.date, status === "Completed");
+    const habitInstance = findCalendarItemById(taskId);
+    if (habitInstance?.isHabit && taskStatusOptions.includes(status)) {
+      if (["Completed", "Not Started"].includes(status)) {
+        setHabitCompletion(habitInstance.habitId, habitInstance.date, status === "Completed");
+        ui.taskPicker = null;
+        if (ui.modal?.type === "blockStatus") ui.modal = null;
+        saveData();
+        render();
+        showToast(status === "Completed" ? "Habit occurrence marked complete." : "Habit occurrence marked not started.");
+        return;
+      }
+      const task = detachHabitOccurrenceToTask(habitInstance, { status });
+      if (!task) return;
       ui.taskPicker = null;
       if (ui.modal?.type === "blockStatus") ui.modal = null;
       saveData();
-      showToast(status === "Completed" ? "Habit marked complete." : "Habit completion cleared.");
+      render();
+      showToast(`This occurrence status changed to ${task.status}.`);
       return;
     }
     const task = data.tasks.find((item) => item.id === taskId);
@@ -12385,6 +12451,7 @@
     if (ui.modal?.type === "blockStatus") ui.modal = null;
     const queuedNotice = queueTaskStatusNotification(task, previousStatus, "status-picker");
     saveData();
+    render();
     showToast(queuedNotice ? `Status changed to ${task.status}; notification queued.` : `Status changed to ${task.status}.`);
   }
 
@@ -13064,12 +13131,14 @@
   }
 
   function prioritySelectedTasks(priority) {
+    const nextPriority = priority || "High";
+    const selectedIds = [...ui.selectedTasks];
     data.tasks.forEach((task) => {
-      if (ui.selectedTasks.includes(task.id)) task.priority = priority || "High";
+      if (selectedIds.includes(task.id)) task.priority = nextPriority;
     });
-    ui.selectedTasks.forEach((taskId) => {
-      const habit = findHabitFromInstanceId(taskId);
-      if (habit) habit.priority = priority || "High";
+    selectedIds.forEach((taskId) => {
+      const item = findCalendarItemById(taskId);
+      if (item?.isHabit) detachHabitOccurrenceToTask(item, { priority: nextPriority });
     });
     saveData();
     closeModal();
@@ -13239,9 +13308,14 @@
       showToast("Select at least one task first.", "danger");
       return;
     }
-    data.tasks = data.tasks.filter((task) => !ui.selectedTasks.includes(task.id));
-    const selectedHabitIds = new Set(ui.selectedTasks.map((taskId) => parseHabitInstanceId(taskId)?.habitId).filter(Boolean));
-    if (selectedHabitIds.size) data.habits = data.habits.filter((habit) => !selectedHabitIds.has(habit.id));
+    const selectedIds = [...ui.selectedTasks];
+    data.tasks = data.tasks.filter((task) => !selectedIds.includes(task.id));
+    selectedIds.forEach((taskId) => {
+      const parsed = parseHabitInstanceId(taskId);
+      if (!parsed) return;
+      const habit = data.habits.find((item) => item.id === parsed.habitId);
+      skipHabitOccurrence(habit, parsed.date);
+    });
     ui.selectedTasks = [];
     ui.dayCopyTargetDate = null;
     ui.blockSelectMode = false;
