@@ -5855,8 +5855,11 @@
     if (type === "addSubscription") content = modalAddSubscription();
     if (type === "dataTools") content = modalDataTools();
     if (!content) return "";
-    return `<div class="sheet-backdrop" data-action="close-modal">
-      <section class="sheet" role="dialog" aria-modal="true" tabindex="-1" data-sheet>
+    const quickCreate = type === "blockQuickCreate";
+    const backdropClass = quickCreate ? " sheet-backdrop--block-quick-create" : "";
+    const sheetClass = quickCreate ? " sheet--block-quick-create" : "";
+    return `<div class="sheet-backdrop${backdropClass}" data-action="close-modal">
+      <section class="sheet${sheetClass}" role="dialog" aria-modal="true" tabindex="-1" data-sheet data-modal-type="${esc(type)}">
         <div class="sheet-handle"></div>
         ${content}
       </section>
@@ -6237,7 +6240,26 @@
     const date = draft.date || ui.selectedDate;
     const start = draft.start || "09:00";
     const end = draft.end || addMinutesToTime(start, 60);
-    return `${modalHeader("Create Block Task", "Phone-safe task creation: double-tap to create, or double-tap and hold-drag to draw the time before this dialog opens.")}
+    const startMinute = minutes(start);
+    let endMinute = minutes(end);
+    if (endMinute <= startMinute) endMinute += 24 * 60;
+    const spanMinutes = Math.max(15, endMinute - startMinute);
+    const spanLabel = spanMinutes >= 60 ? `${round1(spanMinutes / 60)}h` : `${spanMinutes}m`;
+    return `${modalHeader("Create Task", "Your dragged time is ready. Add the title, check details, save.")}
+      <section class="quick-create-summary" aria-label="Selected task time">
+        <div>
+          <span class="subtle">Selected block</span>
+          <strong>${esc(dateLabel(date))}</strong>
+        </div>
+        <div>
+          <span class="subtle">Time</span>
+          <strong>${esc(timeLabel(start))} - ${esc(timeLabel(end))}</strong>
+        </div>
+        <div>
+          <span class="subtle">Length</span>
+          <strong>${esc(spanLabel)}</strong>
+        </div>
+      </section>
       <div class="field-grid block-quick-create-form">
         ${field("blockQuickTitle", "Task Title", draft.title || "", "New timed task")}
         ${field("blockQuickDate", "Date", date, "", "date")}
@@ -6250,7 +6272,7 @@
           <input id="blockQuickIncludeHours" type="checkbox" ${draft.includeHours === false ? "" : "checked"} style="width:24px;height:24px;">
         </label>
       </div>
-      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+      <div class="sheet-actions block-quick-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="close-modal">Cancel</button>
         <button class="secondary-btn" data-action="save-block-quick-task">${icon("plus")} Create Task</button>
       </div>`;
@@ -9713,6 +9735,7 @@
     if (typeof window === "undefined" || typeof document === "undefined") return;
     const repeats = Number.isFinite(options.repeats) ? Math.max(1, options.repeats) : 1;
     const avoidKeyboardOnMobile = options.avoidKeyboardOnMobile !== false;
+    const centerModal = options.centerModal === true;
     const settleDelays = [70, 170, 320, 520].slice(0, repeats);
     const settleModal = () => {
       const sheet = document.querySelector("[data-sheet]");
@@ -9720,13 +9743,15 @@
       const backdrop = sheet.closest(".sheet-backdrop");
       const mobile = window.innerWidth <= 760;
       if (mobile) {
-        window.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-        document.documentElement.scrollLeft = 0;
-        document.body.scrollLeft = 0;
+        if (!centerModal) {
+          window.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+          document.documentElement.scrollLeft = 0;
+          document.body.scrollLeft = 0;
+        }
         backdrop?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
         sheet.scrollTop = 0;
       }
-      (backdrop || sheet).scrollIntoView?.({ block: "center", inline: "nearest", behavior: "smooth" });
+      (centerModal ? sheet : (backdrop || sheet)).scrollIntoView?.({ block: "center", inline: "center", behavior: "smooth" });
       const target = mobile && avoidKeyboardOnMobile
         ? sheet
         : preferredId
@@ -12058,7 +12083,7 @@
     ui.blockDrawMode = false;
     ui.modal = { type: "blockQuickCreate", id: "" };
     render();
-    focusCurrentModal("blockQuickTitle", { repeats: 4, avoidKeyboardOnMobile: true });
+    focusCurrentModal("blockQuickTitle", { repeats: 4, avoidKeyboardOnMobile: true, centerModal: true });
   }
 
   function saveBlockQuickTask() {

@@ -7387,9 +7387,129 @@ canvas {
   overscroll-behavior: contain;
 }
 
+.sheet-backdrop--block-quick-create {
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100dvh;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+
+.sheet--block-quick-create {
+  width: min(560px, calc(100vw - 24px));
+  max-width: 560px;
+  max-height: min(84dvh, 720px);
+  padding: 10px 18px 16px;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(10, 21, 38, 0.32);
+  scroll-margin: auto;
+}
+
+.sheet--block-quick-create .sheet-handle {
+  margin: 6px auto 12px;
+}
+
+.sheet--block-quick-create .sheet-header {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.sheet--block-quick-create .sheet-header h2 {
+  font-size: 1.34rem;
+}
+
+.sheet--block-quick-create .sheet-header p {
+  margin-top: 5px;
+  max-width: 34rem;
+  line-height: 1.35;
+}
+
+.quick-create-summary {
+  display: grid;
+  grid-template-columns: 1.1fr 1.25fr 0.75fr;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  background: #eff7ff;
+  border: 1px solid #cde2ff;
+  border-radius: 12px;
+}
+
+.quick-create-summary div {
+  min-width: 0;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(150, 177, 205, 0.38);
+  border-radius: 10px;
+}
+
+.quick-create-summary .subtle,
+.quick-create-summary strong {
+  display: block;
+}
+
+.quick-create-summary strong {
+  overflow: hidden;
+  color: var(--navy);
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-quick-create-form {
+  gap: 10px;
+}
+
+.block-quick-create-form .field label {
+  margin-bottom: 4px;
+  font-size: 0.76rem;
+}
+
+.block-quick-create-form .field input,
+.block-quick-create-form .field select {
+  min-height: 42px;
+  padding-block: 9px;
+}
+
+.block-quick-create-form .choice-row {
+  gap: 6px;
+}
+
+.block-quick-create-form .choice-chip {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+}
+
+.block-quick-hours {
+  margin: 0;
+  padding: 10px 12px !important;
+  border: 1px solid #bfdbff;
+  border-radius: 12px;
+}
+
+.block-quick-hours strong {
+  color: var(--navy);
+}
+
+.sheet--block-quick-create .block-quick-actions {
+  position: sticky;
+  bottom: -1px;
+  z-index: 3;
+  margin: 12px -18px -16px;
+  padding: 10px 18px 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), #fff 42%);
+  border-top: 1px solid rgba(150, 177, 205, 0.26);
+}
+
 @supports not (height: 100dvh) {
   .sheet {
     max-height: min(calc(100vh - var(--nav-height) - 34px), 920px);
+  }
+
+  .sheet--block-quick-create {
+    max-height: min(84vh, 720px);
   }
 }
 
@@ -9567,6 +9687,75 @@ canvas {
     padding: 10px 14px 0;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), #fff 34%);
   }
+
+  .sheet-backdrop--block-quick-create {
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100dvh;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+  }
+
+  .sheet--block-quick-create {
+    width: min(100%, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    margin: auto;
+    padding: 9px 12px 12px;
+    border-radius: 16px;
+    overflow: auto;
+  }
+
+  .sheet--block-quick-create .sheet-handle {
+    margin: 4px auto 10px;
+  }
+
+  .sheet--block-quick-create .sheet-header {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .sheet--block-quick-create .sheet-header h2 {
+    font-size: 1.22rem;
+  }
+
+  .sheet--block-quick-create .sheet-header p {
+    margin-top: 3px;
+    font-size: 0.82rem;
+  }
+
+  .quick-create-summary {
+    grid-template-columns: 1fr 1fr 0.72fr;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 8px;
+  }
+
+  .quick-create-summary div {
+    padding: 7px 8px;
+  }
+
+  .quick-create-summary .subtle {
+    font-size: 0.65rem;
+  }
+
+  .quick-create-summary strong {
+    font-size: 0.82rem;
+  }
+
+  .block-quick-create-form {
+    gap: 8px;
+  }
+
+  .block-quick-hours {
+    padding: 9px 10px !important;
+  }
+
+  .sheet--block-quick-create .block-quick-actions {
+    margin: 10px -12px -12px;
+    padding: 9px 12px 12px;
+  }
 }
 
 @media (max-width: 420px) {
@@ -9616,6 +9805,10 @@ canvas {
   }
 
   .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-create-summary {
     grid-template-columns: 1fr;
   }
 
