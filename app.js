@@ -6191,8 +6191,12 @@
       <div class="field-grid">
         ${field("taskTitle", "Task Title", task.title || "", "Task Title")}
         ${textArea("taskDescription", "Description", task.description || "", "Description (optional)")}
-        <div class="field-row">${field("taskDate", "Due Date", task.date || ui.selectedDate, "", "date")}${field("taskStart", "Start Time", task.start || "", "", "time")}</div>
-        <div class="field-row">${field("taskEndDate", "End Date", taskEndDate(task), "", "date")}${field("taskEnd", "End Time", task.end || "", "", "time")}</div>
+        <div class="task-date-time-grid" aria-label="Task start and end date and time">
+          ${field("taskDate", "Start Date", task.date || ui.selectedDate, "", "date")}
+          ${field("taskStart", "Start Time", task.start || "", "", "time")}
+          ${field("taskEndDate", "End Date", taskEndDate(task), "", "date")}
+          ${field("taskEnd", "End Time", task.end || "", "", "time")}
+        </div>
         ${choiceField("taskPriority", "Priority", taskPriorityOptions, task.priority || "Medium", priorityColor)}
         ${choiceField("taskStatus", "Status", taskStatusOptions, task.status || "Not Started", statusHandleColor)}
         ${selectField("taskRepeat", "Repeat", ["None", "Daily", "Weekly", "Bi-Weekly", "Monthly", "Custom"], task.repeat || "None")}
@@ -9058,6 +9062,16 @@
 
   document.addEventListener("touchstart", guardBlockDrawTouch, { passive: false });
   document.addEventListener("touchmove", guardBlockDrawTouch, { passive: false });
+
+  function handleDateZoneTouch(event) {
+    const zone = event.target.closest?.(".date-zone[data-action='set-calendar-date-view']");
+    if (!zone) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setCalendarDateView(zone.dataset.date, zone.dataset.view);
+  }
+
+  document.addEventListener("touchend", handleDateZoneTouch, { passive: false });
 
   document.addEventListener("click", (event) => {
     const sheet = event.target.closest("[data-sheet]");
