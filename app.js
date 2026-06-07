@@ -54,6 +54,7 @@
     blockSelectMode: false,
     blockDrawMode: false,
     daySwapMode: false,
+    dayCopyTargetDate: null,
     selectedTasks: [],
     selectedAddresses: [],
     notifyQuery: "",
@@ -348,6 +349,7 @@
     "set-task-status",
     "copy-selected-tomorrow",
     "copy-selected-to-date",
+    "copy-selected-to-day-target",
     "duplicate-selected-tasks",
     "save-duplicate-selected-tasks",
     "duplicate-calendar-item",
@@ -1515,6 +1517,7 @@
     try {
       data = normalizeData(mergeSeed(clone(seed), JSON.parse(entry.snapshot)));
       ui.selectedTasks = [];
+      ui.dayCopyTargetDate = null;
       ui.selectedHabits = ui.selectedHabits.filter((habitId) => data.habits.some((habit) => habit.id === habitId));
       ui.modal = null;
       saveData({ undo: false });
@@ -3869,8 +3872,20 @@
     const selectedDayCount = selectedDayTasks.length;
     const selectedDayAddresses = selectedDayTasks.map((task) => taskAddress(task)).filter(Boolean);
     const selectedDayCanRoute = selectedDayCount > 0 && selectedDayAddresses.length === selectedDayCount;
+    const dayCopyTargetDate = ui.dayCopyTargetDate && ui.dayCopyTargetDate !== ui.selectedDate ? ui.dayCopyTargetDate : "";
+    const dayCopyTargetLabel = dayCopyTargetDate ? shortDate(dayCopyTargetDate) : "";
+    const copyTargetButton = selectedDayCount
+      ? dayCopyTargetDate
+        ? `<button class="outline-btn compact-action copy-target-action" data-action="copy-selected-to-day-target">${icon("calendar")} Copy to ${esc(dayCopyTargetLabel)}</button>`
+        : `<button class="outline-btn compact-action copy-target-action" data-action="open-modal" data-modal="copyTasksDate">${icon("calendar")} Copy to date</button>`
+      : "";
+    const selectedHint = selectedDayCount
+      ? dayCopyTargetDate
+        ? ` - copy target ${dayCopyTargetLabel}`
+        : " - tap a date above to pick copy target"
+      : "";
     return `<div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
+      <div class="calendar-summary day-toolbar">${icon("bell")} Today's Task Hours: <strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}${selectedHint}</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button>${copyTargetButton}<button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}</div>
       ${dayTimeOfDayLegend()}
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit.${ui.daySwapMode ? " Drag one task onto another to swap times." : " Turn Swap mode on before dragging tasks on touch screens."}</p>
       <div class="list day-task-grid ${ui.daySwapMode ? "day-swap-mode" : ""}">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
@@ -3901,7 +3916,9 @@
     const tasks = calendarItemsForDay(iso);
     const dayHours = round1(totalTaskHours(tasks));
     const isToday = iso === todayIso();
-    return `<div class="week-day ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}">
+    const isCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && ui.dayCopyTargetDate === iso && iso !== ui.selectedDate;
+    const canPickCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && iso !== ui.selectedDate;
+    return `<div class="week-day ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" data-double-date="${iso}" data-copy-target-date="${iso}">
       ${dateViewZones(iso)}
       <div class="date-cell-content">
         <div class="subtle">${d.toLocaleDateString("en-US", { weekday: "short" })}</div>
@@ -3910,6 +3927,7 @@
         <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${data.bills.some((b) => b.dueDate === iso) ? `<span class="dot coral"></span>` : ""}</div>
         ${dayHours ? `<span class="hour-chip">${dayHours}h</span>` : ""}
       </div>
+      ${canPickCopyTarget ? `<button class="copy-here-chip" data-action="select-day-copy-target" data-date="${iso}">${isCopyTarget ? `${icon("check")} Target` : "Copy here"}</button>` : ""}
     </div>`;
   }
 
@@ -6791,7 +6809,7 @@
   }
 
   function modalCopyTasksDate() {
-    const tomorrow = addDaysIso(ui.selectedDate, 1);
+    const tomorrow = ui.dayCopyTargetDate || addDaysIso(ui.selectedDate, 1);
     return `${modalHeader("Copy Selected Tasks", `${ui.selectedTasks.length} selected`)}
       <div class="field-grid">
         ${field("copyTaskDate", "Copy To Date", tomorrow, "", "date")}
@@ -8867,6 +8885,17 @@
   document.addEventListener("click", (event) => {
     const sheet = event.target.closest("[data-sheet]");
     const actionEl = event.target.closest("[data-action]");
+    const copyTargetEl = event.target.closest("[data-copy-target-date]");
+    if (!actionEl && copyTargetEl && ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length) {
+      const targetDate = copyTargetEl.dataset.copyTargetDate;
+      if (targetDate && targetDate !== ui.selectedDate) {
+        event.preventDefault();
+        ui.dayCopyTargetDate = targetDate;
+        render();
+        showToast(`Copy target set to ${shortDate(targetDate)}.`);
+        return;
+      }
+    }
     if (!actionEl) {
       const habitCardEl = event.target.closest(".habit-card[data-habit-id]");
       if (habitCardEl && !event.target.closest("button,input,select,textarea,a")) {
@@ -8911,6 +8940,7 @@
     ui.selectedDate = dateEl.dataset.doubleDate;
     ui.calendarView = "day";
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     render();
   });
 
@@ -9242,6 +9272,7 @@
     if (action === "toggle-day-swap-mode") return toggleDaySwapMode();
     if (action === "start-block-multi-select") return startBlockMultiSelect(el.dataset.id);
     if (action === "select-visible-block-tasks") return selectVisibleBlockTasks();
+    if (action === "select-day-copy-target") return selectDayCopyTarget(el.dataset.date);
     if (action === "select-all-day-tasks") return selectAllDayTasks();
     if (action === "deselect-all-day-tasks") return deselectAllDayTasks();
     if (action === "swap-selected-day-tasks") return swapSelectedDayTasks();
@@ -9249,7 +9280,10 @@
       const changed = ui.selectedDate !== el.dataset.date;
       ui.selectedDate = el.dataset.date;
       ui.calendarView = ui.calendarView === "month" ? "day" : ui.calendarView;
-      if (changed) ui.selectedTasks = [];
+      if (changed) {
+        ui.selectedTasks = [];
+        ui.dayCopyTargetDate = null;
+      }
       return render();
     }
     if (action === "toggle-task-select") return toggleTaskSelect(el.dataset.id);
@@ -9268,6 +9302,7 @@
     if (action === "save-duplicate-selected-tasks") return duplicateSelectedTasks(Number(value("duplicateTaskCount") || 1));
     if (action === "copy-selected-tomorrow") return copySelectedTomorrow();
     if (action === "copy-selected-to-date") return copySelectedToDate();
+    if (action === "copy-selected-to-day-target") return copySelectedToDayTarget();
     if (action === "open-task-alert") return openTaskAlert(el.dataset.id);
     if (action === "open-task-alert-gmail") return openTaskAlertGmail(el.dataset.id);
     if (action === "copy-task-alert") return copyTaskAlert(el.dataset.id);
@@ -9395,6 +9430,7 @@
     if (!root && ui.view !== view) ui.backStack.push(ui.view);
     if (root) ui.backStack = [];
     ui.view = view;
+    if (view !== "calendar") ui.dayCopyTargetDate = null;
     syncHash(view);
     if (view !== "notes") {
       ui.notebookId = null;
@@ -9420,6 +9456,7 @@
     if (ui.calendarView === "month") ui.selectedDate = addMonthsIso(ui.selectedDate, step);
     else if (ui.calendarView === "day") ui.selectedDate = addDaysIso(ui.selectedDate, step);
     else ui.selectedDate = addDaysIso(ui.selectedDate, step * 7);
+    ui.dayCopyTargetDate = null;
     render();
   }
 
@@ -9428,6 +9465,7 @@
     ui.selectedDate = todayIso();
     ui.calendarView = targetView;
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     if (ui.view !== "calendar") {
       if (ui.view) ui.backStack.push(ui.view);
       ui.view = "calendar";
@@ -9440,6 +9478,7 @@
     ui.selectedDate = date || ui.selectedDate;
     ui.calendarView = "day";
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     render();
   }
 
@@ -9448,6 +9487,7 @@
     ui.selectedDate = date || ui.selectedDate;
     ui.calendarView = view;
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     if (ui.view !== "calendar") return navigate("calendar");
     render();
   }
@@ -12414,9 +12454,21 @@
     render();
   }
 
+  function selectDayCopyTarget(date) {
+    if (!date || date === ui.selectedDate) return;
+    if (!ui.selectedTasks.length) {
+      showToast("Select one or more tasks first.", "danger");
+      return;
+    }
+    ui.dayCopyTargetDate = date;
+    render();
+    showToast(`Copy target set to ${shortDate(date)}.`);
+  }
+
   function toggleTaskSelect(taskId) {
     if (ui.selectedTasks.includes(taskId)) ui.selectedTasks = ui.selectedTasks.filter((idValue) => idValue !== taskId);
     else ui.selectedTasks.push(taskId);
+    if (!ui.selectedTasks.length) ui.dayCopyTargetDate = null;
     render();
   }
 
@@ -12432,6 +12484,7 @@
   function deselectAllDayTasks() {
     const ids = new Set(tasksForDay(ui.selectedDate).map((task) => task.id));
     ui.selectedTasks = ui.selectedTasks.filter((taskId) => !ids.has(taskId));
+    if (!ui.selectedTasks.length) ui.dayCopyTargetDate = null;
     render();
   }
 
@@ -13142,6 +13195,11 @@
     copySelectedTasksToDate(value("copyTaskDate") || addDaysIso(ui.selectedDate, 1), "selected date");
   }
 
+  function copySelectedToDayTarget() {
+    const targetDate = ui.dayCopyTargetDate || addDaysIso(ui.selectedDate, 1);
+    copySelectedTasksToDate(targetDate, shortDate(targetDate));
+  }
+
   function copySelectedTasksToDate(iso, label = "selected date") {
     const targetDate = iso || addDaysIso(ui.selectedDate, 1);
     const copies = ui.selectedTasks
@@ -13157,6 +13215,7 @@
     }
     data.tasks.unshift(...copies);
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     saveData();
     closeModal();
     showToast(`${copies.length} task${copies.length === 1 ? "" : "s"} copied to ${label}.`);
@@ -13170,6 +13229,7 @@
 
   function clearSelectedTasks() {
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     closeModal();
   }
 
@@ -13183,6 +13243,7 @@
     const selectedHabitIds = new Set(ui.selectedTasks.map((taskId) => parseHabitInstanceId(taskId)?.habitId).filter(Boolean));
     if (selectedHabitIds.size) data.habits = data.habits.filter((habit) => !selectedHabitIds.has(habit.id));
     ui.selectedTasks = [];
+    ui.dayCopyTargetDate = null;
     ui.blockSelectMode = false;
     saveData();
     closeModal();
