@@ -2095,6 +2095,91 @@ button.round-icon {
   margin-bottom: 0;
 }
 
+.plaid-foundation-panel {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 14px;
+  border-color: #b7f0ff;
+  background: linear-gradient(135deg, #f2fdff, #f8fbff 52%, #fffaf0);
+}
+
+.plaid-foundation-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.plaid-foundation-copy p {
+  margin: 0;
+  max-width: 860px;
+  line-height: 1.45;
+}
+
+.plaid-icon {
+  color: var(--teal);
+  background: #e7fbff;
+}
+
+.plaid-stage-grid,
+.plaid-flow {
+  display: grid;
+  gap: 8px;
+}
+
+.plaid-stage-grid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.plaid-stage-grid span,
+.plaid-flow-step {
+  min-width: 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #d5e5f7;
+  border-radius: 8px;
+}
+
+.plaid-stage-grid strong,
+.plaid-stage-grid small,
+.plaid-flow-step strong,
+.plaid-flow-step small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plaid-stage-grid strong {
+  color: var(--navy-2);
+}
+
+.plaid-stage-grid small,
+.plaid-flow-step small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.plaid-flow {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.plaid-flow-step span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 6px;
+  color: #fff;
+  background: var(--navy-2);
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.plaid-actions {
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+}
+
 .sync-disclosure {
   margin-bottom: 14px;
   padding: 0;

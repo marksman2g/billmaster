@@ -124,6 +124,9 @@
       googleContactsLastImportCount: 0,
       googleContactsLastGroupImportCount: 0,
       googleContactsLastStatus: "",
+      plaidMode: "sandbox",
+      plaidSandboxConnected: false,
+      plaidLastImportAt: "",
       deletedItems: {}
     },
     accounts: [
@@ -2583,6 +2586,7 @@
       ${header("Sync Center", `<button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button><button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button>`)}
       ${syncCommandPanel(connected, connections.length, needsAuth)}
       ${cloudWorkspacePanel()}
+      ${plaidSandboxPanel()}
       <div class="sync-priority-grid">
         ${googleContactsPanel()}
         ${notificationFoundationPanel()}
@@ -2640,6 +2644,48 @@
       <summary><span><strong>${esc(title)}</strong><small>${esc(copy)}</small></span>${icon("back")}</summary>
       <div class="sync-disclosure-body">${content}</div>
     </details>`;
+  }
+
+  function plaidSandboxPanel() {
+    const sync = safeArray(data.syncConnections).find((item) => item.id === "sync_1") || {};
+    const sandboxAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid Sandbox" || account.plaidSandbox);
+    const sandboxTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid Sandbox" || tx.plaidSandbox);
+    const inboxCount = billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
+    const connected = Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
+    const lastImport = data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    return `<section class="section-card plaid-foundation-panel">
+      <div class="plaid-foundation-copy">
+        <span class="round-icon plaid-icon">${icon("wallet")}</span>
+        <div>
+          <div class="section-title compact-title">
+            <h2>Plaid Bank/Card Sync Foundation</h2>
+            <span class="status ${connected ? "success" : "warn"}">${connected ? "Sandbox ready" : "Safe test mode"}</span>
+          </div>
+          <p class="muted">Use this to prove the bank-sync workflow before real credentials touch the app. Sandbox import creates token-style accounts, transactions, and recurring bill candidates for Review Inbox.</p>
+        </div>
+      </div>
+      <div class="plaid-stage-grid">
+        <span><strong>${sandboxAccounts.length}</strong><small>linked sandbox accounts</small></span>
+        <span><strong>${sandboxTransactions.length}</strong><small>imported transactions</small></span>
+        <span><strong>${inboxCount}</strong><small>review candidates</small></span>
+        <span><strong>${esc(lastImport)}</strong><small>last Plaid import</small></span>
+      </div>
+      <div class="plaid-flow">
+        ${plaidFlowStep("1", "Link", "Plaid Link opens from BillMaster.")}
+        ${plaidFlowStep("2", "Exchange", "Backend trades public token for access token.")}
+        ${plaidFlowStep("3", "Pull", "Transactions and balances refresh safely.")}
+        ${plaidFlowStep("4", "Review", "Bills/subscriptions wait in Review Inbox.")}
+      </div>
+      <div class="sheet-actions plaid-actions">
+        <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Plaid Sandbox Import</button>
+        <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review imported items</button>
+        <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy production plan</button>
+      </div>
+    </section>`;
+  }
+
+  function plaidFlowStep(number, title, copy) {
+    return `<div class="plaid-flow-step"><span>${esc(number)}</span><strong>${esc(title)}</strong><small>${esc(copy)}</small></div>`;
   }
 
   function notificationFoundationPanel(context = "sync") {
@@ -9607,6 +9653,8 @@
     if (action === "copy-media-storage-plan") return copyMediaStoragePlan();
     if (action === "cloud-upload-local-media") return uploadLocalMediaToCloud();
     if (action === "cloud-refresh-media-links") return refreshCloudMediaLinks();
+    if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
+    if (action === "copy-plaid-production-plan") return copyPlaidProductionPlan();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
     if (action === "simulate-import") return simulateImport();
@@ -14812,6 +14860,70 @@
     closeModal();
     navigate("inbox");
     showToast("Statement imported into Review Inbox.");
+  }
+
+  function runPlaidSandboxImport() {
+    const importedAt = localTimestamp();
+    const accounts = [
+      { id: "plaid_checking", name: "Plaid Chase Test Checking", type: "Checking", last4: "0000", balance: 8420.55, color: "teal", provider: "Plaid Sandbox", plaidSandbox: true },
+      { id: "plaid_credit", name: "Plaid Sapphire Test Card", type: "Credit", last4: "1111", balance: 642.18, color: "coral", provider: "Plaid Sandbox", plaidSandbox: true },
+      { id: "plaid_savings", name: "Plaid Goal Savings", type: "Savings", last4: "2222", balance: 15250, color: "green", provider: "Plaid Sandbox", plaidSandbox: true }
+    ];
+    accounts.forEach((account) => upsertById(data.accounts, account));
+
+    const today = todayIso();
+    const transactions = [
+      { id: "plaid_tx_payroll", type: "income", name: "Payroll Deposit", merchant: "Employer Direct Deposit", category: "Salary", amount: 3560, projected: 3560, date: addDaysIso(today, -1), frequency: "Bi-weekly", method: "Plaid Chase Test Checking", status: "Received", notes: "Imported from Plaid Sandbox.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_checking" },
+      { id: "plaid_tx_verizon", type: "expense", name: "Verizon Wireless", merchant: "Verizon", category: "Utilities", amount: 85, projected: 80, date: addDaysIso(today, -3), frequency: "Monthly", method: "Plaid Sapphire Test Card", status: "Paid", notes: "Recurring phone bill detected by sandbox sync.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_credit" },
+      { id: "plaid_tx_netflix", type: "expense", name: "Netflix", merchant: "Netflix", category: "Subscriptions", amount: 15.99, projected: 15.99, date: addDaysIso(today, -5), frequency: "Monthly", method: "Plaid Sapphire Test Card", status: "Paid", notes: "Recurring streaming subscription detected by sandbox sync.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_credit" },
+      { id: "plaid_tx_grocery", type: "expense", name: "Grocery Store", merchant: "Whole Foods Market", category: "Food", amount: 87.43, projected: 75, date: addDaysIso(today, -2), frequency: "One time", method: "Plaid Chase Test Checking", status: "Paid", notes: "Imported card transaction.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_checking" },
+      { id: "plaid_tx_electric", type: "expense", name: "Electric Bill", merchant: "City Power & Light", category: "Utilities", amount: 127.5, projected: 130, date: addDaysIso(today, -7), frequency: "Monthly", method: "Plaid Chase Test Checking", status: "Paid", notes: "Recurring utility bill detected by sandbox sync.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_checking" },
+      { id: "plaid_tx_credit_payment", type: "expense", name: "Capital One Payment", merchant: "Capital One", category: "Credit Card", amount: 250, projected: 250, date: addDaysIso(today, -4), frequency: "Monthly", method: "Plaid Chase Test Checking", status: "Paid", notes: "Card payment transfer imported from sandbox sync.", source: "Plaid Sandbox", plaidSandbox: true, accountId: "plaid_checking" }
+    ];
+    transactions.forEach((tx) => upsertById(data.transactions, tx));
+
+    const inboxItems = [
+      { id: "plaid_inbox_verizon", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Verizon Wireless", merchant: "Verizon", category: "Utilities", amount: 85, projected: 80, dueDate: addDaysIso(today, 18), confidence: 94, notes: "Plaid sandbox found this as a recurring phone bill. Review before adding to Bill Management." },
+      { id: "plaid_inbox_netflix", type: "subscription", status: "pending", source: "Plaid Sandbox", title: "Netflix", merchant: "Netflix", category: "Entertainment", amount: 15.99, projected: 15.99, dueDate: addDaysIso(today, 25), confidence: 96, notes: "Plaid sandbox found this as a recurring subscription. Review before adding to Sub Hub." },
+      { id: "plaid_inbox_electric", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Electric Bill", merchant: "City Power & Light", category: "Utilities", amount: 127.5, projected: 130, dueDate: addDaysIso(today, 12), confidence: 91, notes: "Plaid sandbox found a repeat utility pattern with amount and next due date." }
+    ];
+    inboxItems.forEach((item) => upsertById(data.billInbox, item));
+
+    const connection = data.syncConnections.find((item) => item.id === "sync_1");
+    if (connection) {
+      connection.provider = "Plaid sandbox";
+      connection.status = "Connected";
+      connection.needsAuth = false;
+      connection.lastSync = importedAt;
+      connection.coverage = ["Balances", "Transactions", "Recurring charge detection", "Review Inbox staging"];
+    }
+    data.settings.plaidMode = "sandbox";
+    data.settings.plaidSandboxConnected = true;
+    data.settings.plaidLastImportAt = importedAt;
+    saveData();
+    render();
+    showToast("Plaid Sandbox imported without duplicates. Review Inbox has bill/subscription candidates.");
+  }
+
+  function upsertById(collection, item) {
+    const existingIndex = collection.findIndex((candidate) => candidate.id === item.id);
+    if (existingIndex >= 0) collection[existingIndex] = { ...collection[existingIndex], ...item };
+    else collection.unshift(item);
+  }
+
+  function copyPlaidProductionPlan() {
+    copyText(`BillMaster Plaid Production Plan
+
+1. Create a Plaid developer account and start in Sandbox.
+2. Add a Supabase Edge Function or small backend. Never put Plaid secret keys in the browser.
+3. Browser opens Plaid Link and receives a public_token.
+4. Backend exchanges public_token for access_token.
+5. Store only token metadata and account IDs per BillMaster user.
+6. Pull accounts, balances, and transactions on demand or scheduled refresh.
+7. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills or Sub Hub.
+8. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
+9. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
+    showToast("Plaid production plan copied.");
   }
 
   function runSmartSync() {
