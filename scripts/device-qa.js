@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 
-const DEFAULT_URL = "https://marksman2g.github.io/billmaster/?v=20260604-3";
+const DEFAULT_URL = "https://marksman2g.github.io/billmaster/?v=20260615-1";
 const baseUrl = process.argv.includes("--url")
   ? process.argv[process.argv.indexOf("--url") + 1]
   : DEFAULT_URL;
