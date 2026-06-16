@@ -2945,6 +2945,7 @@
       ? "The only hard blocker is the Supabase publishable key. Once it is in the hosted config, the sign-in flow can be tested from your phone and iPad."
       : "Use this as the go/no-go board before inviting friends. Every green item means one less thing that can confuse someone testing BillMaster.";
     const stage = ready >= checks.length ? "Friend-ready alpha" : ready >= checks.length - 1 ? "Almost friend-ready" : "Personal cloud beta";
+    const nextAction = friendAlphaNextAction(checks);
     return `<section class="section-card friend-alpha-panel">
       <div class="friend-alpha-head">
         <div>
@@ -2957,7 +2958,7 @@
         <span class="round-icon">${icon(ready >= checks.length ? "check" : "settings")}</span>
         <div>
           <strong>${esc(stage)}</strong>
-          <small>${ready >= checks.length ? "You can invite one trusted tester, watch the first session, and keep bank/card sync turned off." : "Finish the red/yellow items before giving this to someone who is not sitting beside you."}</small>
+          <small>${esc(nextAction)}</small>
         </div>
       </div>
       <div class="friend-alpha-checks">
@@ -2988,6 +2989,7 @@
       <div class="sheet-actions friend-alpha-actions">
         <button class="outline-btn" data-action="open-modal" data-modal="cloudSetup">${icon("settings")} Add / test key</button>
         <button class="outline-btn" data-action="copy-hosted-cloud-config" ${cloudConfigured() ? "" : "disabled"}>${icon("note")} Copy config</button>
+        <button class="outline-btn" data-action="copy-friend-alpha-link">${icon("playcard")} Copy live link</button>
         <button class="outline-btn" data-action="copy-friend-alpha-invite" ${ready >= checks.length ? "" : "disabled"}>${icon("mail")} Copy invite</button>
         <button class="outline-btn" data-action="copy-friend-alpha-script">${icon("check")} Copy test script</button>
         <button class="outline-btn" data-action="copy-friend-feedback-request">${icon("note")} Copy feedback ask</button>
@@ -3000,12 +3002,32 @@
     </section>`;
   }
 
+  function friendAlphaNextAction(checks) {
+    const missing = checks.find((item) => !item.ready);
+    if (!missing) {
+      return "Ready for one trusted tester. Watch their first session, keep bank/card sync off, and ask them to save one task, note, loan, and picture.";
+    }
+    if (missing.label === "Supabase project URL" || missing.label === "Publishable key") {
+      return "Finish cloud setup first: add the Supabase project URL and publishable key, then test sign-in from the hosted app.";
+    }
+    if (missing.label === "BillMaster account") {
+      return "Sign into your own BillMaster cloud account before inviting anyone else.";
+    }
+    if (missing.label === "First cloud workspace") {
+      return "Save one real item, then run Smart Merge once so this device has a first cloud workspace.";
+    }
+    if (missing.label === "Auto sync") {
+      return "Turn Auto Sync on after one good push/pull so phone, iPad, and desktop stay caught up without manual buttons.";
+    }
+    return "Finish the remaining yellow item before giving the link to someone who is not sitting beside you.";
+  }
+
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260615-1";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260616-1";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260615-1`;
+    return `${location.origin}${location.pathname}?v=20260616-1`;
   }
 
   function friendMobileReadyPanel() {
@@ -9762,6 +9784,7 @@
     if (action === "save-cloud-config") return saveCloudConfig();
     if (action === "test-cloud-config") return testCloudConfig();
     if (action === "copy-hosted-cloud-config") return copyHostedCloudConfig();
+    if (action === "copy-friend-alpha-link") return copyFriendAlphaLink();
     if (action === "copy-friend-alpha-invite") return copyFriendAlphaInvite();
     if (action === "copy-friend-alpha-script") return copyFriendAlphaScript();
     if (action === "copy-friend-feedback-request") return copyFriendFeedbackRequest();
@@ -14061,6 +14084,23 @@
       showToast("Hosted config copied. Paste it into billmaster-config.js, then commit and push.");
     } catch (error) {
       showToast("Could not copy the hosted config automatically.", "danger");
+    }
+  }
+
+  async function copyFriendAlphaLink() {
+    const text = friendAlphaHostedUrl();
+    try {
+      await copyText(text);
+      showToast("Live BillMaster link copied.");
+    } catch (error) {
+      ui.modal = {
+        type: "copyFallback",
+        title: "Live BillMaster Link",
+        text,
+        helper: "Clipboard access was blocked. Select this link, then copy it manually."
+      };
+      render();
+      showToast("Select and copy the live link.", "danger");
     }
   }
 

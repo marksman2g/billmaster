@@ -6,6 +6,21 @@ Use this before inviting trusted friends to test BillMaster.
 
 Let a small group of people open BillMaster online, create their own account, save data, leave, come back, and see that same data again.
 
+## Current Friend-Ready Status
+
+- Personal cross-device use is the first priority: one signed-in user should be able to save on desktop, Android, iPad, and iPhone.
+- Friend alpha is next: invite only 1-3 trusted testers after the checks below are green.
+- Friend data must stay private per account. A new tester should start with a clean workspace.
+- Keep this as a beta: no real bank passwords, no real bill pay, no live subscription cancellation, and no private financial secrets yet.
+
+## Live Link To Send
+
+Use this link after the go/no-go checks pass:
+
+```text
+https://marksman2g.github.io/billmaster/?v=20260616-1
+```
+
 ## Go/No-Go Checks
 
 1. Supabase project URL is in `billmaster-config.js`.
@@ -22,11 +37,19 @@ Let a small group of people open BillMaster online, create their own account, sa
 12. Android browser test works.
 13. iPad browser test works.
 
+## What Friends Can Safely Test Now
+
+- Create their own BillMaster account.
+- Add tasks, notes, habits, loans, contacts, addresses, projects, and goals.
+- Upload or link pictures for visual testing.
+- Test auto-sync across their own devices.
+- Give feedback on what felt fast, confusing, crowded, or useful.
+
 ## First Friend Test Script
 
 Ask each tester to do this:
 
-1. Open `https://marksman2g.github.io/billmaster/`.
+1. Open `https://marksman2g.github.io/billmaster/?v=20260616-1`.
 2. Go to Sync Center.
 3. Create a BillMaster cloud account. Leave "clean private workspace" on.
 4. Confirm email if Supabase asks, then sign in again from Sync Center.
