@@ -7,6 +7,7 @@
   const SESSION_FALLBACK_PREFIX = "billmaster-session-fallback:";
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
+  const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -287,6 +288,10 @@
   let cloudPullInFlight = false;
   let cloudPushQueued = false;
   let cloudHasLocalUnsyncedChanges = false;
+  const tabId = `tab_${Math.random().toString(36).slice(2, 10)}`;
+  const LOCAL_SYNC_CHANNEL = "billmaster-local-workspace-sync-v1";
+  let localSyncChannel = null;
+  let localSyncRenderTimer = null;
   const recentWrites = new Map();
   const pendingActions = new Set();
   let blockDragState = null;
@@ -570,6 +575,42 @@
     else localStorage.removeItem(CLOUD_SESSION_KEY);
   }
 
+  function normalizedCloudEmail(email) {
+    return String(email || "").trim().toLowerCase();
+  }
+
+  function loadPendingCleanSignups() {
+    try {
+      const raw = localStorage.getItem(CLOUD_PENDING_CLEAN_SIGNUP_KEY);
+      return raw ? JSON.parse(raw) || {} : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function savePendingCleanSignups(pending) {
+    try {
+      localStorage.setItem(CLOUD_PENDING_CLEAN_SIGNUP_KEY, JSON.stringify(pending || {}));
+    } catch (error) {
+      // The sign-in flow still works without this convenience flag.
+    }
+  }
+
+  function setPendingCleanSignup(email, enabled) {
+    const normalizedEmail = normalizedCloudEmail(email);
+    if (!normalizedEmail) return;
+    const pending = loadPendingCleanSignups();
+    if (enabled) pending[normalizedEmail] = true;
+    else delete pending[normalizedEmail];
+    savePendingCleanSignups(pending);
+  }
+
+  function hasPendingCleanSignup(email) {
+    const normalizedEmail = normalizedCloudEmail(email);
+    if (!normalizedEmail) return false;
+    return Boolean(loadPendingCleanSignups()[normalizedEmail]);
+  }
+
   function cloudConfigured() {
     return Boolean(cloudConfig.url && cloudConfig.anonKey);
   }
@@ -580,6 +621,14 @@
 
   function cloudAutoSyncEnabled() {
     return Boolean(cloudSignedIn() && data.settings?.cloudAutoSync);
+  }
+
+  function cloudBrowserOffline() {
+    return typeof navigator !== "undefined" && navigator.onLine === false;
+  }
+
+  function cloudOfflineMessage() {
+    return "Offline. Your data is still saved on this device and will sync automatically when internet returns.";
   }
 
   function cloudStatusLabel() {
@@ -1553,6 +1602,7 @@
       clearSessionFallback();
       lastSavedSnapshot = serialized;
       ui.lastSaveError = "";
+      broadcastLocalWorkspaceChange(serialized, options);
       if (shouldQueueCloudSync) scheduleCloudAutoPush();
       return true;
     } catch (error) {
@@ -1564,6 +1614,71 @@
         : "BillMaster could not save this change. Browser storage may be full or blocked.";
       return false;
     }
+  }
+
+  function broadcastLocalWorkspaceChange(serialized, options = {}) {
+    if (options.broadcast === false || !serialized || typeof window === "undefined") return;
+    const message = {
+      type: "workspace-saved",
+      tabId,
+      profileId: currentProfileId,
+      key: profileDataKey(),
+      savedAt: Date.now()
+    };
+    try {
+      localSyncChannel?.postMessage(message);
+    } catch (error) {
+      // BroadcastChannel is a speed boost only; the storage event remains the fallback.
+    }
+  }
+
+  function canApplyLocalWorkspaceUpdate() {
+    if (ui.modal) return false;
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active) return true;
+    if (active.isContentEditable) return false;
+    return !["INPUT", "SELECT", "TEXTAREA"].includes(active.tagName);
+  }
+
+  function queueLocalWorkspaceReload(source = "tab") {
+    if (localSyncRenderTimer) window.clearTimeout(localSyncRenderTimer);
+    localSyncRenderTimer = window.setTimeout(() => {
+      localSyncRenderTimer = null;
+      const next = loadData();
+      const nextSnapshot = JSON.stringify(next);
+      if (nextSnapshot === lastSavedSnapshot) return;
+      data = next;
+      lastSavedSnapshot = nextSnapshot;
+      if (canApplyLocalWorkspaceUpdate()) {
+        render();
+      } else if (ui.view === "sync") {
+        setCloudSyncState("checked", `Another open BillMaster view saved changes. Leave the current field to refresh this ${source} update.`);
+      }
+    }, 60);
+  }
+
+  function handleLocalWorkspaceMessage(message) {
+    if (!message || message.type !== "workspace-saved") return;
+    if (message.tabId === tabId) return;
+    if (message.profileId !== currentProfileId) return;
+    queueLocalWorkspaceReload("tab");
+  }
+
+  function startLocalWorkspaceSync() {
+    if (typeof window === "undefined") return;
+    if ("BroadcastChannel" in window) {
+      try {
+        localSyncChannel = new BroadcastChannel(LOCAL_SYNC_CHANNEL);
+        localSyncChannel.addEventListener("message", (event) => handleLocalWorkspaceMessage(event.data));
+      } catch (error) {
+        localSyncChannel = null;
+      }
+    }
+    window.addEventListener("storage", (event) => {
+      if (event.key !== profileDataKey()) return;
+      if (!event.newValue || event.newValue === lastSavedSnapshot) return;
+      queueLocalWorkspaceReload("storage");
+    });
   }
 
   function id(prefix) {
@@ -1580,7 +1695,7 @@
   }
 
   function icon(name) {
-    return `<svg class="icon" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+    return `<svg class="icon icon-${name}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   }
 
   function money(value) {
@@ -2119,44 +2234,52 @@
   function dashboardActionGroups(mode) {
     const groups = [
       ["Today", [
-        ["calendar", "calendar", "Calendar", "blue"],
-        ["tasks", "task", "Tasks", "teal"],
-        ["habits", "check", "Habits", "purple"]
+        { view: "calendar", iconName: "calendar", label: "Calendar", color: "blue", tone: "calendar", detail: "Day + block" },
+        { view: "tasks", iconName: "task", label: "Tasks", color: "teal", tone: "tasks", detail: "Plan + finish" },
+        { view: "habits", iconName: "morning", label: "Habits", color: "purple", tone: "habits", detail: "Streaks + rhythm" }
       ]],
       ["Money", [
-        ["tracking", "wallet", "Tracking", "teal"],
-        ["bills", "receipt", "Bills", "coral"],
-        ["subscriptions", "playcard", "Subscription Hub", "purple"],
-        ["goals", "chart", "Goals", "green"],
-        ["lending", "loan", "Loans", "teal"]
+        { view: "tracking", iconName: "wallet", label: "Tracking", color: "teal", tone: "money", detail: "Income + spend" },
+        { view: "bills", iconName: "receipt", label: "Bills", color: "coral", tone: "bills", detail: "Due + paid" },
+        { view: "subscriptions", iconName: "playcard", label: "Sub Hub", color: "purple", tone: "subs", detail: "Cancel + save" },
+        { view: "goals", iconName: "chart", label: "Goals", color: "green", tone: "goals", detail: "Fund progress" },
+        { view: "lending", iconName: "loan", label: "Loans", color: "teal", tone: "loans", detail: "Owed + repaid" }
       ]],
       ["Notes", [
-        ["notebooks", "book", "Notebooks", "purple"],
-        ["notes", "note", "Notes", "purple"],
-        ["projects", "folder", "Projects", "amber"]
+        { view: "notebooks", iconName: "book", label: "Notebooks", color: "purple", tone: "notes", detail: "Visual library" },
+        { view: "notes", iconName: "note", label: "Notes", color: "purple", tone: "notes", detail: "Capture fast" },
+        { view: "projects", iconName: "folder", label: "Projects", color: "amber", tone: "projects", detail: "Tasks + notes" }
       ]],
       ["People & Places", [
-        ["contacts", "home", "Contacts", "blue"],
-        ["addresses", "map", "Addresses", "green"]
+        { view: "contacts", iconName: "home", label: "Contacts", color: "blue", tone: "people", detail: "People + groups" },
+        { view: "addresses", iconName: "map", label: "Addresses", color: "green", tone: "places", detail: "Routes + maps" }
       ]],
       ["Sync & AI", [
-        ["inbox", "receipt", "Review Inbox", "blue"],
-        ["sync", "settings", "Sync Center", "purple"],
-        ["ai", "ai", "AI Assistant", "purple"]
+        { view: "inbox", iconName: "receipt", label: "Review Inbox", color: "blue", tone: "review", detail: "Check imports" },
+        { view: "sync", iconName: "settings", label: "Sync Center", color: "purple", tone: "sync", detail: "Cloud health" },
+        { view: "ai", iconName: "ai", label: "AI Assistant", color: "purple", tone: "ai", detail: "Ask BillMaster" }
       ]]
     ];
     const visibleGroups = mode === "simple" ? groups.slice(0, 3) : groups;
     return `<div class="action-groups">${visibleGroups.map(([title, actions]) => `<div class="action-group">
       <h3>${esc(title)}</h3>
-      <div class="action-grid">${actions.map(([view, iconName, label, color]) => quickAction(view, iconName, label, color)).join("")}</div>
+      <div class="action-grid">${actions.map((action) => quickAction(action)).join("")}</div>
     </div>`).join("")}${mode === "simple" ? `<button class="outline-btn wide" data-action="toggle-interface-mode">${icon("settings")} Show power tools</button>` : ""}</div>`;
   }
 
-  function quickAction(view, iconName, label, color) {
+  function quickAction(action) {
+    const { view, iconName, label, color, tone, detail } = action;
     const actualView = label === "Add Bill" ? "bills" : view;
-    return `<button class="action-tile" data-action="navigate" data-view="${actualView}">
-      <span class="round-icon" style="color:var(--${color});background:${softColor(color)}">${icon(iconName)}</span>
-      <span>${esc(label)}</span>
+    const tileStyle = `--tile-color:var(--${color});--tile-soft:${softColor(color)}`;
+    return `<button class="action-tile action-tile--${esc(tone || color)}" style="${tileStyle}" data-action="navigate" data-view="${actualView}" aria-label="${esc(label)}">
+      <span class="action-visual">
+        <span class="action-orbit"></span>
+        <span class="round-icon">${icon(iconName)}</span>
+      </span>
+      <span class="action-copy">
+        <strong>${esc(label)}</strong>
+        <small>${esc(detail || "")}</small>
+      </span>
     </button>`;
   }
 
@@ -2811,8 +2934,8 @@
       { label: "Supabase project URL", ready: cloudHasProjectUrl(), detail: cloudHasProjectUrl() ? cloudProjectHost() : "Add project URL" },
       { label: "Publishable key", ready: Boolean(cloudConfig.anonKey), detail: cloudConfig.anonKey ? "Browser can sign in" : "Paste full key into billmaster-config.js" },
       { label: "BillMaster account", ready: cloudSignedIn(), detail: cloudSignedIn() ? cloudSafeEmail() : "Create or sign in from Sync Center" },
-      { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Push local once, then pull on phone/iPad" },
-      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Merges saved items across devices" : "Turn on after first good push/pull" },
+      { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Sign in, save one item, then Smart merge once" },
+      { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Pushes local saves first, then pulls newer cloud changes" : "Turn on after the first successful Smart merge" },
       { label: "Safe alpha scope", ready: true, detail: "Tasks, notes, habits, loans, contacts, pictures, and manual finance only" }
     ];
     const ready = checks.filter((item) => item.ready).length;
@@ -2847,7 +2970,7 @@
       <div class="friend-alpha-script">
         <div>
           <strong>First tester script</strong>
-          <span>Sign in, add one task, add one note, add one loan, upload one picture, reload, then check another device.</span>
+          <span>Sign in, add one task, add one note, add one loan, upload one picture, wait for Auto Sync, reload, then check another device.</span>
         </div>
         <div>
           <strong>Keep off for alpha</strong>
@@ -2878,11 +3001,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260604-3";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260615-1";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260604-3`;
+    return `${location.origin}${location.pathname}?v=20260615-1`;
   }
 
   function friendMobileReadyPanel() {
@@ -6401,7 +6524,8 @@
         ${field("cloudDisplayName", "Display Name", profile?.displayName || "", "Your name")}
         ${field("cloudEmail", "Email", profile?.username?.includes("@") ? profile.username : "", "you@example.com", "email")}
         ${field("cloudPassword", "BillMaster Cloud Password", "", "Create or enter your app password", "password")}
-        <label class="check-row"><input id="cloudStartClean" type="checkbox"> New users: start with a clean cloud workspace after creating account</label>
+        <label class="check-row"><input id="cloudStartClean" type="checkbox" checked> First-time users: create a clean private workspace if this account has no saved cloud data yet</label>
+        <p class="muted">Leave this on for friends. Turn it off only when you intentionally want to upload this device's current workspace.</p>
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account first</button>
@@ -9383,19 +9507,27 @@
       }
     });
     window.addEventListener("focus", () => {
-      if (cloudAutoSyncEnabled()) scheduleCloudAutoPull(350);
+      resumeCloudAutoSyncNow(350);
     });
     window.addEventListener("online", () => {
       if (cloudAutoSyncEnabled()) {
-        if (cloudHasLocalUnsyncedChanges) scheduleCloudAutoPush(350);
-        scheduleCloudAutoPull(900);
+        setCloudSyncState("checking", "Back online. BillMaster is catching this device up with the cloud.", { checked: true });
+        saveData({ undo: false, cloudSync: false, syncStamp: false });
+        resumeCloudAutoSyncNow(350);
+      }
+    });
+    window.addEventListener("offline", () => {
+      if (cloudAutoSyncEnabled()) {
+        setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
+        saveData({ undo: false, cloudSync: false, syncStamp: false });
+        if (ui.view === "sync") render();
       }
     });
   }
 
   if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && cloudAutoSyncEnabled()) scheduleCloudAutoPull(350);
+      if (document.visibilityState === "visible") resumeCloudAutoSyncNow(350);
     });
   }
 
@@ -14420,7 +14552,10 @@
         render();
         showToast(startClean ? "Cloud account created with a clean workspace. Auto sync is on." : "Cloud account created and signed in. Push local when you are ready.");
       } else {
-        showToast("Cloud account created. Check email confirmation if Supabase requires it.");
+        setPendingCleanSignup(email, startClean);
+        showToast(startClean
+          ? "Cloud account created. Confirm your email, then sign in here to create your clean private workspace."
+          : "Cloud account created. Check email confirmation if Supabase requires it.");
       }
     } catch (error) {
       showToast(`Could not create cloud account: ${error.message}`, "danger");
@@ -14430,6 +14565,7 @@
   async function cloudSignIn() {
     const email = value("cloudEmail");
     const password = value("cloudPassword");
+    const startClean = document.getElementById("cloudStartClean")?.checked === true;
     if (!email || !password) {
       showToast("Enter your Supabase email and password.", "danger");
       return;
@@ -14443,9 +14579,22 @@
       ui.modal = null;
       try {
         const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true });
+        const shouldCreateCleanWorkspace = !loaded && (startClean || hasPendingCleanSignup(email));
+        if (shouldCreateCleanWorkspace) {
+          data = blankWorkspace();
+          data.settings.cloudAutoSync = true;
+          resetUndoBaseline();
+          saveData({ undo: false, cloudSync: false, syncStamp: false });
+          await pushWorkspaceToCloud("signin-clean");
+          setPendingCleanSignup(email, false);
+        }
         startCloudAutoSync();
         render();
-        showToast(loaded ? "Signed in and pulled your cloud workspace. Auto sync is on." : "Signed in. Push local to save this device to the cloud.");
+        showToast(loaded
+          ? "Signed in and pulled your cloud workspace. Auto sync is on."
+          : shouldCreateCleanWorkspace
+            ? "Signed in and created your clean private cloud workspace. Auto sync is on."
+            : "Signed in. Push local to save this device to the cloud.");
       } catch (pullError) {
         startCloudAutoSync();
         render();
@@ -14477,7 +14626,7 @@
       // Local sign out should still happen if Supabase is unreachable.
     }
     saveCloudSession(null);
-    stopCloudAutoSync();
+    stopCloudAutoSync({ clearUnsynced: true });
     render();
     showToast("Signed out of cloud sync.");
   }
@@ -14491,22 +14640,34 @@
       setCloudSyncState("checked", "Auto sync is watching for changes on this device and in the cloud.", { checked: true });
       saveData({ undo: false, cloudSync: false, syncStamp: false });
     }
+    if (cloudBrowserOffline()) {
+      setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      return;
+    }
     scheduleCloudAutoPull(1500);
   }
 
-  function stopCloudAutoSync() {
+  function stopCloudAutoSync(options = {}) {
     clearAppTimer(cloudAutoPushTimer);
     clearAppTimer(cloudAutoPullTimer);
     cloudAutoPushTimer = null;
     cloudAutoPullTimer = null;
     cloudPushQueued = false;
-    cloudHasLocalUnsyncedChanges = false;
+    if (options.clearUnsynced) cloudHasLocalUnsyncedChanges = false;
   }
 
   function scheduleCloudAutoPush(delay = 1800) {
     if (!cloudAutoSyncEnabled()) return;
     if (data.settings.cloudSyncState !== "queued") {
       setCloudSyncState("queued", "Local change saved. BillMaster will smart-merge it to the cloud in a moment.", { queued: true });
+    }
+    if (cloudBrowserOffline()) {
+      cloudHasLocalUnsyncedChanges = true;
+      setCloudSyncState("queued", cloudOfflineMessage(), { queued: true });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      if (ui.view === "sync") render();
+      return;
     }
     clearAppTimer(cloudAutoPushTimer);
     cloudAutoPushTimer = setAppTimer(() => {
@@ -14517,6 +14678,12 @@
 
   function scheduleCloudAutoPull(delay = 30000) {
     if (!cloudAutoSyncEnabled()) return;
+    if (cloudBrowserOffline()) {
+      setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      if (ui.view === "sync") render();
+      return;
+    }
     clearAppTimer(cloudAutoPullTimer);
     cloudAutoPullTimer = setAppTimer(() => {
       cloudAutoPullTimer = null;
@@ -14526,6 +14693,13 @@
 
   async function performCloudAutoPush() {
     if (!cloudAutoSyncEnabled()) return;
+    if (cloudBrowserOffline()) {
+      cloudHasLocalUnsyncedChanges = true;
+      setCloudSyncState("queued", cloudOfflineMessage(), { queued: true });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      if (ui.view === "sync") render();
+      return;
+    }
     if (cloudPushInFlight) {
       cloudPushQueued = true;
       return;
@@ -14556,6 +14730,12 @@
 
   async function performCloudAutoPull() {
     if (!cloudAutoSyncEnabled()) return;
+    if (cloudBrowserOffline()) {
+      setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      if (ui.view === "sync") render();
+      return;
+    }
     if (cloudPullInFlight) return;
     if (cloudPushInFlight || cloudHasLocalUnsyncedChanges || cloudAutoPushTimer) {
       scheduleCloudAutoPull(2500);
@@ -14586,6 +14766,21 @@
       cloudPullInFlight = false;
       scheduleCloudAutoPull(30000);
     }
+  }
+
+  function resumeCloudAutoSyncNow(delay = 350) {
+    if (!cloudAutoSyncEnabled()) return;
+    if (cloudBrowserOffline()) {
+      setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
+      saveData({ undo: false, cloudSync: false, syncStamp: false });
+      if (ui.view === "sync") render();
+      return;
+    }
+    if (cloudHasLocalUnsyncedChanges || data.settings?.cloudSyncState === "queued") {
+      scheduleCloudAutoPush(delay);
+      return;
+    }
+    scheduleCloudAutoPull(delay);
   }
 
   async function pushWorkspaceToCloud(direction = "push", options = {}) {
@@ -15187,6 +15382,7 @@
     render();
   }
 
+  startLocalWorkspaceSync();
   startCloudAutoSync();
   render();
 })();

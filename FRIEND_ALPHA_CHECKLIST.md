@@ -13,11 +13,14 @@ Let a small group of people open BillMaster online, create their own account, sa
 3. `supabase/schema.sql` has been run successfully.
 4. Row Level Security is enabled on `billmaster_workspaces`.
 5. A new BillMaster account can be created from the hosted app.
-6. A user can push local data to cloud.
-7. The same user can pull cloud data on a second device.
-8. A second test user cannot see the first user's workspace.
-9. Android browser test works.
-10. iPad browser test works.
+6. A first-time user starts with a clean private cloud workspace by default.
+7. A user can save data and see auto-sync report that the workspace is saved.
+8. If a device goes offline, local data still saves and queues for the next online sync.
+9. The same user can sign in on a second device and retrieve cloud data.
+10. A change made on one device appears on another device after auto-sync catches up.
+11. A second test user cannot see the first user's workspace.
+12. Android browser test works.
+13. iPad browser test works.
 
 ## First Friend Test Script
 
@@ -25,14 +28,17 @@ Ask each tester to do this:
 
 1. Open `https://marksman2g.github.io/billmaster/`.
 2. Go to Sync Center.
-3. Create a BillMaster cloud account.
-4. Add one task, one address, one note, and one loan.
-5. Push local.
-6. Close the browser.
-7. Reopen BillMaster and sign in again.
-8. Pull cloud.
-9. Confirm the same items come back.
-10. Tell us what felt confusing, slow, or too crowded.
+3. Create a BillMaster cloud account. Leave "clean private workspace" on.
+4. Confirm email if Supabase asks, then sign in again from Sync Center.
+5. Add one task, one address, one note, and one loan.
+6. Wait for Auto Sync to show saved. Use Smart Merge only if the browser is slow or the device was offline.
+7. Close the browser.
+8. Reopen BillMaster and sign in again.
+9. Confirm the same items come back automatically.
+10. Repeat on a second device with the same account.
+11. Edit one item on phone, then return to computer and confirm it appears without manually pushing.
+12. Create a second test account and confirm it starts with its own empty/private workspace.
+13. Tell us what felt confusing, slow, or too crowded.
 
 ## Do Not Invite Friends Until
 
