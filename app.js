@@ -2722,6 +2722,7 @@
       ${syncCommandPanel(connected, connections.length, needsAuth)}
       ${cloudWorkspacePanel()}
       ${backupSafetyPanel()}
+      ${liveDataSafetyPanel()}
       ${plaidSandboxPanel()}
       <div class="sync-priority-grid">
         ${googleContactsPanel()}
@@ -2738,6 +2739,7 @@
           ${syncRoadmapStep("4", "Cancellation", "Start with guided workflows, provider links, email templates, and confirmation capture before direct APIs.")}
           ${syncRoadmapStep("5", "Contacts + Groups", "Read Google Contacts first, then later add create/update access after the privacy and consent flow is stable.")}
           ${syncRoadmapStep("6", "Notifications", "Queue task status alerts now. Add Resend/SendGrid email next, then SMS as a premium provider feature.")}
+          ${syncRoadmapStep("7", "Drive Backup", "Later: add true Google Drive OAuth backup so BillMaster can create scheduled cloud backup files without manual downloads.")}
         </div>
       `)}
     </section>`;
@@ -2927,6 +2929,81 @@
     return `<span class="backup-stat"><strong>${esc(value)}</strong><small>${esc(label)}</small></span>`;
   }
 
+  function liveDataSafetyPanel() {
+    const signedIn = cloudSignedIn();
+    const autoOn = cloudAutoSyncEnabled();
+    const firstSync = Boolean(data.settings?.cloudLastSyncAt);
+    const backupMade = Boolean(data.settings?.backupLastExportAt);
+    const backupFresh = backupMade && !backupReminderDue();
+    const checks = [
+      {
+        label: "Cloud account",
+        ready: signedIn,
+        detail: signedIn ? cloudSafeEmail() : "Sign in before entering live work."
+      },
+      {
+        label: "First save synced",
+        ready: firstSync,
+        detail: firstSync ? `Synced ${cloudTimeLabel(data.settings.cloudLastSyncAt)}` : "Run Smart merge once after sign-in."
+      },
+      {
+        label: "Auto sync",
+        ready: autoOn,
+        detail: autoOn ? "New saves can follow your phone, iPad, and desktop." : "Turn on after the first clean merge."
+      },
+      {
+        label: "Backup file",
+        ready: backupFresh,
+        detail: backupMade ? `Last backup ${backupTimeLabel(data.settings.backupLastExportAt)}` : "Download one backup before heavy live work."
+      }
+    ];
+    const ready = checks.filter((item) => item.ready).length;
+    const allReady = ready === checks.length;
+    const statusClass = allReady ? "success" : ready >= 2 ? "warn" : "danger";
+    const statusLabel = allReady ? "Live-work ready" : `${ready}/${checks.length} ready`;
+    const nextStep = !signedIn
+      ? "Sign in or create your BillMaster cloud account."
+      : !firstSync
+        ? "Run Smart merge so the cloud gets this workspace."
+        : !autoOn
+          ? "Turn Auto On when the merge looks right."
+          : !backupFresh
+            ? "Download a fresh backup file."
+            : "You can start entering real personal data with more confidence.";
+    return `<section class="section-card live-data-safety-panel">
+      <div class="live-data-safety-head">
+        <span class="round-icon live-data-safety-icon">${icon(allReady ? "check" : "alert")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Live Data Safety Check</h2><span class="status ${statusClass}">${esc(statusLabel)}</span></div>
+          <p class="muted">Use this before entering real work. It shows whether your data can be saved, synced to another device, and restored from a backup.</p>
+        </div>
+      </div>
+      <div class="live-data-safety-steps">
+        ${checks.map((item) => liveDataSafetyStep(item)).join("")}
+      </div>
+      <div class="live-data-next-step">
+        <strong>${icon("start")} Next best move</strong>
+        <span>${esc(nextStep)}</span>
+      </div>
+      <div class="sheet-actions live-data-actions">
+        ${signedIn ? `<button class="primary-btn" data-action="cloud-smart-merge">${icon("cloud")} Smart merge</button>` : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in" : "Setup cloud"}</button>`}
+        <button class="outline-btn" data-action="toggle-cloud-auto-sync" ${signedIn ? "" : "disabled"}>${icon(autoOn ? "check" : "settings")} Auto ${autoOn ? "On" : "Off"}</button>
+        <button class="outline-btn" data-action="download-drive-backup">${icon("cloud")} Backup file</button>
+        <button class="outline-btn" data-action="copy-friend-alpha-link">${icon("note")} Copy live link</button>
+      </div>
+    </section>`;
+  }
+
+  function liveDataSafetyStep(item) {
+    return `<div class="live-data-safety-step ${item.ready ? "is-ready" : ""}">
+      <span>${icon(item.ready ? "check" : "alert")}</span>
+      <div>
+        <strong>${esc(item.label)}</strong>
+        <small>${esc(item.detail)}</small>
+      </div>
+    </div>`;
+  }
+
   function cloudWorkspacePanel() {
     const configured = cloudConfigured();
     const signedIn = cloudSignedIn();
@@ -3080,11 +3157,11 @@
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260616-1";
+    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260617-1";
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260616-1`;
+    return `${location.origin}${location.pathname}?v=20260617-1`;
   }
 
   function friendMobileReadyPanel() {
