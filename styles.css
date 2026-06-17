@@ -11035,3 +11035,138 @@ canvas {
     grid-template-columns: 1fr !important;
   }
 }
+
+.backup-safety-panel {
+  display: grid;
+  gap: 16px;
+  border-color: #b8dcff;
+  background: linear-gradient(135deg, #f8fcff, #fffef8);
+}
+
+.backup-safety-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.backup-icon {
+  color: var(--blue);
+  background: #eaf4ff;
+}
+
+.backup-status-grid,
+.backup-latest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.backup-stat,
+.backup-latest-grid span {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.backup-stat strong,
+.backup-latest-grid strong {
+  color: var(--navy);
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.backup-stat small,
+.backup-latest-grid small,
+.backup-frequency-row small {
+  color: var(--muted);
+}
+
+.backup-frequency-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #cfe5ff;
+  border-radius: 8px;
+  background: #eef7ff;
+}
+
+.backup-frequency-row > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.backup-frequency-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.backup-frequency-buttons button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.backup-frequency-buttons button.active {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.backup-actions {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.restore-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid #ffd89a;
+  border-radius: 8px;
+  background: #fff8e5;
+  color: var(--navy);
+}
+
+.restore-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.restore-preview-grid span {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.restore-preview-grid small {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .backup-safety-head,
+  .backup-frequency-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .backup-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -74,6 +74,7 @@
     habitVoiceError: "",
     habitTemplateDraft: null,
     selectedHabits: [],
+    backupRestorePreview: null,
     lastSaveError: "",
     toast: null
   };
@@ -120,6 +121,11 @@
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      backupFrequency: "weekly",
+      backupLastExportAt: "",
+      backupLastExportName: "",
+      backupLastRestoreAt: "",
+      backupLastReminderAt: "",
       googleContactsClientId: "",
       googleContactsLastSyncAt: "",
       googleContactsLastImportCount: 0,
@@ -917,6 +923,11 @@
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      backupFrequency: "weekly",
+      backupLastExportAt: "",
+      backupLastExportName: "",
+      backupLastRestoreAt: "",
+      backupLastReminderAt: "",
       googleContactsClientId: "",
       googleContactsLastSyncAt: "",
       googleContactsLastImportCount: 0,
@@ -931,6 +942,7 @@
     nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
     if (!["simple", "power"].includes(nextData.settings.interfaceMode)) nextData.settings.interfaceMode = "power";
     nextData.settings.cloudAutoSync = Boolean(nextData.settings.cloudAutoSync);
+    if (!["off", "daily", "weekly", "monthly"].includes(nextData.settings.backupFrequency)) nextData.settings.backupFrequency = "weekly";
     if (!taskBackgrounds.includes(nextData.settings.taskDefaultBgColor)) nextData.settings.taskDefaultBgColor = DEFAULT_TASK_BG;
     taskCategories.forEach((category) => {
       if (!isHexColor(nextData.settings.categoryColors[category])) nextData.settings.categoryColors[category] = defaultCategoryColors[category];
@@ -2709,6 +2721,7 @@
       ${header("Sync Center", `<button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button><button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button>`)}
       ${syncCommandPanel(connected, connections.length, needsAuth)}
       ${cloudWorkspacePanel()}
+      ${backupSafetyPanel()}
       ${plaidSandboxPanel()}
       <div class="sync-priority-grid">
         ${googleContactsPanel()}
@@ -2868,6 +2881,50 @@
         <button class="success-btn" data-action="mark-notification-sent" data-id="${esc(notice.id)}">${icon("check")} Sent</button>
       </div>
     </article>`;
+  }
+
+  function backupSafetyPanel() {
+    const counts = workspaceSummaryCounts();
+    const due = backupReminderDue();
+    const frequency = data.settings?.backupFrequency || "weekly";
+    const buttons = ["off", "daily", "weekly", "monthly"].map((value) => (
+      `<button class="${frequency === value ? "active" : ""}" data-action="set-backup-frequency" data-value="${esc(value)}">${esc(backupFrequencyLabel(value))}</button>`
+    )).join("");
+    return `<section class="section-card backup-safety-panel">
+      <div class="backup-safety-head">
+        <span class="round-icon backup-icon">${icon("cloud")}</span>
+        <div>
+          <div class="section-title compact-title"><h2>Backup & Restore</h2><span class="status ${due ? "warn" : "success"}">${due ? "Backup due" : "Protected"}</span></div>
+          <p class="muted">Download a BillMaster backup file you can save to Google Drive. If anything gets erased, import this file and restore your workspace.</p>
+        </div>
+      </div>
+      <div class="backup-status-grid">
+        ${backupStat("Tasks", counts.tasks)}
+        ${backupStat("Notes", counts.notes)}
+        ${backupStat("Loans", counts.loans)}
+        ${backupStat("Contacts", counts.contacts)}
+        ${backupStat("Addresses", counts.addresses)}
+        ${backupStat("Goals", counts.goals)}
+      </div>
+      <div class="backup-frequency-row">
+        <div><strong>Timed backup reminder</strong><small>${esc(backupFrequencyCopy(frequency))}</small></div>
+        <div class="backup-frequency-buttons">${buttons}</div>
+      </div>
+      <div class="backup-latest-grid">
+        <span><strong>${esc(backupTimeLabel(data.settings?.backupLastExportAt))}</strong><small>last backup</small></span>
+        <span><strong>${esc(data.settings?.backupLastExportName || "No file yet")}</strong><small>last file</small></span>
+        <span><strong>${esc(backupTimeLabel(data.settings?.backupLastRestoreAt))}</strong><small>last restore</small></span>
+      </div>
+      <div class="sheet-actions backup-actions">
+        <button class="primary-btn" data-action="download-data">${icon("note")} Download backup</button>
+        <button class="outline-btn" data-action="download-drive-backup">${icon("cloud")} Google Drive file</button>
+        <button class="outline-btn" data-action="import-backup-file">${icon("folder")} Import / restore</button>
+      </div>
+    </section>`;
+  }
+
+  function backupStat(label, value) {
+    return `<span class="backup-stat"><strong>${esc(value)}</strong><small>${esc(label)}</small></span>`;
   }
 
   function cloudWorkspacePanel() {
@@ -6035,6 +6092,7 @@
     if (type === "profiles") content = modalProfiles();
     if (type === "profileLogin") content = modalProfileLogin(modalId);
     if (type === "cloudSetup") content = modalCloudSetup();
+    if (type === "restoreBackup") content = modalRestoreBackup();
     if (type === "cloudAuth") content = modalCloudAuth();
     if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
     if (type === "copyFallback") content = modalCopyFallback();
@@ -6509,6 +6567,41 @@
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="open-modal" data-modal="profiles">Back</button>
         <button class="secondary-btn" data-action="login-profile" data-id="${profile.id}">${icon("check")} Sign In</button>
+      </div>`;
+  }
+
+  function modalRestoreBackup() {
+    const preview = ui.backupRestorePreview;
+    if (!preview) {
+      return `${modalHeader("Restore Backup", "Choose a BillMaster backup JSON file first.")}
+        <div class="empty-state compact-empty">
+          ${icon("folder")}
+          <h3>No backup selected</h3>
+          <p>Use Import / restore from Sync Center to select a backup file.</p>
+        </div>
+        <div class="sheet-actions">
+          <button class="outline-btn" data-action="close-modal">Close</button>
+        </div>`;
+    }
+    const counts = workspaceSummaryCounts(preview.workspace);
+    return `${modalHeader("Restore Backup", "Review this file before replacing this device's workspace.")}
+      <div class="restore-warning">
+        ${icon("alert")}
+        <span>This replaces this device first, saves a local safety copy, and turns Auto Sync off until you review it.</span>
+      </div>
+      <div class="restore-preview-grid">
+        <span><strong>${esc(preview.fileName || "Backup file")}</strong><small>file</small></span>
+        <span><strong>${esc(backupTimeLabel(preview.exportedAt))}</strong><small>exported</small></span>
+        <span><strong>${esc(preview.accountEmail || "Unknown account")}</strong><small>account</small></span>
+        <span><strong>${esc(counts.tasks)}</strong><small>tasks</small></span>
+        <span><strong>${esc(counts.notes)}</strong><small>notes</small></span>
+        <span><strong>${esc(counts.loans)}</strong><small>loans</small></span>
+        <span><strong>${esc(counts.contacts)}</strong><small>contacts</small></span>
+        <span><strong>${esc(counts.addresses)}</strong><small>addresses</small></span>
+      </div>
+      <div class="sheet-actions">
+        <button class="outline-btn" data-action="clear-backup-preview">${icon("close")} Cancel</button>
+        <button class="danger-btn" data-action="restore-backup-confirm">${icon("refresh")} Restore this backup</button>
       </div>`;
   }
 
@@ -9823,6 +9916,11 @@
     if (action === "save-subscription") return saveSubscription();
     if (action === "save-subscription-media") return saveSubscriptionMedia(el.dataset.id);
     if (action === "download-calendar-ics") return downloadCalendarIcs();
+    if (action === "download-drive-backup") return downloadDriveBackup();
+    if (action === "import-backup-file") return importBackupFile();
+    if (action === "restore-backup-confirm") return restoreBackupFromPreview();
+    if (action === "clear-backup-preview") return clearBackupPreview();
+    if (action === "set-backup-frequency") return setBackupFrequency(el.dataset.value);
     if (action === "download-data") return downloadData();
     if (action === "reset-data") return resetData();
     if (action === "ai-prompt") return sendAi(el.dataset.prompt);
@@ -15354,15 +15452,181 @@
     showToast("Subscription picture saved.");
   }
 
-  function downloadData() {
-    if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof document === "undefined") return;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  function workspaceSummaryCounts(workspace = data) {
+    return {
+      tasks: safeArray(workspace.tasks).length,
+      notes: safeArray(workspace.notes).length,
+      loans: safeArray(workspace.loans).length,
+      addresses: safeArray(workspace.addresses).length,
+      contacts: safeArray(workspace.contacts).length,
+      projects: safeArray(workspace.projects).length,
+      notebooks: safeArray(workspace.notebooks).length,
+      goals: safeArray(workspace.goals).length,
+      habits: safeArray(workspace.habits).length
+    };
+  }
+
+  function backupTimeLabel(value) {
+    if (!value) return "Never";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function backupFrequencyLabel(value) {
+    return { off: "Off", daily: "Daily", weekly: "Weekly", monthly: "Monthly" }[value] || "Weekly";
+  }
+
+  function backupFrequencyCopy(value) {
+    if (value === "off") return "No reminders. Manual exports still work.";
+    if (value === "daily") return "Best while you are entering live work every day.";
+    if (value === "monthly") return "Light reminder for stable data.";
+    return "Good default while BillMaster is still growing.";
+  }
+
+  function backupReminderDue() {
+    const frequency = data.settings?.backupFrequency || "weekly";
+    if (frequency === "off") return false;
+    const last = data.settings?.backupLastExportAt;
+    if (!last) return true;
+    const lastMs = new Date(last).getTime();
+    if (Number.isNaN(lastMs)) return true;
+    const intervals = { daily: 86400000, weekly: 7 * 86400000, monthly: 30 * 86400000 };
+    return Date.now() - lastMs > (intervals[frequency] || intervals.weekly);
+  }
+
+  function backupFileName(prefix) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `${prefix}-${stamp}.json`;
+  }
+
+  function workspaceBackupPayload(reason = "manual") {
+    const exportedAt = new Date().toISOString();
+    const backupData = normalizeData(mergeSeed(clone(seed), clone(data)));
+    return {
+      app: "BillMaster",
+      type: "billmaster-workspace-backup",
+      version: 1,
+      exportedAt,
+      reason,
+      profileId: currentProfileId || "",
+      accountEmail: cloudSafeEmail(),
+      data: backupData
+    };
+  }
+
+  function triggerJsonDownload(payload, filename) {
+    if (typeof Blob === "undefined" || typeof URL === "undefined" || typeof document === "undefined") {
+      showToast("This browser cannot download a backup file here.", "danger");
+      return false;
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "billmaster-backup.json";
+    link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return true;
+  }
+
+  function downloadWorkspaceBackup(reason, prefix, message) {
+    const payload = workspaceBackupPayload(reason);
+    const filename = backupFileName(prefix);
+    if (!triggerJsonDownload(payload, filename)) return;
+    data.settings.backupLastExportAt = payload.exportedAt;
+    data.settings.backupLastExportName = filename;
+    saveData({ undo: false, cloudSync: false });
+    render();
+    showToast(message);
+  }
+
+  function downloadData() {
+    return downloadWorkspaceBackup("manual-download", "BillMaster-backup", "Backup downloaded. Keep it somewhere safe.");
+  }
+
+  function downloadDriveBackup() {
+    return downloadWorkspaceBackup("google-drive-download", "BillMaster-Google-Drive-backup", "Drive-ready backup downloaded. Save it to Google Drive.");
+  }
+
+  function normalizeBackupPayload(parsed, fileName) {
+    const raw = parsed && parsed.type === "billmaster-workspace-backup" && parsed.data ? parsed.data : parsed;
+    if (!raw || typeof raw !== "object") throw new Error("This file does not look like a BillMaster backup.");
+    const workspace = normalizeData(mergeSeed(clone(seed), clone(raw)));
+    return {
+      fileName,
+      exportedAt: parsed?.exportedAt || "",
+      reason: parsed?.reason || "legacy-import",
+      accountEmail: parsed?.accountEmail || "",
+      workspace
+    };
+  }
+
+  function importBackupFile() {
+    if (typeof document === "undefined" || typeof FileReader === "undefined") {
+      showToast("File restore is not available in this browser.", "danger");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || "{}"));
+          ui.backupRestorePreview = normalizeBackupPayload(parsed, file.name);
+          ui.modal = { type: "restoreBackup" };
+          render();
+        } catch (error) {
+          showToast(`Backup import failed: ${error.message || "Invalid file"}`, "danger");
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  function clearBackupPreview() {
+    ui.backupRestorePreview = null;
+    ui.modal = null;
+    render();
+  }
+
+  function restoreBackupFromPreview() {
+    const preview = ui.backupRestorePreview;
+    if (!preview) {
+      showToast("Choose a backup file first.", "danger");
+      return;
+    }
+    try {
+      localStorage.setItem("billmaster-pre-restore-backup-v1", JSON.stringify(workspaceBackupPayload("pre-restore-safety-copy")));
+    } catch (error) {
+      console.warn("Could not save pre-restore backup", error);
+    }
+    data = normalizeData(mergeSeed(clone(seed), clone(preview.workspace)));
+    data.settings.backupLastRestoreAt = new Date().toISOString();
+    data.settings.cloudAutoSync = false;
+    data.settings.cloudSyncState = "idle";
+    data.settings.cloudSyncMessage = "Backup restored on this device. Review it, then Smart merge or Push local when ready.";
+    ui.backupRestorePreview = null;
+    ui.modal = null;
+    saveData({ undo: false, cloudSync: false });
+    render();
+    showToast("Backup restored. Auto sync is off until you review it.");
+  }
+
+  function setBackupFrequency(value) {
+    const normalized = ["off", "daily", "weekly", "monthly"].includes(value) ? value : "weekly";
+    data.settings.backupFrequency = normalized;
+    data.settings.backupLastReminderAt = new Date().toISOString();
+    saveData({ undo: false, cloudSync: false });
+    render();
+    showToast(`Backup reminder set to ${backupFrequencyLabel(normalized)}.`);
   }
 
   function downloadCalendarIcs() {
