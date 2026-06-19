@@ -301,6 +301,7 @@
   const recentWrites = new Map();
   const pendingActions = new Set();
   let blockDragState = null;
+  let blockSelectBrushState = null;
   let blockCreateState = null;
   let blockTapCreateState = null;
   let blockRepeatState = null;
@@ -2279,18 +2280,198 @@
     </div>`).join("")}${mode === "simple" ? `<button class="outline-btn wide" data-action="toggle-interface-mode">${icon("settings")} Show power tools</button>` : ""}</div>`;
   }
 
-  function quickAction(action) {
-    const { view, iconName, label, color, tone, detail } = action;
-    const actualView = label === "Add Bill" ? "bills" : view;
-    const tileStyle = `--tile-color:var(--${color});--tile-soft:${softColor(color)}`;
-    return `<button class="action-tile action-tile--${esc(tone || color)}" style="${tileStyle}" data-action="navigate" data-view="${actualView}" aria-label="${esc(label)}">
-      <span class="action-visual">
-        <span class="action-orbit"></span>
-        <span class="round-icon">${icon(iconName)}</span>
-      </span>
-      <span class="action-copy">
-        <strong>${esc(label)}</strong>
-        <small>${esc(detail || "")}</small>
+function commandIconKind(iconName) {
+  return ({
+    calendar: "calendar",
+    task: "tasks",
+    morning: "habits",
+    wallet: "tracking",
+    receipt: "bills",
+    playcard: "subscriptions",
+    chart: "goals",
+    loan: "loans",
+    book: "notebooks",
+    note: "notes",
+    folder: "projects",
+    home: "contacts",
+    map: "addresses",
+    settings: "sync",
+    ai: "ai"
+  }[iconName] || iconName || "tasks");
+}
+
+function commandIllustration(iconName) {
+  const kind = commandIconKind(iconName);
+  const drawings = {
+    calendar: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-soft" x="8" y="18" width="70" height="60" rx="13"></rect>
+        <path class="ci-accent" d="M8 31c0-7 6-13 13-13h44c7 0 13 6 13 13v7H8z"></path>
+        <rect class="ci-dark" x="20" y="8" width="9" height="20" rx="4"></rect>
+        <rect class="ci-dark" x="58" y="8" width="9" height="20" rx="4"></rect>
+        <g class="ci-grid">
+          <rect x="20" y="45" width="10" height="10" rx="2"></rect>
+          <rect x="38" y="45" width="10" height="10" rx="2"></rect>
+          <rect x="56" y="45" width="10" height="10" rx="2"></rect>
+          <rect x="20" y="61" width="10" height="10" rx="2"></rect>
+          <rect x="38" y="61" width="10" height="10" rx="2"></rect>
+          <rect x="56" y="61" width="10" height="10" rx="2"></rect>
+        </g>
+        <circle class="ci-check-badge" cx="72" cy="68" r="19"></circle>
+        <path class="ci-white-line" d="M63 68l7 7 13-16"></path>
+      </svg>`,
+    tasks: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <circle class="ci-soft" cx="53" cy="46" r="35"></circle>
+        <rect class="ci-paper" x="16" y="14" width="45" height="66" rx="5"></rect>
+        <rect class="ci-alt" x="24" y="22" width="29" height="10" rx="2"></rect>
+        <path class="ci-line" d="M28 44l5 5 9-12M28 59l5 5 9-12M48 44h12M48 59h12"></path>
+        <g class="ci-pencil">
+          <path class="ci-money" d="M68 14h12v48l-6 13-6-13z"></path>
+          <path class="ci-line" d="M68 24h12M74 62v10"></path>
+        </g>
+      </svg>`,
+    habits: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="10" y="14" width="76" height="68" rx="13"></rect>
+        <path class="ci-dark" d="M10 27c0-7 6-13 13-13h50c7 0 13 6 13 13v5H10z"></path>
+        <circle class="ci-alt ci-pulse" cx="31" cy="50" r="12"></circle>
+        <path class="ci-line" d="M31 39v22M20 50h22"></path>
+        <path class="ci-thin" d="M56 45c8-9 20-2 12 10l-12 12-12-12c-8-12 4-19 12-10z"></path>
+        <path class="ci-spark" d="M73 39l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
+        <path class="ci-spark ci-spark-delay" d="M21 67l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"></path>
+      </svg>`,
+    tracking: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="12" y="11" width="50" height="71" rx="7"></rect>
+        <path class="ci-line" d="M25 30h20M25 45h17M25 60h24M20 30l4 4 8-10"></path>
+        <circle class="ci-coin" cx="56" cy="31" r="16"></circle>
+        <text class="ci-dollar" x="56" y="37" text-anchor="middle">$</text>
+        <rect class="ci-dark" x="55" y="47" width="28" height="34" rx="5"></rect>
+        <rect class="ci-accent" x="61" y="54" width="16" height="7" rx="2"></rect>
+        <g class="ci-calc">
+          <rect x="62" y="67" width="5" height="5" rx="1"></rect>
+          <rect x="71" y="67" width="5" height="5" rx="1"></rect>
+          <rect x="62" y="75" width="5" height="5" rx="1"></rect>
+          <rect x="71" y="75" width="5" height="5" rx="1"></rect>
+        </g>
+      </svg>`,
+    bills: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <path class="ci-alt" d="M22 18l48-8 8 62-48 8z"></path>
+        <path class="ci-paper" d="M17 14h54v68l-9-5-9 5-9-5-9 5-9-5-9 5z"></path>
+        <text class="ci-title" x="44" y="33" text-anchor="middle">BILL</text>
+        <path class="ci-line" d="M27 45h34M27 56h25M27 67h18"></path>
+        <text class="ci-dollar ci-dollar-small" x="58" y="71">$</text>
+      </svg>`,
+    goals: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="16" y="10" width="52" height="72" rx="8"></rect>
+        <path class="ci-line" d="M26 31h10M26 49h10M26 67h10M42 31h14M42 49h12M42 67h8"></path>
+        <rect class="ci-accent" x="25" y="27" width="8" height="8" rx="2"></rect>
+        <rect class="ci-accent" x="25" y="45" width="8" height="8" rx="2"></rect>
+        <g class="ci-pencil">
+          <path class="ci-money" d="M61 60l17-34 11 6-19 33-12 7z"></path>
+          <path class="ci-line" d="M76 28l10 6"></path>
+        </g>
+        <circle class="ci-target" cx="66" cy="66" r="13"></circle>
+        <circle class="ci-dark" cx="66" cy="66" r="4"></circle>
+      </svg>`,
+    loans: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <path class="ci-line" d="M20 75c11-10 21-10 33-3 9 5 19 2 28-7"></path>
+        <path class="ci-dark" d="M34 16h35l10 17H24z"></path>
+        <path class="ci-line" d="M30 37v25M47 37v22M64 37v25"></path>
+        <circle class="ci-coin" cx="52" cy="57" r="17"></circle>
+        <text class="ci-dollar" x="52" y="63" text-anchor="middle">$</text>
+      </svg>`,
+    notebooks: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <path class="ci-alt" d="M28 12h40c8 0 13 6 13 14v48c0 5-4 9-9 9H28z"></path>
+        <path class="ci-paper" d="M23 10h43c6 0 10 5 10 11v53c0 5-4 9-9 9H23z"></path>
+        <path class="ci-dark" d="M23 10h12v73H23z"></path>
+        <g class="ci-rings">
+          <circle cx="21" cy="23" r="4"></circle>
+          <circle cx="21" cy="37" r="4"></circle>
+          <circle cx="21" cy="51" r="4"></circle>
+          <circle cx="21" cy="65" r="4"></circle>
+        </g>
+        <rect class="ci-soft" x="43" y="28" width="21" height="15" rx="3"></rect>
+      </svg>`,
+    notes: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <circle class="ci-coin" cx="48" cy="48" r="34"></circle>
+        <circle class="ci-soft" cx="48" cy="48" r="25"></circle>
+        <text class="ci-title ci-title-notes" x="48" y="53" text-anchor="middle">NOTES</text>
+        <path class="ci-white-line ci-note-line" d="M29 61h38M31 35h34"></path>
+        <path class="ci-spark" d="M24 22l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
+      </svg>`,
+    projects: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="12" y="13" width="68" height="68" rx="9"></rect>
+        <text class="ci-title ci-title-project" x="45" y="32" text-anchor="middle">PROJECT</text>
+        <rect class="ci-money" x="22" y="43" width="24" height="16" rx="3"></rect>
+        <rect class="ci-accent" x="31" y="48" width="9" height="7" rx="1"></rect>
+        <path class="ci-line" d="M52 45h16M52 55h13M23 68h34"></path>
+        <path class="ci-gear" d="M72 57l5 3 5-1 4 7-4 4v6l4 4-4 7-5-1-5 3-2 5h-8l-2-5-5-3-5 1-4-7 4-4v-6l-4-4 4-7 5 1 5-3 2-5h8z"></path>
+        <circle class="ci-soft" cx="66" cy="73" r="7"></circle>
+      </svg>`,
+    contacts: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="15" y="15" width="66" height="66" rx="15"></rect>
+        <path class="ci-alt" d="M57 15h24v54c0 7-5 12-12 12H57z"></path>
+        <path class="ci-accent" d="M69 16h12v22H69zM69 38h12v20H69zM69 58h12v11c0 6-5 12-12 12z"></path>
+        <circle class="ci-soft" cx="42" cy="41" r="13"></circle>
+        <path class="ci-thin" d="M21 69c5-13 16-19 27-17 10 2 18 8 22 17"></path>
+      </svg>`,
+    addresses: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <path class="ci-alt" d="M23 18l18-8 17 8 20-8v66l-20 8-17-8-18 8z"></path>
+        <path class="ci-thin" d="M41 11v65M58 18v65"></path>
+        <path class="ci-paper" d="M48 19c12 0 22 9 22 21 0 17-22 37-22 37S26 57 26 40c0-12 10-21 22-21z"></path>
+        <circle class="ci-accent ci-pulse" cx="48" cy="40" r="8"></circle>
+        <text class="ci-at" x="48" y="48" text-anchor="middle">@</text>
+      </svg>`,
+    subscriptions: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="17" y="16" width="62" height="64" rx="12"></rect>
+        <rect class="ci-accent" x="28" y="29" width="40" height="11" rx="3"></rect>
+        <path class="ci-line" d="M29 51h31M29 63h22"></path>
+        <path class="ci-arrow" d="M66 58c7 0 12-5 12-12M78 46l-6-2M78 46l-2-6"></path>
+        <path class="ci-arrow" d="M30 58c-7 0-12-5-12-12M18 46l6-2M18 46l2-6"></path>
+      </svg>`,
+    sync: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <circle class="ci-soft" cx="48" cy="48" r="32"></circle>
+        <path class="ci-arrow ci-spin-slow" d="M28 44c2-11 11-19 23-19 7 0 13 3 18 8M69 33h-14M69 33v-14"></path>
+        <path class="ci-arrow ci-spin-slow-rev" d="M68 52c-2 11-11 19-23 19-7 0-13-3-18-8M27 63h14M27 63v14"></path>
+        <circle class="ci-accent" cx="48" cy="48" r="8"></circle>
+      </svg>`,
+    ai: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-paper" x="18" y="18" width="54" height="54" rx="16"></rect>
+        <text class="ci-title ci-title-ai" x="45" y="55" text-anchor="middle">AI</text>
+        <path class="ci-spark" d="M70 13l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"></path>
+        <path class="ci-spark ci-spark-delay" d="M25 9l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
+        <path class="ci-spark ci-spark-late" d="M74 58l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
+      </svg>`
+  };
+
+  return `<span class="command-illustration command-illustration--${esc(kind)}" aria-hidden="true">${drawings[kind] || drawings.tasks}</span>`;
+}
+
+function quickAction(action) {
+  const { view, iconName, label, color, tone, detail } = action;
+  const actualView = label === "Add Bill" ? "bills" : view;
+  const tileStyle = `--tile-color:var(--${color});--tile-soft:${softColor(color)}`;
+  return `<button class="action-tile action-tile--${esc(tone || color)}" style="${tileStyle}" data-action="navigate" data-view="${actualView}" aria-label="${esc(label)}">
+    <span class="action-visual">
+      <span class="action-orbit"></span>
+      ${commandIllustration(iconName)}
+    </span>
+    <span class="action-copy">
+      <strong>${esc(label)}</strong>
+      <small>${esc(detail || "")}</small>
       </span>
     </button>`;
   }
@@ -4188,10 +4369,76 @@
 
   function calendarWeek() {
     const dates = weekDates();
-    const weekTasks = calendarItemsForRange(dates[0], dates[6]);
+    const timetableDates = weekTimetableDates();
+    const weekTasks = calendarItemsForRange(timetableDates[0], timetableDates[6]);
     return `<div class="week-strip">${dates.map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="empty-state" style="min-height:36vh;"><div><h2>Week Total: ${round1(totalTaskHours(weekTasks))}h</h2><p class="muted">Tasks, bills, income, subscriptions, and goals are combined into this view.</p></div></div>
+      <div class="week-timetable" aria-label="Weekly time grid">
+        <div class="week-timetable-grid">
+          <div class="week-timetable-head week-timetable-time-head">Time</div>
+          ${timetableDates.map((iso, index) => weekTimetableHeader(iso, index)).join("")}
+          <div class="week-time-scale">${weekTimetableHours().map((hour) => `<div class="week-time-row">${String(hour).padStart(2, "0")}:00</div>`).join("")}</div>
+          ${timetableDates.map((iso, index) => weekTimetableColumn(iso, index)).join("")}
+        </div>
+      </div>
       <div class="calendar-summary">${icon("bell")} Week Total: <strong>${round1(totalTaskHours(weekTasks))}h</strong></div>`;
+  }
+
+  function weekTimetableDates() {
+    const selected = parseLocalDate(ui.selectedDate);
+    const monday = parseLocalDate(ui.selectedDate);
+    monday.setDate(selected.getDate() - ((selected.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      return isoDate(date);
+    });
+  }
+
+  function weekTimetableHours() {
+    return Array.from({ length: 13 }, (_, index) => index + 7);
+  }
+
+  function weekTimetableHeader(iso, index) {
+    const date = parseLocalDate(iso);
+    const dayHours = round1(totalTaskHours(calendarItemsForDay(iso)));
+    const isSelected = iso === ui.selectedDate;
+    const isToday = iso === todayIso();
+    const colors = ["#ff6b6b", "#ffd54f", "#6ee7b7", "#e879f9", "#67e8f9", "#a3e635", "#fb7185"];
+    return `<button class="week-timetable-head week-timetable-day-head ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="--day-color:${colors[index]};" data-action="set-calendar-date-view" data-date="${iso}" data-view="day" title="Open ${dateLabel(iso)} in Day view">
+      <span>${date.toLocaleDateString("en-US", { weekday: "long" })}</span>
+      <strong>${date.getDate()}</strong>
+      ${weatherChip(iso, "mini")}
+      ${dayHours ? `<em>${dayHours}h</em>` : ""}
+    </button>`;
+  }
+
+  function weekTimetableColumn(iso, index) {
+    const startMinute = 7 * 60;
+    const endMinute = 20 * 60;
+    const items = tasksForDay(iso).filter((task) => task.start && task.end);
+    return `<div class="week-timetable-day" style="--week-day-index:${index};">
+      ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
+      ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
+    </div>`;
+  }
+
+  function weekTimetableEvent(task, rangeStart, rangeEnd) {
+    const start = minutes(task.start);
+    let end = minutes(task.end);
+    if (end <= start) end += 24 * 60;
+    if (end <= rangeStart || start >= rangeEnd) return "";
+    const visibleStart = Math.max(start, rangeStart);
+    const visibleEnd = Math.min(end, rangeEnd);
+    const topHours = (visibleStart - rangeStart) / 60;
+    const visibleHours = (visibleEnd - visibleStart) / 60;
+    const color = task.bgColor || task.color || taskCategoryColor(taskCategory(task));
+    const modal = task.isHabit ? "editHabit" : "editTask";
+    const id = task.isHabit ? task.habitId : task.id;
+    return `<button class="week-timetable-event" style="top:calc(${topHours} * var(--week-row-height));height:max(28px, calc(${visibleHours} * var(--week-row-height) - 4px));--event-color:${esc(color)};" data-action="open-modal" data-modal="${modal}" data-id="${id}" title="${esc(`${task.title} ${timeLabel(task.start)} - ${timeLabel(task.end)}`)}">
+      <strong>${esc(task.title)}</strong>
+      <span>${esc(timeLabel(task.start))} - ${esc(timeLabel(task.end))}</span>
+      <small>${esc(durationLabel(taskDurationMinutes(task)))}</small>
+    </button>`;
   }
 
   function calendarDay() {
@@ -4378,7 +4625,8 @@
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
-    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
+    const blockSelectTools = `<div class="block-select-tools"><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}</div>`;
+    return `<div class="calendar-summary block-toolbar">${icon("bell")} Week total: <strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
       <div class="block-scroll ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
@@ -8615,6 +8863,7 @@
       if (block.dataset.bound === "true") return;
       block.dataset.bound = "true";
       block.addEventListener("pointerdown", startBlockDrag);
+      block.addEventListener("pointerenter", enterBlockSelectBrush);
       block.addEventListener("dblclick", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -8638,9 +8887,7 @@
     if (!task || !column) return;
     if (event.target.closest("[data-action='toggle-task-select']")) return;
     if (ui.blockSelectMode && !event.target.closest("[data-resize],[data-repeat]")) {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleTaskSelect(task.id);
+      startBlockSelectBrush(event, block, task.id);
       return;
     }
     const repeat = event.target.closest("[data-repeat]");
@@ -8678,6 +8925,50 @@
     document.addEventListener("pointermove", moveBlockDrag);
     document.addEventListener("pointerup", endBlockDrag, { once: true });
     document.addEventListener("pointercancel", cancelBlockDrag, { once: true });
+  }
+
+  function startBlockSelectBrush(event, block, taskId) {
+    event.preventDefault();
+    event.stopPropagation();
+    blockSelectBrushState = { pointerId: event.pointerId, ids: new Set(), block };
+    block.setPointerCapture?.(event.pointerId);
+    brushSelectBlockTask(block, taskId);
+    document.addEventListener("pointermove", moveBlockSelectBrush);
+    document.addEventListener("pointerup", endBlockSelectBrush, { once: true });
+    document.addEventListener("pointercancel", endBlockSelectBrush, { once: true });
+  }
+
+  function moveBlockSelectBrush(event) {
+    if (!blockSelectBrushState || event.pointerId !== blockSelectBrushState.pointerId) return;
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    const block = element?.closest?.(".event-block");
+    if (!block) return;
+    brushSelectBlockTask(block, block.dataset.taskId);
+  }
+
+  function enterBlockSelectBrush(event) {
+    if (!ui.blockSelectMode || !blockSelectBrushState || event.pointerId !== blockSelectBrushState.pointerId) return;
+    brushSelectBlockTask(event.currentTarget, event.currentTarget.dataset.taskId);
+  }
+
+  function brushSelectBlockTask(block, taskId) {
+    if (!taskId || !blockSelectBrushState || blockSelectBrushState.ids.has(taskId)) return;
+    blockSelectBrushState.ids.add(taskId);
+    if (!ui.selectedTasks.includes(taskId)) ui.selectedTasks.push(taskId);
+    block.classList.add("is-selected");
+    const button = block.querySelector(".block-select-button");
+    if (button) {
+      button.classList.add("active");
+      button.innerHTML = icon("check");
+      button.setAttribute("aria-label", "Selected task");
+    }
+  }
+
+  function endBlockSelectBrush() {
+    document.removeEventListener("pointermove", moveBlockSelectBrush);
+    blockSelectBrushState?.block?.releasePointerCapture?.(blockSelectBrushState.pointerId);
+    blockSelectBrushState = null;
+    render();
   }
 
   function scheduleBlockHoldMenu(state) {
