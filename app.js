@@ -2465,12 +2465,12 @@ function commandIllustration(iconName) {
         <circle class="ci-contact-spark" cx="69" cy="25" r="3"></circle>
       </svg>`,
     addresses: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <path class="ci-alt" d="M23 18l18-8 17 8 20-8v66l-20 8-17-8-18 8z"></path>
-        <path class="ci-thin" d="M41 11v65M58 18v65"></path>
-        <path class="ci-paper" d="M48 19c12 0 22 9 22 21 0 17-22 37-22 37S26 57 26 40c0-12 10-21 22-21z"></path>
-        <circle class="ci-accent ci-pulse" cx="48" cy="40" r="8"></circle>
-        <text class="ci-at" x="48" y="48" text-anchor="middle">@</text>
+      <svg class="ci-svg ci-address-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-address-card" x="16" y="14" width="64" height="68" rx="15"></rect>
+        <path class="ci-address-route" d="M26 69c8-8 17-10 27-5 8 4 14 2 18-6"></path>
+        <circle class="ci-address-radar" cx="48" cy="43" r="29"></circle>
+        <path class="ci-address-pin" d="M48 19c-12 0-22 9-22 22 0 17 22 38 22 38s22-21 22-38c0-13-10-22-22-22z"></path>
+        <circle class="ci-address-dot" cx="48" cy="41" r="7"></circle>
       </svg>`,
     subscriptions: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">

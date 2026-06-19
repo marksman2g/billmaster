@@ -1599,6 +1599,50 @@ button.round-icon {
   animation: ci-pulse 2.8s ease-in-out infinite;
 }
 
+.command-illustration--addresses .ci-address-svg {
+  overflow: visible;
+}
+
+.command-illustration--addresses .ci-address-card {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(26, 31, 54, 0.14);
+  stroke-width: 2;
+}
+
+.command-illustration--addresses .ci-address-route {
+  fill: none;
+  stroke: rgba(26, 31, 54, 0.22);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 5 7;
+}
+
+.command-illustration--addresses .ci-address-radar {
+  fill: rgba(76, 175, 80, 0.08);
+  stroke: rgba(76, 175, 80, 0.22);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-address-radar 3.2s ease-in-out infinite;
+}
+
+.command-illustration--addresses .ci-address-pin {
+  fill: #11182e;
+  stroke: #11182e;
+  stroke-width: 2.7;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    ci-address-color-cycle 3.9s linear infinite,
+    ci-address-bob 2.6s ease-in-out infinite;
+}
+
+.command-illustration--addresses .ci-address-dot {
+  fill: #ffffff;
+  animation: ci-address-dot-cycle 3.9s linear infinite;
+}
+
 .command-illustration--ai .ci-spark,
 .command-illustration--habits .ci-spark,
 .command-illustration--notes .ci-spark {
@@ -2264,6 +2308,53 @@ button.round-icon {
 @keyframes ci-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.13); opacity: .82; }
+}
+
+@keyframes ci-address-color-cycle {
+  0%, 100% {
+    fill: #11182e;
+    stroke: #11182e;
+  }
+  33% {
+    fill: #4caf50;
+    stroke: #4caf50;
+  }
+  66% {
+    fill: #ff3b30;
+    stroke: #ff3b30;
+  }
+}
+
+@keyframes ci-address-dot-cycle {
+  0%, 100% {
+    fill: #ffffff;
+  }
+  33% {
+    fill: #edfff2;
+  }
+  66% {
+    fill: #fff1ef;
+  }
+}
+
+@keyframes ci-address-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes ci-address-radar {
+  0%, 100% {
+    transform: scale(.88);
+    opacity: .45;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: .95;
+  }
 }
 
 @keyframes ci-twinkle {
