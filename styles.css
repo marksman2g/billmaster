@@ -1300,6 +1300,87 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.command-illustration--goals {
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.9), transparent 30%),
+    radial-gradient(circle at 72% 72%, rgba(76, 175, 80, 0.16), transparent 35%),
+    linear-gradient(145deg, #fff, color-mix(in srgb, var(--tile-color, var(--green)) 11%, #fff));
+  border-color: rgba(76, 175, 80, 0.38);
+}
+
+.command-illustration--goals .ci-goals-shadow {
+  fill: rgba(244, 67, 54, 0.12);
+}
+
+.command-illustration--goals .ci-goals-ring {
+  stroke: #11182e;
+  stroke-width: 3.5;
+}
+
+.command-illustration--goals .ci-goals-ring-outer,
+.command-illustration--goals .ci-goals-ring-pulse {
+  fill: #ef4444;
+}
+
+.command-illustration--goals .ci-goals-ring-white {
+  fill: #fff9f8;
+}
+
+.command-illustration--goals .ci-goals-ring-core {
+  fill: #c91f2f;
+}
+
+.command-illustration--goals .ci-goals-ring-pulse {
+  animation: ci-goals-ring-blink 2.7s ease-in-out infinite;
+}
+
+.command-illustration--goals .ci-goals-note {
+  fill: #ffc857;
+  stroke: #11182e;
+  stroke-width: 3.3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 4px 5px rgba(17, 24, 46, 0.16));
+}
+
+.command-illustration--goals .ci-goals-text {
+  fill: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+}
+
+.command-illustration--goals .ci-goals-arrow {
+  animation: ci-goals-arrow-hit 4.2s ease-in-out infinite;
+}
+
+.command-illustration--goals .ci-goals-arrow-shaft {
+  fill: none;
+  stroke: #d97706;
+  stroke-width: 5.5;
+  stroke-linecap: round;
+}
+
+.command-illustration--goals .ci-goals-arrow-head {
+  fill: #d97706;
+  stroke: #11182e;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.command-illustration--goals .ci-goals-arrow-tail {
+  fill: none;
+  stroke: #d97706;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+}
+
+.command-illustration--goals .ci-goals-spark-dot {
+  fill: #8e5bd8;
+  animation: ci-goals-spark-blink 2.7s ease-in-out infinite;
+}
+
 .ci-title-ai {
   font-size: 22px;
 }
@@ -1353,13 +1434,15 @@ button.round-icon {
 .ci-review-envelope,
 .ci-review-badge,
 .ci-pulse,
-.ci-check-badge {
+.ci-check-badge,
+.ci-goals-ring-pulse,
+.ci-goals-arrow,
+.ci-goals-spark-dot {
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.command-illustration--tasks .ci-pencil,
-.command-illustration--goals .ci-pencil {
+.command-illustration--tasks .ci-pencil {
   animation: ci-pencil-wiggle 3.8s ease-in-out infinite;
 }
 
@@ -1760,6 +1843,42 @@ button.round-icon {
 @keyframes ci-note-ring-bounce {
   0%, 72%, 100% { transform: translateY(0); }
   82% { transform: translateY(-2px); }
+}
+
+@keyframes ci-goals-ring-blink {
+  0%, 55%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  66% {
+    transform: scale(1.06);
+    filter: brightness(1.3) drop-shadow(0 0 8px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 12px rgba(255, 107, 107, 0.65));
+  }
+  76% {
+    transform: scale(1.02);
+    filter: brightness(1.55) drop-shadow(0 0 12px rgba(255, 255, 255, 0.95));
+  }
+  86% {
+    transform: scale(1.04);
+    filter: brightness(1.15) drop-shadow(0 0 7px rgba(255, 193, 7, 0.45));
+  }
+}
+
+@keyframes ci-goals-arrow-hit {
+  0%, 68%, 100% { transform: translate(0, 0) rotate(0deg); }
+  76% { transform: translate(-2px, 2px) rotate(-2deg); }
+  86% { transform: translate(1px, -1px) rotate(1deg); }
+}
+
+@keyframes ci-goals-spark-blink {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+  48%, 68% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 @keyframes ci-spin {

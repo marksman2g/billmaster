@@ -2367,16 +2367,19 @@ function commandIllustration(iconName) {
       </svg>`,
     goals: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <rect class="ci-paper" x="16" y="10" width="52" height="72" rx="8"></rect>
-        <path class="ci-line" d="M26 31h10M26 49h10M26 67h10M42 31h14M42 49h12M42 67h8"></path>
-        <rect class="ci-accent" x="25" y="27" width="8" height="8" rx="2"></rect>
-        <rect class="ci-accent" x="25" y="45" width="8" height="8" rx="2"></rect>
-        <g class="ci-pencil">
-          <path class="ci-money" d="M61 60l17-34 11 6-19 33-12 7z"></path>
-          <path class="ci-line" d="M76 28l10 6"></path>
+        <circle class="ci-goals-shadow" cx="45" cy="51" r="34"></circle>
+        <circle class="ci-goals-ring ci-goals-ring-outer" cx="45" cy="51" r="31"></circle>
+        <circle class="ci-goals-ring ci-goals-ring-white" cx="45" cy="51" r="23"></circle>
+        <circle class="ci-goals-ring ci-goals-ring-pulse" cx="45" cy="51" r="16"></circle>
+        <circle class="ci-goals-ring ci-goals-ring-core" cx="45" cy="51" r="8"></circle>
+        <path class="ci-goals-note" d="M29 49l29-7 7 25-29 7z"></path>
+        <text class="ci-goals-text" x="47" y="61" text-anchor="middle">GOAL</text>
+        <g class="ci-goals-arrow">
+          <path class="ci-goals-arrow-shaft" d="M50 51 82 19"></path>
+          <path class="ci-goals-arrow-head" d="M78 17l14-7-6 15z"></path>
+          <path class="ci-goals-arrow-tail" d="M73 27l15-2M71 30l12 8"></path>
         </g>
-        <circle class="ci-target" cx="66" cy="66" r="13"></circle>
-        <circle class="ci-dark" cx="66" cy="66" r="4"></circle>
+        <circle class="ci-goals-spark-dot" cx="18" cy="20" r="4"></circle>
       </svg>`,
     loans: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
