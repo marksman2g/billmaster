@@ -1278,7 +1278,8 @@ button.round-icon {
 .command-illustration--notes .ci-note-pencil {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ci-note-pencil-write 4s ease-in-out infinite;
+  animation: ci-note-pencil-brighten 4s ease-in-out infinite;
+  filter: brightness(1.08) saturate(1.08) drop-shadow(0 3px 5px rgba(255, 193, 7, 0.18));
 }
 
 .command-illustration--notes .ci-pencil-body {
@@ -2019,6 +2020,27 @@ button.round-icon {
   0%, 62%, 100% { transform: translate(0, 0) rotate(0deg); }
   70% { transform: translate(-2px, 2px) rotate(-4deg); }
   80% { transform: translate(1px, -2px) rotate(5deg); }
+}
+
+@keyframes ci-note-pencil-brighten {
+  0%,
+  58%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+    filter: brightness(1.08) saturate(1.08) drop-shadow(0 3px 5px rgba(255, 193, 7, 0.18));
+  }
+  70% {
+    transform: translate(-2px, 2px) rotate(-4deg);
+    filter: brightness(1.36) saturate(1.22) drop-shadow(0 0 12px rgba(255, 213, 79, 0.58));
+  }
+  82% {
+    transform: translate(1px, -2px) rotate(5deg);
+    filter: brightness(1.5) saturate(1.28) drop-shadow(0 0 16px rgba(255, 213, 79, 0.72));
+  }
+  90% {
+    transform: translate(0, 0) rotate(0deg);
+    filter: brightness(1.28) saturate(1.18) drop-shadow(0 0 10px rgba(255, 107, 107, 0.28));
+  }
 }
 
 @keyframes ci-note-ring-bounce {
