@@ -2471,12 +2471,24 @@ function commandIllustration(iconName) {
         </g>
       </svg>`,
     ai: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <rect class="ci-paper" x="18" y="18" width="54" height="54" rx="16"></rect>
-        <text class="ci-title ci-title-ai" x="45" y="55" text-anchor="middle">AI</text>
-        <path class="ci-spark" d="M70 13l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"></path>
-        <path class="ci-spark ci-spark-delay" d="M25 9l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
-        <path class="ci-spark ci-spark-late" d="M74 58l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
+      <svg class="ci-svg ci-ai-svg" viewBox="0 0 96 96" role="img">
+        <defs>
+          <linearGradient id="ci-ai-neon-gradient" x1="17" y1="78" x2="82" y2="15" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ff4fd8"></stop>
+            <stop offset="0.52" stop-color="#6c63ff"></stop>
+            <stop offset="1" stop-color="#00e5ff"></stop>
+          </linearGradient>
+        </defs>
+        <rect class="ci-ai-stage" x="9" y="9" width="78" height="78" rx="20"></rect>
+        <path class="ci-ai-profile-glow" d="M56 18c14 2 25 14 25 29 0 12-6 22-16 28M58 75H43c-12 0-22-9-22-21 0-7 4-14 10-18 3-11 13-19 25-18"></path>
+        <path class="ci-ai-profile" d="M56 18c14 2 25 14 25 29 0 12-6 22-16 28M58 75H43c-12 0-22-9-22-21 0-7 4-14 10-18 3-11 13-19 25-18"></path>
+        <rect class="ci-ai-bubble" x="29" y="30" width="44" height="27" rx="13"></rect>
+        <path class="ci-ai-tail" d="M42 56l-9 9 2-13"></path>
+        <circle class="ci-ai-dot ci-ai-dot-1" cx="42" cy="43" r="3"></circle>
+        <circle class="ci-ai-dot ci-ai-dot-2" cx="52" cy="43" r="3"></circle>
+        <circle class="ci-ai-dot ci-ai-dot-3" cx="62" cy="43" r="3"></circle>
+        <path class="ci-ai-spark" d="M75 20l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
+        <text class="ci-ai-label" x="48" y="82" text-anchor="middle">AI</text>
       </svg>`
   };
 
