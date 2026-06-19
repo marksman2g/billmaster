@@ -6684,12 +6684,12 @@ canvas {
   --week-row-height: 48px;
   display: grid;
   grid-template-columns: 88px repeat(7, minmax(112px, 1fr));
-  grid-template-rows: 48px auto;
+  grid-template-rows: 58px auto;
   min-width: 900px;
 }
 
 .week-timetable-head {
-  min-height: 48px;
+  min-height: 58px;
   padding: 6px 8px;
   color: #10233d;
   background: #fff;
@@ -6715,6 +6715,12 @@ canvas {
   cursor: pointer;
 }
 
+.week-timetable-day-head span {
+  font-size: 0.76rem;
+  color: rgba(16, 35, 61, 0.72);
+  text-transform: none;
+}
+
 .week-timetable-day-head:hover,
 .week-timetable-day-head:focus-visible {
   filter: saturate(1.08);
@@ -6722,7 +6728,7 @@ canvas {
 }
 
 .week-timetable-day-head strong {
-  font-size: 1rem;
+  font-size: 1.12rem;
 }
 
 .week-timetable-day-head em {

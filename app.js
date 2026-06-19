@@ -4424,7 +4424,7 @@ function quickAction(action) {
 
   function calendarWeek() {
     const dates = weekDates();
-    const timetableDates = weekTimetableDates();
+    const timetableDates = dates;
     const weekTasks = calendarItemsForRange(timetableDates[0], timetableDates[6]);
     return `<div class="week-strip">${dates.map((iso) => weekDayButton(iso)).join("")}</div>
       <div class="week-timetable" aria-label="Weekly time grid">
@@ -4439,14 +4439,7 @@ function quickAction(action) {
   }
 
   function weekTimetableDates() {
-    const selected = parseLocalDate(ui.selectedDate);
-    const monday = parseLocalDate(ui.selectedDate);
-    monday.setDate(selected.getDate() - ((selected.getDay() + 6) % 7));
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      return isoDate(date);
-    });
+    return weekDates(ui.selectedDate);
   }
 
   function weekTimetableHours() {
@@ -4460,7 +4453,7 @@ function quickAction(action) {
     const isToday = iso === todayIso();
     const colors = ["#ff6b6b", "#ffd54f", "#6ee7b7", "#e879f9", "#67e8f9", "#a3e635", "#fb7185"];
     return `<button class="week-timetable-head week-timetable-day-head ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="--day-color:${colors[index]};" data-action="set-calendar-date-view" data-date="${iso}" data-view="day" title="Open ${dateLabel(iso)} in Day view">
-      <span>${date.toLocaleDateString("en-US", { weekday: "long" })}</span>
+      <span>${date.toLocaleDateString("en-US", { weekday: "short" })}</span>
       <strong>${date.getDate()}</strong>
       ${weatherChip(iso, "mini")}
       ${dayHours ? `<em>${dayHours}h</em>` : ""}
