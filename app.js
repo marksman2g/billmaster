@@ -2268,7 +2268,7 @@
         { view: "addresses", iconName: "map", label: "Addresses", color: "green", tone: "places", detail: "Routes + maps" }
       ]],
       ["Sync & AI", [
-        { view: "inbox", iconName: "receipt", label: "Review Inbox", color: "blue", tone: "review", detail: "Check imports" },
+        { view: "inbox", iconName: "reviewInbox", label: "Review Inbox", color: "blue", tone: "review", detail: "Check imports" },
         { view: "sync", iconName: "settings", label: "Sync Center", color: "purple", tone: "sync", detail: "Cloud health" },
         { view: "ai", iconName: "ai", label: "AI Assistant", color: "purple", tone: "ai", detail: "Ask BillMaster" }
       ]]
@@ -2295,6 +2295,7 @@ function commandIconKind(iconName) {
     folder: "projects",
     home: "contacts",
     map: "addresses",
+    reviewInbox: "reviewInbox",
     settings: "sync",
     ai: "ai"
   }[iconName] || iconName || "tasks");
@@ -2446,6 +2447,18 @@ function commandIllustration(iconName) {
         <path class="ci-line" d="M29 51h31M29 63h22"></path>
         <path class="ci-arrow" d="M66 58c7 0 12-5 12-12M78 46l-6-2M78 46l-2-6"></path>
         <path class="ci-arrow" d="M30 58c-7 0-12-5-12-12M18 46l6-2M18 46l2-6"></path>
+      </svg>`,
+    reviewInbox: `
+      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
+        <g class="ci-review-envelope">
+          <rect class="ci-review-envelope-body" x="13" y="39" width="70" height="39" rx="3"></rect>
+          <path class="ci-review-envelope-fold" d="M15 40l33 27 33-27"></path>
+          <path class="ci-review-envelope-fold" d="M15 77l25-23M81 77L56 54"></path>
+        </g>
+        <g class="ci-review-badge">
+          <circle class="ci-review-badge-circle" cx="48" cy="27" r="19"></circle>
+          <path class="ci-review-arrow" d="M48 15v24M37 29l11 11 11-11"></path>
+        </g>
       </svg>`,
     sync: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">

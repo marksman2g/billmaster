@@ -1264,6 +1264,8 @@ button.round-icon {
 .ci-coin,
 .ci-loan-paper,
 .ci-loan-bag,
+.ci-review-envelope,
+.ci-review-badge,
 .ci-pulse,
 .ci-check-badge {
   transform-box: fill-box;
@@ -1291,6 +1293,42 @@ button.round-icon {
 
 .command-illustration--loans .ci-loan-bag {
   animation: ci-loan-bag-pop 3.6s ease-in-out infinite;
+}
+
+.ci-review-envelope-body {
+  fill: #ffffff;
+  stroke: #11182e;
+  stroke-width: 5.25;
+  stroke-linejoin: round;
+}
+
+.ci-review-envelope-fold {
+  fill: none;
+  stroke: #11182e;
+  stroke-width: 5.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ci-review-badge-circle {
+  fill: #6c63ff;
+  filter: drop-shadow(0 7px 11px rgba(108, 99, 255, 0.28));
+}
+
+.ci-review-arrow {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.command-illustration--reviewInbox .ci-review-badge {
+  animation: ci-review-inbox-drop 3.4s ease-in-out infinite;
+}
+
+.command-illustration--reviewInbox .ci-review-envelope {
+  animation: ci-review-envelope-pulse 4.6s ease-in-out infinite;
 }
 
 .command-illustration--habits .ci-pulse,
@@ -1584,6 +1622,17 @@ button.round-icon {
   0%, 100% { transform: translateY(0) scale(1); }
   45% { transform: translateY(-3px) scale(1.05); }
   65% { transform: translateY(-1px) scale(1.02); }
+}
+
+@keyframes ci-review-inbox-drop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  44% { transform: translateY(2px) scale(1.04); }
+  70% { transform: translateY(-1px) scale(.99); }
+}
+
+@keyframes ci-review-envelope-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.2px); }
 }
 
 @keyframes ci-pulse {
