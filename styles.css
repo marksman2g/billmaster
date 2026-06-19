@@ -1114,7 +1114,9 @@ button.round-icon {
   font-weight: 900;
   line-height: 1.05;
   letter-spacing: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .action-copy small {
@@ -1123,7 +1125,9 @@ button.round-icon {
   font-size: 0.72rem;
   font-weight: 760;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .action-tile--calendar .action-visual::after,
@@ -6877,6 +6881,8 @@ canvas {
 
 .block-select-mode .event-block {
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
 }
 
 .event-block.is-selected {
@@ -7441,6 +7447,17 @@ canvas {
 
 .block-toolbar {
   align-items: center;
+}
+
+.block-select-tools {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.block-toolbar .block-select-tools {
+  flex: 0 1 auto;
 }
 
 .block-mobile-actions {
@@ -9616,21 +9633,20 @@ canvas {
 
   .action-groups .action-grid {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(155px, 72vw);
-    grid-template-columns: none;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding: 2px 2px 10px;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+    padding: 0;
   }
 
   .action-tile {
-    grid-template-columns: 48px minmax(0, 1fr);
-    min-height: 92px;
-    padding: 10px;
-    scroll-snap-align: start;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
+    min-height: 118px;
+    padding: 10px 8px;
+    text-align: center;
   }
 
   .action-visual {
@@ -9646,10 +9662,14 @@ canvas {
 
   .action-copy strong {
     font-size: 0.92rem;
+    max-width: 108px;
+    margin-inline: auto;
   }
 
   .action-copy small {
     font-size: 0.69rem;
+    max-width: 112px;
+    margin-inline: auto;
   }
 
   .prism-hero,
@@ -10184,21 +10204,20 @@ canvas {
 
   .action-groups .action-grid {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(150px, 76vw);
-    grid-template-columns: none;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding: 2px 2px 10px;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+    padding: 0;
   }
 
   .action-tile {
-    grid-template-columns: 46px minmax(0, 1fr);
-    min-height: 88px;
-    padding: 9px;
-    scroll-snap-align: start;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
+    min-height: 112px;
+    padding: 9px 7px;
+    text-align: center;
   }
 
   .action-visual {
@@ -10214,10 +10233,14 @@ canvas {
 
   .action-copy strong {
     font-size: 0.88rem;
+    max-width: 96px;
+    margin-inline: auto;
   }
 
   .action-copy small {
     font-size: 0.66rem;
+    max-width: 100px;
+    margin-inline: auto;
   }
 
   .amount-grid,
@@ -10951,8 +10974,8 @@ canvas {
     height: 56px;
   }
 
-  .action-tile strong,
-  .action-tile span {
+  .action-tile .action-copy strong,
+  .action-tile .action-copy small {
     max-width: 100%;
     overflow: visible;
     text-overflow: clip;
@@ -10960,7 +10983,7 @@ canvas {
     line-height: 1.15;
   }
 
-  .action-tile span {
+  .action-tile .action-copy small {
     min-height: 2.3em;
   }
 }
@@ -11269,5 +11292,75 @@ canvas {
 
   .backup-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Final Command Center guardrail: keep action tiles readable inside narrow dashboard columns. */
+.action-groups .action-grid {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 12px;
+}
+
+.action-groups .action-tile {
+  display: flex;
+  min-width: 0;
+  min-height: 126px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.action-groups .action-visual {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+}
+
+.action-groups .action-copy {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  justify-items: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.action-groups .action-copy strong,
+.action-groups .action-copy small {
+  display: block;
+  width: 100%;
+  max-width: 118px;
+  margin: 0 auto;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  white-space: normal;
+  text-align: center;
+}
+
+.action-groups .action-copy strong {
+  font-size: .92rem;
+  line-height: 1.12;
+}
+
+.action-groups .action-copy small {
+  font-size: .68rem;
+  line-height: 1.15;
+}
+
+@media (max-width: 380px) {
+  .action-groups .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-groups .action-tile {
+    min-height: 112px;
+  }
+
+  .action-groups .action-copy strong,
+  .action-groups .action-copy small {
+    max-width: 180px;
   }
 }
