@@ -1279,6 +1279,35 @@ button.round-icon {
   animation: ci-sync-spin-rev 7s linear infinite;
 }
 
+.command-illustration--sync {
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.96), transparent 30%),
+    linear-gradient(145deg, #edf5ff, #ffffff);
+  border-color: rgba(47, 101, 246, 0.28);
+}
+
+.ci-sync-disc {
+  fill: #2f65f6;
+  filter: drop-shadow(0 8px 14px rgba(47, 101, 246, 0.25));
+}
+
+.ci-sync-arrows {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-sync-badge-turn 4.8s linear infinite;
+}
+
+.ci-sync-arc {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.ci-sync-head {
+  fill: #fff;
+}
+
 .action-orbit {
   position: absolute;
   inset: 4px;
@@ -1436,6 +1465,12 @@ button.round-icon {
 
 @keyframes action-orbit {
   to { transform: rotate(360deg); }
+}
+
+@keyframes ci-sync-badge-turn {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.03); }
+  100% { transform: rotate(360deg) scale(1); }
 }
 
 @keyframes icon-sheen {

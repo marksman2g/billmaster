@@ -2442,10 +2442,13 @@ function commandIllustration(iconName) {
       </svg>`,
     sync: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <circle class="ci-soft" cx="48" cy="48" r="32"></circle>
-        <path class="ci-arrow ci-spin-slow" d="M28 44c2-11 11-19 23-19 7 0 13 3 18 8M69 33h-14M69 33v-14"></path>
-        <path class="ci-arrow ci-spin-slow-rev" d="M68 52c-2 11-11 19-23 19-7 0-13-3-18-8M27 63h14M27 63v14"></path>
-        <circle class="ci-accent" cx="48" cy="48" r="8"></circle>
+        <circle class="ci-sync-disc" cx="48" cy="48" r="38"></circle>
+        <g class="ci-sync-arrows">
+          <path class="ci-sync-arc" d="M26 56c4 12 15 21 29 21 8 0 15-3 21-9"></path>
+          <path class="ci-sync-arc" d="M70 40c-4-12-15-21-29-21-8 0-15 3-21 9"></path>
+          <path class="ci-sync-head" d="M17 57h22L28 42z"></path>
+          <path class="ci-sync-head" d="M79 39H57l11 15z"></path>
+        </g>
       </svg>`,
     ai: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
