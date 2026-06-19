@@ -1214,6 +1214,92 @@ button.round-icon {
   font-size: 13px;
 }
 
+.command-illustration--notes {
+  background:
+    radial-gradient(circle at 24% 20%, rgba(255, 193, 7, 0.28), transparent 32%),
+    linear-gradient(145deg, #fff7e5, #fffdf9);
+  border-color: rgba(255, 193, 7, 0.45);
+  box-shadow: 0 14px 28px rgba(255, 193, 7, 0.16);
+}
+
+.command-illustration--notes .ci-note-shadow {
+  fill: rgba(26, 31, 54, 0.12);
+}
+
+.command-illustration--notes .ci-note-page {
+  fill: #fffdf8;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.command-illustration--notes .ci-note-header {
+  fill: #ffad66;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.command-illustration--notes .ci-note-rings path {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-note-ring-bounce 3.7s ease-in-out infinite;
+}
+
+.command-illustration--notes .ci-note-lines path {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.command-illustration--notes .ci-note-dot {
+  fill: #111827;
+}
+
+.command-illustration--notes .ci-note-fold {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.command-illustration--notes .ci-note-fold-fill {
+  fill: #ffe58a;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.command-illustration--notes .ci-note-pencil {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-note-pencil-write 4s ease-in-out infinite;
+}
+
+.command-illustration--notes .ci-pencil-body {
+  fill: #ffd54f;
+}
+
+.command-illustration--notes .ci-pencil-eraser {
+  fill: #ff6b6b;
+}
+
+.command-illustration--notes .ci-pencil-tip {
+  fill: #ffe7ad;
+}
+
+.command-illustration--notes .ci-pencil-edge {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
 .ci-title-ai {
   font-size: 22px;
 }
@@ -1663,6 +1749,17 @@ button.round-icon {
   0%, 68%, 100% { transform: rotate(0deg); }
   74% { transform: rotate(-7deg) translateY(-1px); }
   82% { transform: rotate(5deg); }
+}
+
+@keyframes ci-note-pencil-write {
+  0%, 62%, 100% { transform: translate(0, 0) rotate(0deg); }
+  70% { transform: translate(-2px, 2px) rotate(-4deg); }
+  80% { transform: translate(1px, -2px) rotate(5deg); }
+}
+
+@keyframes ci-note-ring-bounce {
+  0%, 72%, 100% { transform: translateY(0); }
+  82% { transform: translateY(-2px); }
 }
 
 @keyframes ci-spin {

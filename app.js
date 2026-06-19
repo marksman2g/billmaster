@@ -2407,12 +2407,29 @@ function commandIllustration(iconName) {
         <rect class="ci-soft" x="43" y="28" width="21" height="15" rx="3"></rect>
       </svg>`,
     notes: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <circle class="ci-coin" cx="48" cy="48" r="34"></circle>
-        <circle class="ci-soft" cx="48" cy="48" r="25"></circle>
-        <text class="ci-title ci-title-notes" x="48" y="53" text-anchor="middle">NOTES</text>
-        <path class="ci-white-line ci-note-line" d="M29 61h38M31 35h34"></path>
-        <path class="ci-spark" d="M24 22l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
+      <svg class="ci-svg ci-notes-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-note-shadow" x="18" y="17" width="54" height="64" rx="9"></rect>
+        <path class="ci-note-page" d="M19 22h51a7 7 0 0 1 7 7v45a7 7 0 0 1-7 7H26a7 7 0 0 1-7-7z"></path>
+        <path class="ci-note-header" d="M19 25h58v17H19z"></path>
+        <g class="ci-note-rings">
+          <path d="M33 21v-8a6 6 0 0 1 12 0v16"></path>
+          <path d="M57 21v-8a6 6 0 0 1 12 0v16"></path>
+        </g>
+        <path class="ci-note-fold-fill" d="M20 66h17L20 81z"></path>
+        <path class="ci-note-fold" d="M20 66h17v15"></path>
+        <g class="ci-note-lines">
+          <path d="M33 51h26"></path>
+          <path d="M33 60h34"></path>
+          <path d="M33 69h24"></path>
+        </g>
+        <circle class="ci-note-dot" cx="27" cy="51" r="2.8"></circle>
+        <circle class="ci-note-dot" cx="27" cy="60" r="2.8"></circle>
+        <g class="ci-note-pencil">
+          <path class="ci-pencil-body" d="M66 67l16-31 8 4-16 31z"></path>
+          <path class="ci-pencil-eraser" d="M82 36l3-6 8 4-3 6z"></path>
+          <path class="ci-pencil-tip" d="M66 67l-4 13 12-9z"></path>
+          <path class="ci-pencil-edge" d="M66 67l16-31 8 4-16 31-12 9z"></path>
+        </g>
       </svg>`,
     projects: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
