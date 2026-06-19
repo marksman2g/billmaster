@@ -1497,7 +1497,16 @@ button.round-icon {
 }
 
 .command-illustration--reviewInbox .ci-review-envelope {
-  animation: ci-review-envelope-pulse 4.6s ease-in-out infinite;
+  animation: ci-review-envelope-pulse 3.8s ease-in-out infinite;
+  filter: drop-shadow(0 5px 8px rgba(24, 33, 62, 0.12));
+}
+
+.command-illustration--reviewInbox .ci-review-envelope-body {
+  animation: ci-review-envelope-flash 3.8s ease-in-out infinite;
+}
+
+.command-illustration--reviewInbox .ci-review-envelope-fold {
+  animation: ci-review-envelope-fold-flash 3.8s ease-in-out infinite;
 }
 
 .command-illustration--habits .ci-pulse,
@@ -2089,8 +2098,30 @@ button.round-icon {
 }
 
 @keyframes ci-review-envelope-pulse {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(1.2px); }
+  0%, 100% {
+    transform: translateY(0);
+    filter: drop-shadow(0 5px 8px rgba(24, 33, 62, 0.12));
+  }
+  42% {
+    transform: translateY(1px);
+    filter: drop-shadow(0 0 12px rgba(108, 99, 255, 0.38));
+  }
+  58% {
+    transform: translateY(0);
+    filter: drop-shadow(0 0 6px rgba(0, 188, 212, 0.22));
+  }
+}
+
+@keyframes ci-review-envelope-flash {
+  0%, 100% { fill: #ffffff; }
+  42% { fill: #eef6ff; }
+  58% { fill: #f8fbff; }
+}
+
+@keyframes ci-review-envelope-fold-flash {
+  0%, 100% { stroke: #11182e; }
+  42% { stroke: #244e8f; }
+  58% { stroke: #18345f; }
 }
 
 @keyframes ci-pulse {
