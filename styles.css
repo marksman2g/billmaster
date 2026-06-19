@@ -1214,6 +1214,47 @@ button.round-icon {
   font-size: 13px;
 }
 
+.command-illustration--bills {
+  background:
+    radial-gradient(circle at 72% 74%, rgba(255, 193, 7, 0.32), transparent 30%),
+    radial-gradient(circle at 26% 22%, rgba(255, 59, 48, 0.36), transparent 36%),
+    linear-gradient(145deg, #fff0f0, #fffafa);
+  border-color: rgba(255, 59, 48, 0.56);
+  box-shadow:
+    0 16px 32px rgba(255, 59, 48, 0.18),
+    0 0 0 1px rgba(255, 59, 48, 0.1) inset;
+}
+
+.command-illustration--bills .ci-bills-svg {
+  filter: drop-shadow(0 7px 9px rgba(255, 59, 48, 0.22));
+}
+
+.command-illustration--bills .ci-bills-backing {
+  fill: #ffc6c6;
+}
+
+.command-illustration--bills .ci-bills-paper {
+  fill: #fff7f7;
+  stroke: #ff3b30;
+  stroke-width: 4.6;
+}
+
+.command-illustration--bills .ci-bills-title {
+  fill: #d71920;
+  font-size: 16px;
+}
+
+.command-illustration--bills .ci-bills-lines {
+  stroke: #7b1017;
+}
+
+.command-illustration--bills .ci-bills-dollar {
+  fill: #11182e;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-bills-dollar-gold 2.1s ease-in-out infinite;
+}
+
 .command-illustration--notes {
   background:
     radial-gradient(circle at 24% 20%, rgba(255, 193, 7, 0.28), transparent 32%),
@@ -2308,6 +2349,19 @@ button.round-icon {
 @keyframes ci-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.13); opacity: .82; }
+}
+
+@keyframes ci-bills-dollar-gold {
+  0%, 100% {
+    fill: #11182e;
+    filter: drop-shadow(0 0 0 rgba(255, 193, 7, 0));
+    transform: scale(1);
+  }
+  50% {
+    fill: #ffc107;
+    filter: drop-shadow(0 0 8px rgba(255, 193, 7, .92));
+    transform: scale(1.14);
+  }
 }
 
 @keyframes ci-address-color-cycle {

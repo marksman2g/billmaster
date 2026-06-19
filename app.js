@@ -2359,12 +2359,12 @@ function commandIllustration(iconName) {
         </g>
       </svg>`,
     bills: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <path class="ci-alt" d="M22 18l48-8 8 62-48 8z"></path>
-        <path class="ci-paper" d="M17 14h54v68l-9-5-9 5-9-5-9 5-9-5-9 5z"></path>
-        <text class="ci-title" x="44" y="33" text-anchor="middle">BILL</text>
-        <path class="ci-line" d="M27 45h34M27 56h25M27 67h18"></path>
-        <text class="ci-dollar ci-dollar-small" x="58" y="71">$</text>
+      <svg class="ci-svg ci-bills-svg" viewBox="0 0 96 96" role="img">
+        <path class="ci-alt ci-bills-backing" d="M22 18l48-8 8 62-48 8z"></path>
+        <path class="ci-paper ci-bills-paper" d="M17 14h54v68l-9-5-9 5-9-5-9 5-9-5-9 5z"></path>
+        <text class="ci-title ci-bills-title" x="44" y="33" text-anchor="middle">BILL</text>
+        <path class="ci-line ci-bills-lines" d="M27 45h34M27 56h25M27 67h18"></path>
+        <text class="ci-dollar ci-dollar-small ci-bills-dollar" x="58" y="71">$</text>
       </svg>`,
     goals: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
