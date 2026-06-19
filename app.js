@@ -2379,11 +2379,18 @@ function commandIllustration(iconName) {
       </svg>`,
     loans: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <path class="ci-line" d="M20 75c11-10 21-10 33-3 9 5 19 2 28-7"></path>
-        <path class="ci-dark" d="M34 16h35l10 17H24z"></path>
-        <path class="ci-line" d="M30 37v25M47 37v22M64 37v25"></path>
-        <circle class="ci-coin" cx="52" cy="57" r="17"></circle>
-        <text class="ci-dollar" x="52" y="63" text-anchor="middle">$</text>
+        <g class="ci-loan-paper">
+          <rect class="ci-paper" x="12" y="13" width="47" height="64" rx="7"></rect>
+          <path class="ci-loan-clip" d="M28 10h16a4 4 0 0 1 4 4v6H24v-6a4 4 0 0 1 4-4z"></path>
+          <text class="ci-title ci-title-loan" x="35.5" y="37" text-anchor="middle">Loan</text>
+          <path class="ci-line ci-loan-lines" d="M24 48h23M24 57h23M24 66h17"></path>
+        </g>
+        <g class="ci-loan-bag">
+          <path class="ci-loan-bag-tie" d="M66 33l-6-8 7 3 7-3-4 8"></path>
+          <path class="ci-money" d="M58 34c-10 8-16 19-16 31 0 10 8 17 25 17s25-7 25-17c0-12-6-23-16-31z"></path>
+          <text class="ci-dollar ci-loan-dollar" x="67" y="66" text-anchor="middle">$</text>
+          <path class="ci-loan-shine" d="M54 50c2-5 6-8 11-10"></path>
+        </g>
       </svg>`,
     notebooks: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">

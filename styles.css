@@ -1200,6 +1200,11 @@ button.round-icon {
   letter-spacing: 0.04em;
 }
 
+.ci-title-loan {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
 .ci-title-project {
   font-size: 10px;
 }
@@ -1224,10 +1229,41 @@ button.round-icon {
   stroke-width: 3;
 }
 
+.ci-loan-clip {
+  fill: #fff;
+  stroke: #11182e;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.ci-loan-lines {
+  stroke-width: 3.4;
+}
+
+.ci-loan-bag-tie {
+  fill: #ffd84a;
+  stroke: #11182e;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.ci-loan-shine {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.ci-loan-dollar {
+  font-size: 25px;
+}
+
 .ci-pencil,
 .ci-gear,
 .ci-spark,
 .ci-coin,
+.ci-loan-paper,
+.ci-loan-bag,
 .ci-pulse,
 .ci-check-badge {
   transform-box: fill-box;
@@ -1244,10 +1280,17 @@ button.round-icon {
 }
 
 .command-illustration--tracking .ci-coin,
-.command-illustration--loans .ci-coin,
 .command-illustration--notes .ci-coin,
 .command-illustration--calendar .ci-check-badge {
   animation: ci-soft-pop 3.8s ease-in-out infinite;
+}
+
+.command-illustration--loans .ci-loan-paper {
+  animation: ci-loan-paper-float 5.2s ease-in-out infinite;
+}
+
+.command-illustration--loans .ci-loan-bag {
+  animation: ci-loan-bag-pop 3.6s ease-in-out infinite;
 }
 
 .command-illustration--habits .ci-pulse,
@@ -1530,6 +1573,17 @@ button.round-icon {
   0%, 70%, 100% { transform: scale(1); }
   78% { transform: scale(1.08); }
   86% { transform: scale(.98); }
+}
+
+@keyframes ci-loan-paper-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+@keyframes ci-loan-bag-pop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-3px) scale(1.05); }
+  65% { transform: translateY(-1px) scale(1.02); }
 }
 
 @keyframes ci-pulse {
