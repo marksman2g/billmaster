@@ -2446,12 +2446,23 @@ function commandIllustration(iconName) {
         <circle class="ci-soft" cx="66" cy="73" r="7"></circle>
       </svg>`,
     contacts: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <rect class="ci-paper" x="15" y="15" width="66" height="66" rx="15"></rect>
-        <path class="ci-alt" d="M57 15h24v54c0 7-5 12-12 12H57z"></path>
-        <path class="ci-accent" d="M69 16h12v22H69zM69 38h12v20H69zM69 58h12v11c0 6-5 12-12 12z"></path>
-        <circle class="ci-soft" cx="42" cy="41" r="13"></circle>
-        <path class="ci-thin" d="M21 69c5-13 16-19 27-17 10 2 18 8 22 17"></path>
+      <svg class="ci-svg ci-contact-svg" viewBox="0 0 96 96" role="img">
+        <rect class="ci-contact-card" x="13" y="13" width="70" height="70" rx="16"></rect>
+        <path class="ci-contact-shadow" d="M18 78c5-16 17-25 31-25 14 0 25 9 30 25z"></path>
+        <path class="ci-contact-shoulder" d="M20 77c6-13 16-20 29-20 12 0 23 7 28 20z"></path>
+        <path class="ci-contact-neck" d="M42 53c1 8 4 13 11 17H34c6-4 8-10 8-17z"></path>
+        <path class="ci-contact-head" d="M50 22c13 0 22 9 22 21 0 5-2 9-6 12l-8 5c-5 3-10 3-15 0-8-4-12-11-12-20 0-11 7-18 19-18z"></path>
+        <path class="ci-contact-profile" d="M62 35c4 3 7 7 11 10l-8 4c-1 7-7 12-15 12"></path>
+        <circle class="ci-contact-eye" cx="58" cy="39" r="2"></circle>
+        <path class="ci-contact-hair" d="M49 21c-13 1-22 9-24 21-1 8 3 15 8 20 1-10 4-18 12-23 6-4 13-5 24-3-3-9-10-15-20-15z"></path>
+        <g class="ci-contact-locks">
+          <path class="ci-contact-lock" d="M34 28c-8 8-9 19-4 29"></path>
+          <path class="ci-contact-lock" d="M40 24c-8 10-9 22-3 34"></path>
+          <path class="ci-contact-lock" d="M46 22c-7 10-7 22-1 35"></path>
+          <path class="ci-contact-lock" d="M28 38c-5 8-4 16 2 22"></path>
+        </g>
+        <path class="ci-contact-highlight" d="M52 29c6 1 10 4 13 9"></path>
+        <circle class="ci-contact-spark" cx="69" cy="25" r="3"></circle>
       </svg>`,
     addresses: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">

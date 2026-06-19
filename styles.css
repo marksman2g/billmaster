@@ -1301,6 +1301,90 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.ci-contact-svg {
+  overflow: visible;
+}
+
+.ci-contact-card {
+  fill: #f8fbff;
+  stroke: rgba(34, 83, 160, 0.22);
+  stroke-width: 2.2;
+}
+
+.ci-contact-shadow {
+  fill: rgba(24, 33, 62, 0.08);
+}
+
+.ci-contact-shoulder {
+  fill: #c9d2dd;
+  stroke: #11182e;
+  stroke-width: 3.4;
+  stroke-linejoin: round;
+}
+
+.ci-contact-neck {
+  fill: #dce5ee;
+  stroke: #11182e;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.ci-contact-head {
+  fill: #d7e0ea;
+  stroke: #11182e;
+  stroke-width: 3.6;
+  stroke-linejoin: round;
+}
+
+.ci-contact-profile {
+  fill: none;
+  stroke: #11182e;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ci-contact-hair {
+  fill: #1a1f36;
+  stroke: #11182e;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.ci-contact-lock {
+  fill: none;
+  stroke: #1a1f36;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.ci-contact-highlight {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.78);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.ci-contact-eye {
+  fill: #11182e;
+  animation: ci-contact-blink 5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ci-contact-locks {
+  animation: ci-contact-lock-sway 5.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ci-contact-spark {
+  fill: #4caf50;
+  animation: ci-contact-spark 3.5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 .command-illustration--goals {
   background:
     radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.9), transparent 30%),
@@ -2046,6 +2130,37 @@ button.round-icon {
 @keyframes ci-note-ring-bounce {
   0%, 72%, 100% { transform: translateY(0); }
   82% { transform: translateY(-2px); }
+}
+
+@keyframes ci-contact-lock-sway {
+  0%, 100% {
+    transform: rotate(-1deg) translateX(0);
+  }
+  50% {
+    transform: rotate(2deg) translateX(1px);
+  }
+}
+
+@keyframes ci-contact-blink {
+  0%, 88%, 100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  92% {
+    transform: scaleY(0.18);
+    opacity: 0.85;
+  }
+}
+
+@keyframes ci-contact-spark {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  45% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
 }
 
 @keyframes ci-goals-ring-blink {
