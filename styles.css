@@ -1589,6 +1589,178 @@ button.round-icon {
   letter-spacing: .08em;
 }
 
+.command-illustration--ai {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(0, 229, 255, 0.24), transparent 34%),
+    radial-gradient(circle at 72% 72%, rgba(255, 79, 216, 0.22), transparent 30%),
+    linear-gradient(145deg, #120722, #070418);
+  border-color: rgba(108, 99, 255, 0.46);
+  box-shadow: 0 14px 30px rgba(11, 6, 34, 0.24);
+}
+
+.command-illustration--ai .ci-ai-halo {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: #6c63ff;
+  stroke-width: 2.2;
+  stroke-dasharray: 8 10;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-ai-orbit-ring 9s linear infinite;
+}
+
+.command-illustration--ai .ci-ai-head-glow {
+  fill: none;
+  stroke: #00e5ff;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.18;
+  filter: blur(0.7px);
+  animation: ci-ai-glow-breathe 3.8s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-head {
+  fill: #0c0926;
+  stroke: #ff4fd8;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.command-illustration--ai .ci-ai-brain-fill {
+  fill: #f5f1ff;
+  stroke: #00e5ff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 4px 8px rgba(0, 229, 255, 0.28));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-ai-brain-breathe 4s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-fold {
+  fill: none;
+  stroke: #6c63ff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 68;
+  animation: ci-ai-circuit-draw 4.4s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-circuit {
+  fill: none;
+  stroke: #00e5ff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 50;
+  animation: ci-ai-circuit-draw 3.8s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-node {
+  fill: #00e5ff;
+  filter: drop-shadow(0 0 7px rgba(0, 229, 255, 0.8));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-ai-node-pop 2.4s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-node-2 {
+  animation-delay: 0.45s;
+}
+
+.command-illustration--ai .ci-ai-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.8));
+  animation: ci-ai-star-orbit 5.8s ease-in-out infinite;
+}
+
+.command-illustration--ai .ci-ai-spark-1 {
+  fill: #00e5ff;
+}
+
+.command-illustration--ai .ci-ai-spark-2 {
+  fill: #ff4fd8;
+  animation-delay: 0.85s;
+}
+
+.command-illustration--ai .ci-ai-spark-3 {
+  fill: #f6fbff;
+  animation-delay: 1.45s;
+}
+
+.command-illustration--ai .ci-ai-label {
+  fill: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+@keyframes ci-ai-orbit-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ci-ai-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.34;
+  }
+}
+
+@keyframes ci-ai-brain-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.025);
+  }
+}
+
+@keyframes ci-ai-circuit-draw {
+  0%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.75;
+  }
+  50% {
+    stroke-dashoffset: -30;
+    opacity: 1;
+  }
+}
+
+@keyframes ci-ai-node-pop {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes ci-ai-star-orbit {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(0.9);
+    opacity: 0.74;
+  }
+  50% {
+    transform: translate(2px, -3px) scale(1.16);
+    opacity: 1;
+  }
+}
+
 .ci-spin-slow {
   transform-origin: 48px 48px;
   animation: ci-sync-spin 7s linear infinite;
@@ -1958,7 +2130,11 @@ button.round-icon {
   .action-tile--tasks .round-icon,
   .action-tile--bills .round-icon,
   .action-tile--notes .round-icon,
-  .action-tile--projects .round-icon {
+  .action-tile--projects .round-icon,
+  .day-cell.is-today::after,
+  .week-day.is-today::after,
+  .week-timetable-day-head.is-today::after,
+  .block-head-button.is-today::after {
     animation: none;
   }
 
@@ -6427,11 +6603,16 @@ canvas {
 }
 
 .weekday {
-  color: var(--muted);
+  min-height: 26px;
+  padding: 6px 4px;
+  color: #10233d;
   text-align: center;
   font-size: 0.76rem;
   font-weight: 760;
   text-transform: uppercase;
+  background: var(--day-color, transparent);
+  border: 1px solid rgba(26, 31, 54, 0.12);
+  border-radius: 8px;
 }
 
 .day-cell {
@@ -6440,15 +6621,17 @@ canvas {
   padding: 6px 4px;
   overflow: hidden;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  color: #10233d;
+  background: var(--day-color, var(--surface));
+  border: 1px solid rgba(26, 31, 54, 0.18);
   border-radius: 8px;
 }
 
 .day-cell.is-selected {
-  color: #fff;
-  background: var(--blue);
-  border-color: var(--blue);
+  color: #10233d;
+  background: var(--day-color, var(--surface));
+  border-color: rgba(26, 31, 54, 0.45);
+  box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24), 0 10px 22px rgba(26, 31, 54, 0.12);
 }
 
 .day-cell.is-today {
@@ -6456,19 +6639,27 @@ canvas {
   box-shadow: inset 0 0 0 2px rgba(33, 150, 243, 0.16), 0 10px 24px rgba(33, 150, 243, 0.08);
 }
 
-.day-cell.is-today:not(.is-selected)::after,
-.week-day.is-today:not(.active)::after,
+.day-cell.is-today::after,
+.week-day.is-today::after,
+.week-timetable-day-head.is-today::after,
 .block-head-button.is-today::after {
-  content: "";
+  content: "★";
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  background: #e5487a;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(229, 72, 122, 0.28);
+  top: 6px;
+  right: 7px;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  color: #fff8a8;
+  background: radial-gradient(circle, rgba(255, 205, 57, 0.96) 0 42%, rgba(229, 72, 122, 0.86) 43% 68%, rgba(229, 72, 122, 0) 69%);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(83, 47, 0, 0.45), 0 0 8px rgba(255, 245, 143, 0.95);
+  pointer-events: none;
+  animation: today-star-pulse 1.55s ease-in-out infinite;
 }
 
 .day-cell.is-selected.is-today {
@@ -6495,12 +6686,16 @@ canvas {
 
 .date-cell-content {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   align-content: start;
   justify-items: center;
   min-height: 52px;
   pointer-events: none;
+}
+
+.date-cell-content .subtle {
+  line-height: 1.15;
 }
 
 .date-cell-content > strong {
@@ -6520,7 +6715,7 @@ canvas {
 .date-view-zones {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -6537,11 +6732,11 @@ canvas {
   border: 0;
   border-radius: 0;
   cursor: pointer;
-  opacity: 0.01;
+  opacity: 1;
   pointer-events: auto;
   touch-action: manipulation;
   -webkit-tap-highlight-color: rgba(33, 150, 243, 0.18);
-  transition: background 120ms ease, opacity 120ms ease;
+  transition: background 120ms ease, box-shadow 120ms ease, filter 120ms ease;
 }
 
 .date-zone.top-left {
@@ -6551,11 +6746,19 @@ canvas {
 
 .date-zone.top-right {
   grid-area: 1 / 2;
+  background: rgba(16, 35, 61, 0.1);
   border-top-right-radius: 8px;
 }
 
 .date-zone.bottom-left {
   grid-area: 2 / 1;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(16, 35, 61, 0.16) 0,
+    rgba(16, 35, 61, 0.16) 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 8px
+  );
   border-bottom-left-radius: 8px;
 }
 
@@ -6566,8 +6769,8 @@ canvas {
 
 .date-zone:hover,
 .date-zone:focus-visible {
-  opacity: 1;
   outline: none;
+  box-shadow: inset 0 0 0 2px rgba(16, 35, 61, 0.18);
 }
 
 .date-zone.top-left:hover,
@@ -6577,17 +6780,39 @@ canvas {
 
 .date-zone.top-right:hover,
 .date-zone.top-right:focus-visible {
-  background: rgba(33, 150, 243, 0.18);
+  background: rgba(16, 35, 61, 0.18);
 }
 
 .date-zone.bottom-left:hover,
 .date-zone.bottom-left:focus-visible {
-  background: rgba(0, 188, 212, 0.18);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(16, 35, 61, 0.24) 0,
+      rgba(16, 35, 61, 0.24) 2px,
+      rgba(255, 255, 255, 0.04) 2px,
+      rgba(255, 255, 255, 0.04) 8px
+    );
 }
 
 .date-zone.bottom-right:hover,
 .date-zone.bottom-right:focus-visible {
   background: rgba(76, 175, 80, 0.18);
+}
+
+@keyframes today-star-pulse {
+  0%, 100% {
+    transform: scale(0.88) rotate(-8deg);
+    opacity: 0.72;
+    filter: drop-shadow(0 0 4px rgba(255, 205, 57, 0.65));
+  }
+
+  50% {
+    transform: scale(1.18) rotate(8deg);
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(255, 205, 57, 0.95));
+  }
 }
 
 .week-strip {
@@ -6603,15 +6828,17 @@ canvas {
   padding: 7px 3px;
   overflow: hidden;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  color: #10233d;
+  background: var(--day-color, var(--surface));
+  border: 1px solid rgba(26, 31, 54, 0.18);
   border-radius: 8px;
 }
 
 .week-day.active {
-  color: #fff;
-  background: var(--blue);
-  border-color: var(--blue);
+  color: #10233d;
+  background: var(--day-color, var(--surface));
+  border-color: rgba(26, 31, 54, 0.48);
+  box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24), 0 10px 20px rgba(26, 31, 54, 0.12);
 }
 
 .week-day.is-today {
@@ -6620,12 +6847,12 @@ canvas {
 }
 
 .week-day.active.is-today {
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45), 0 12px 22px rgba(33, 150, 243, 0.14);
+  box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24), 0 12px 22px rgba(33, 150, 243, 0.14);
 }
 
 .week-day.copy-target {
   border-color: var(--purple);
-  background: linear-gradient(135deg, rgba(108, 99, 255, 0.14), rgba(0, 188, 212, 0.12));
+  background: var(--day-color, linear-gradient(135deg, rgba(108, 99, 255, 0.14), rgba(0, 188, 212, 0.12)));
   box-shadow: inset 0 0 0 2px rgba(108, 99, 255, 0.22), 0 10px 20px rgba(108, 99, 255, 0.12);
 }
 
@@ -6684,12 +6911,12 @@ canvas {
   --week-row-height: 48px;
   display: grid;
   grid-template-columns: 88px repeat(7, minmax(112px, 1fr));
-  grid-template-rows: 58px auto;
+  grid-template-rows: 92px auto;
   min-width: 900px;
 }
 
 .week-timetable-head {
-  min-height: 58px;
+  min-height: 92px;
   padding: 6px 8px;
   color: #10233d;
   background: #fff;
@@ -6713,9 +6940,10 @@ canvas {
   line-height: 1.05;
   background: var(--day-color);
   cursor: pointer;
+  overflow: hidden;
 }
 
-.week-timetable-day-head span {
+.week-timetable-day-head > span {
   font-size: 0.76rem;
   color: rgba(16, 35, 61, 0.72);
   text-transform: none;
@@ -6731,6 +6959,36 @@ canvas {
   font-size: 1.12rem;
 }
 
+.week-timetable-day-head .date-view-zones {
+  border-radius: 0;
+}
+
+.week-timetable-day-head .date-cell-content {
+  width: 100%;
+  min-height: 80px;
+  align-content: center;
+  color: #10233d;
+}
+
+.week-timetable-day-head .date-cell-content .subtle {
+  color: rgba(16, 35, 61, 0.72);
+  font-size: 0.72rem;
+  font-weight: 840;
+}
+
+.week-timetable-day-head .weather-mini {
+  margin-top: 2px;
+}
+
+.week-timetable-day-head .event-dots {
+  margin-top: 3px;
+}
+
+.week-timetable-day-head .hour-chip {
+  margin-top: 3px;
+  background: rgba(33, 150, 243, 0.9);
+}
+
 .week-timetable-day-head em {
   padding: 1px 7px;
   color: #0b6fd7;
@@ -6742,17 +7000,6 @@ canvas {
 
 .week-timetable-day-head.is-selected {
   box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24);
-}
-
-.week-timetable-day-head.is-today::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  background: #ff4d8d;
-  border-radius: 999px;
 }
 
 .week-time-scale {
@@ -6844,8 +7091,21 @@ canvas {
   }
 
   .week-timetable-head {
-    min-height: 40px;
+    min-height: 86px;
+    padding: 5px;
     font-size: 0.72rem;
+  }
+
+  .week-timetable-day-head .date-cell-content {
+    min-height: 76px;
+  }
+
+  .week-timetable-day-head .date-cell-content .subtle {
+    font-size: 0.66rem;
+  }
+
+  .week-timetable-day-head strong {
+    font-size: 1rem;
   }
 
   .week-timetable-event {
@@ -7488,11 +7748,11 @@ canvas {
 
 .block-calendar {
   display: grid;
-  grid-template-columns: 58px repeat(7, minmax(76px, 1fr)) 58px;
-  grid-template-rows: 60px var(--block-day-height, 1440px);
+  grid-template-columns: 88px repeat(7, minmax(112px, 1fr)) 88px;
+  grid-template-rows: 92px var(--block-day-height, 1440px);
   position: relative;
-  min-width: 840px;
-  height: calc(60px + var(--block-day-height, 1440px));
+  min-width: max(960px, calc(100% + 88px));
+  height: calc(92px + var(--block-day-height, 1440px));
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -7586,45 +7846,46 @@ canvas {
 .block-head {
   position: relative;
   grid-row: 1;
-  height: 60px;
-  padding: 7px 4px 5px;
+  height: 92px;
+  padding: 6px 8px;
   text-align: center;
-  color: var(--muted);
+  color: #10233d;
   font-size: 0.75rem;
   font-weight: 800;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid rgba(26, 31, 54, 0.24);
+  border-bottom: 1px solid rgba(26, 31, 54, 0.24);
 }
 
 .block-head-button {
   width: 100%;
   font: inherit;
-  background: transparent;
+  overflow: hidden;
+  background: var(--day-color, transparent);
   border-top: 0;
   border-left: 0;
   cursor: pointer;
 }
 
 .block-head-button:hover {
-  color: var(--navy-2);
-  background: #eef6ff;
+  color: #10233d;
+  filter: saturate(1.08);
+  box-shadow: inset 0 0 0 2px rgba(26, 31, 54, 0.18);
 }
 
 .block-head-button.is-today {
-  color: var(--navy-2);
-  background: linear-gradient(180deg, rgba(33, 150, 243, 0.12), rgba(255, 255, 255, 0.85));
+  color: #10233d;
+  background: var(--day-color, transparent);
   box-shadow: inset 0 -3px 0 rgba(33, 150, 243, 0.36);
 }
 
 .block-head-button.is-selected-day {
-  color: #fff;
-  background: linear-gradient(180deg, #2e9df5, #177bd1);
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.16), 0 10px 22px rgba(33, 150, 243, 0.22);
+  color: #10233d;
+  background: var(--day-color, transparent);
+  box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24), 0 10px 22px rgba(26, 31, 54, 0.12);
 }
 
-.block-head-button.is-selected-day .block-head-date,
-.block-head-button.is-selected-day .block-head-hours {
-  color: #fff;
+.block-head-button.is-selected-day .date-cell-content {
+  color: #10233d;
 }
 
 .block-head span {
@@ -7633,30 +7894,36 @@ canvas {
 
 .time-head {
   color: var(--text);
+  background: #8cf21f;
 }
 
-.block-head-date {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  color: var(--muted);
-  line-height: 1.05;
+.block-head-button .date-view-zones {
+  border-radius: 0;
 }
 
-.block-head-weather {
-  display: flex;
-  justify-content: center;
+.block-head-button .date-cell-content {
   width: 100%;
-  min-height: 18px;
+  min-height: 80px;
+  align-content: center;
+  color: #10233d;
+}
+
+.block-head-button .date-cell-content .subtle {
+  color: rgba(16, 35, 61, 0.72);
+  font-size: 0.72rem;
+  font-weight: 840;
+}
+
+.block-head-button .weather-mini {
   margin-top: 2px;
 }
 
-.block-head-hours {
-  display: block;
-  margin-top: 2px;
-  color: var(--blue);
-  line-height: 1;
+.block-head-button .event-dots {
+  margin-top: 3px;
+}
+
+.block-head-button .hour-chip {
+  margin-top: 3px;
 }
 
 .block-col.is-today {
@@ -10738,7 +11005,7 @@ canvas {
   }
 
   .block-calendar {
-    min-width: 760px;
+    min-width: max(960px, calc(100% + 88px));
     touch-action: pan-x pan-y pinch-zoom;
   }
 

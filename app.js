@@ -95,6 +95,7 @@
   const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
   const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
   const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const calendarWeekdayColors = ["#ff6b6b", "#ffd54f", "#6ee7b7", "#e879f9", "#67e8f9", "#a3e635", "#fb7185"];
   const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
   const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
@@ -2492,23 +2493,18 @@ function commandIllustration(iconName) {
       </svg>`,
     ai: `
       <svg class="ci-svg ci-ai-svg" viewBox="0 0 96 96" role="img">
-        <defs>
-          <linearGradient id="ci-ai-neon-gradient" x1="17" y1="78" x2="82" y2="15" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stop-color="#ff4fd8"></stop>
-            <stop offset="0.52" stop-color="#6c63ff"></stop>
-            <stop offset="1" stop-color="#00e5ff"></stop>
-          </linearGradient>
-        </defs>
-        <rect class="ci-ai-stage" x="9" y="9" width="78" height="78" rx="20"></rect>
-        <path class="ci-ai-profile-glow" d="M56 18c14 2 25 14 25 29 0 12-6 22-16 28M58 75H43c-12 0-22-9-22-21 0-7 4-14 10-18 3-11 13-19 25-18"></path>
-        <path class="ci-ai-profile" d="M56 18c14 2 25 14 25 29 0 12-6 22-16 28M58 75H43c-12 0-22-9-22-21 0-7 4-14 10-18 3-11 13-19 25-18"></path>
-        <rect class="ci-ai-bubble" x="29" y="30" width="44" height="27" rx="13"></rect>
-        <path class="ci-ai-tail" d="M42 56l-9 9 2-13"></path>
-        <circle class="ci-ai-dot ci-ai-dot-1" cx="42" cy="43" r="3"></circle>
-        <circle class="ci-ai-dot ci-ai-dot-2" cx="52" cy="43" r="3"></circle>
-        <circle class="ci-ai-dot ci-ai-dot-3" cx="62" cy="43" r="3"></circle>
-        <path class="ci-ai-spark" d="M75 20l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
-        <text class="ci-ai-label" x="48" y="82" text-anchor="middle">AI</text>
+        <circle class="ci-ai-halo" cx="48" cy="48" r="37"></circle>
+        <path class="ci-ai-head-glow" d="M33 73c-8-7-12-16-10-28 2-13 13-24 27-25 16-2 30 9 32 25 1 11-4 21-13 27v9H54v-8H43c-4 0-7-1-10-3z"></path>
+        <path class="ci-ai-head" d="M33 73c-8-7-12-16-10-28 2-13 13-24 27-25 16-2 30 9 32 25 1 11-4 21-13 27v9H54v-8H43c-4 0-7-1-10-3z"></path>
+        <path class="ci-ai-brain-fill" d="M36 49c-5-1-9-5-9-11 0-6 5-11 11-11 2-6 8-10 15-9 6 1 10 5 12 10 6 1 10 6 10 12 0 6-4 11-10 12-2 5-7 9-14 9-6 0-11-3-15-12z"></path>
+        <path class="ci-ai-fold ci-ai-fold-1" d="M38 30c4 2 6 5 5 10m9-18c-2 4-1 8 3 11m-20 15c4-3 9-3 13 0m6-11c5 0 9 3 11 8m-12 9c2-3 5-5 10-5"></path>
+        <path class="ci-ai-circuit" d="M33 67h15m0 0v-7m0 7h14m0 0v-9"></path>
+        <circle class="ci-ai-node ci-ai-node-1" cx="48" cy="60" r="2.6"></circle>
+        <circle class="ci-ai-node ci-ai-node-2" cx="62" cy="58" r="2.6"></circle>
+        <path class="ci-ai-spark ci-ai-spark-1" d="M22 23l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
+        <path class="ci-ai-spark ci-ai-spark-2" d="M75 16l1.6 4.8 4.8 1.6-4.8 1.6-1.6 4.8-1.6-4.8-4.8-1.6 4.8-1.6z"></path>
+        <path class="ci-ai-spark ci-ai-spark-3" d="M77 64l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"></path>
+        <text class="ci-ai-label" x="48" y="86" text-anchor="middle">AI</text>
       </svg>`
   };
 
@@ -4396,7 +4392,7 @@ function quickAction(action) {
       days.push(isoDate(date));
     }
     return `<div class="month-grid">
-      ${weekdays.map((d) => `<div class="weekday">${d}</div>`).join("")}
+      ${weekdays.map((d, index) => `<div class="weekday" style="--day-color:${calendarWeekdayColors[index]};">${d}</div>`).join("")}
       ${days.map((iso) => monthDayCell(iso, month, year)).join("")}
     </div>
     <div class="calendar-summary">${icon("calendar")} <strong>Month Total: ${hoursForMonth()}h</strong><span class="muted">Bills</span><span class="muted">Tasks</span><span class="muted">Subscriptions</span></div>`;
@@ -4411,7 +4407,7 @@ function quickAction(action) {
     const tasks = calendarItemsForDay(iso).filter((task) => task.includeHours);
     const bill = data.bills.find((b) => b.dueDate === iso);
     const sub = data.subscriptions.find((s) => s.nextDate === iso);
-    return `<div class="day-cell ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" style="${inMonth ? "" : "opacity:.42"}">
+    return `<div class="day-cell ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
       ${dateViewZones(iso)}
       <div class="date-cell-content">
         <strong>${day}</strong>
@@ -4426,11 +4422,10 @@ function quickAction(action) {
     const dates = weekDates();
     const timetableDates = dates;
     const weekTasks = calendarItemsForRange(timetableDates[0], timetableDates[6]);
-    return `<div class="week-strip">${dates.map((iso) => weekDayButton(iso)).join("")}</div>
-      <div class="week-timetable" aria-label="Weekly time grid">
+    return `<div class="week-timetable" aria-label="Weekly time grid">
         <div class="week-timetable-grid">
           <div class="week-timetable-head week-timetable-time-head">Time</div>
-          ${timetableDates.map((iso, index) => weekTimetableHeader(iso, index)).join("")}
+          ${timetableDates.map((iso) => weekTimetableHeader(iso)).join("")}
           <div class="week-time-scale">${weekTimetableHours().map((hour) => `<div class="week-time-row">${String(hour).padStart(2, "0")}:00</div>`).join("")}</div>
           ${timetableDates.map((iso, index) => weekTimetableColumn(iso, index)).join("")}
         </div>
@@ -4446,18 +4441,13 @@ function quickAction(action) {
     return Array.from({ length: 13 }, (_, index) => index + 7);
   }
 
-  function weekTimetableHeader(iso, index) {
-    const date = parseLocalDate(iso);
-    const dayHours = round1(totalTaskHours(calendarItemsForDay(iso)));
+  function weekTimetableHeader(iso) {
     const isSelected = iso === ui.selectedDate;
     const isToday = iso === todayIso();
-    const colors = ["#ff6b6b", "#ffd54f", "#6ee7b7", "#e879f9", "#67e8f9", "#a3e635", "#fb7185"];
-    return `<button class="week-timetable-head week-timetable-day-head ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="--day-color:${colors[index]};" data-action="set-calendar-date-view" data-date="${iso}" data-view="day" title="Open ${dateLabel(iso)} in Day view">
-      <span>${date.toLocaleDateString("en-US", { weekday: "short" })}</span>
-      <strong>${date.getDate()}</strong>
-      ${weatherChip(iso, "mini")}
-      ${dayHours ? `<em>${dayHours}h</em>` : ""}
-    </button>`;
+    return `<div class="week-timetable-head week-timetable-day-head ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateLabel(iso)}">
+      ${dateViewZones(iso)}
+      ${calendarDateCardContent(iso)}
+    </div>`;
   }
 
   function weekTimetableColumn(iso, index) {
@@ -4535,22 +4525,35 @@ function quickAction(action) {
   }
 
   function weekDayButton(iso) {
-    const d = new Date(`${iso}T12:00:00`);
-    const tasks = calendarItemsForDay(iso);
-    const dayHours = round1(totalTaskHours(tasks));
     const isToday = iso === todayIso();
     const isCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && ui.dayCopyTargetDate === iso && iso !== ui.selectedDate;
     const canPickCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && iso !== ui.selectedDate;
-    return `<div class="week-day ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" data-double-date="${iso}" data-copy-target-date="${iso}">
+    return `<div class="week-day ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" data-copy-target-date="${iso}">
       ${dateViewZones(iso)}
-      <div class="date-cell-content">
-        <div class="subtle">${d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-        <strong>${d.getDate()}</strong>
-        ${weatherChip(iso, "mini")}
-        <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${data.bills.some((b) => b.dueDate === iso) ? `<span class="dot coral"></span>` : ""}</div>
-        ${dayHours ? `<span class="hour-chip">${dayHours}h</span>` : ""}
-      </div>
+      ${calendarDateCardContent(iso)}
       ${canPickCopyTarget ? `<button class="copy-here-chip" data-action="select-day-copy-target" data-date="${iso}">${isCopyTarget ? `${icon("check")} Target` : "Copy here"}</button>` : ""}
+    </div>`;
+  }
+
+  function calendarDateColor(iso) {
+    const weekday = parseLocalDate(iso).getDay();
+    return calendarWeekdayColors[weekday] || calendarWeekdayColors[0];
+  }
+
+  function calendarDateColorStyle(iso) {
+    return `--day-color:${calendarDateColor(iso)};`;
+  }
+
+  function calendarDateCardContent(iso) {
+    const d = new Date(`${iso}T12:00:00`);
+    const tasks = calendarItemsForDay(iso);
+    const dayHours = round1(totalTaskHours(tasks));
+    return `<div class="date-cell-content">
+      <div class="subtle">${d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+      <strong>${d.getDate()}</strong>
+      ${weatherChip(iso, "mini")}
+      <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${data.bills.some((b) => b.dueDate === iso) ? `<span class="dot coral"></span>` : ""}</div>
+      ${dayHours ? `<span class="hour-chip">${dayHours}h</span>` : ""}
     </div>`;
   }
 
@@ -4659,11 +4662,13 @@ function quickAction(action) {
     const range = blockFocusRange();
     const style = blockRangeStyle(range);
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
-    const heads = `<div class="block-head time-head">AM/PM</div>${weekdays.map((iso) => {
-      const dayTasks = calendarItemsForDay(iso);
+    const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">AM/PM</div>${weekdays.map((iso) => {
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<button class="block-head block-head-button ${stateClass}" data-action="open-day" data-date="${iso}" title="Open ${dateFull(iso)} in Day View"><span class="block-head-date">${dayName(iso)} ${Number(iso.slice(-2))}</span><span class="block-head-weather">${weatherChip(iso, "block")}</span><span class="block-head-hours">${round1(totalTaskHours(dayTasks))}h</span></button>`;
-    }).join("")}<div class="block-head time-head">24h</div>`;
+      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateFull(iso)}">
+        ${dateViewZones(iso)}
+        ${calendarDateCardContent(iso)}
+      </div>`;
+    }).join("")}<div class="block-head time-head week-timetable-head week-timetable-time-head">24h</div>`;
     const leftLabels = blockHourLabels(range, "left");
     const rightLabels = blockHourLabels(range, "right");
     const cols = weekdays.map((iso) => {
