@@ -12864,3 +12864,103 @@ canvas {
     grid-template-columns: 1fr;
   }
 }
+
+/* Calendar daypart polish: one visual source for day, week, and block badges. */
+.time-period-chip.morning,
+.time-of-day-badge.morning {
+  color: #00a84f;
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.96) 0 18%, transparent 19%),
+    linear-gradient(135deg, #f0fff7 0%, #d9fbe7 56%, #bdf4d2 100%);
+  border-color: #101828;
+  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.08), 0 0 12px rgba(0, 168, 79, 0.16);
+}
+
+.time-period-chip.morning svg,
+.time-of-day-badge.morning svg {
+  color: #00a84f;
+  stroke: currentColor;
+  filter: drop-shadow(0 0 5px rgba(0, 168, 79, 0.24));
+}
+
+.time-period-chip.afternoon,
+.time-of-day-badge.afternoon,
+.time-of-day-badge.noon {
+  color: #ffe44d;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 230, 64, 0.34) 0 16%, transparent 17%),
+    radial-gradient(circle at 50% 48%, rgba(255, 214, 10, 0.25) 0 31%, transparent 32%),
+    linear-gradient(135deg, #7b4a00 0%, #3f2800 68%, #171005 100%);
+  border-color: #101828;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72), 0 0 10px rgba(255, 228, 77, 0.62);
+  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.16), 0 0 18px rgba(255, 214, 10, 0.2);
+}
+
+.time-period-chip.afternoon svg,
+.time-of-day-badge.afternoon svg,
+.time-of-day-badge.noon svg {
+  color: #ffd60a;
+  stroke: currentColor;
+  fill: none;
+  filter: drop-shadow(0 0 9px rgba(255, 214, 10, 0.9));
+  animation: afternoon-sun-pulse 3.2s ease-in-out infinite;
+}
+
+.time-period-chip.afternoon::after,
+.time-of-day-badge.afternoon::after {
+  display: none;
+}
+
+.time-period-chip.night,
+.time-of-day-badge.night {
+  color: #bdeeff;
+  background:
+    radial-gradient(circle at 76% 22%, rgba(189, 238, 255, 0.28) 0 9%, transparent 10%),
+    linear-gradient(135deg, #021a45 0%, #075dff 62%, #001534 100%);
+  border-color: #101828;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.58), 0 0 8px rgba(189, 238, 255, 0.48);
+  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.18), inset 0 0 16px rgba(189, 238, 255, 0.15);
+}
+
+.time-period-chip.night svg,
+.time-of-day-badge.night svg {
+  color: #bdeeff;
+  stroke: currentColor;
+  filter: drop-shadow(0 0 7px rgba(189, 238, 255, 0.58));
+}
+
+.time-period-chip.late-night,
+.time-of-day-badge.late-night {
+  color: #dbeafe;
+  background: repeating-linear-gradient(
+    135deg,
+    #020617 0 12px,
+    #020617 12px 24px,
+    #082f73 24px 36px,
+    #0a66ff 36px 48px
+  );
+  border-color: #101828;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.74), 0 0 8px rgba(96, 165, 250, 0.5);
+  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.22), inset 0 0 14px rgba(59, 130, 246, 0.16);
+}
+
+.time-period-chip.late-night svg,
+.time-of-day-badge.late-night svg {
+  color: #bfdbfe;
+  stroke: currentColor;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.58));
+}
+
+@keyframes afternoon-sun-pulse {
+  0%,
+  100% {
+    opacity: 0.76;
+    transform: scale(0.96);
+    filter: drop-shadow(0 0 5px rgba(255, 214, 10, 0.58));
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.14);
+    filter: drop-shadow(0 0 15px rgba(255, 230, 64, 1));
+  }
+}
