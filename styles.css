@@ -8197,6 +8197,39 @@ canvas {
   box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.24), 0 10px 22px rgba(26, 31, 54, 0.12);
 }
 
+/* Shared calendar day tones: month, week, day, and block all read the same variables. */
+.weekday,
+.day-cell,
+.week-day,
+.week-timetable-day-head,
+.block-head-button {
+  background: var(--day-color, linear-gradient(145deg, #fbfdff, #f5f8fc));
+  border-color: var(--day-border, #dce8f4);
+}
+
+.day-cell:not(.is-selected):hover,
+.week-day:not(.active):hover,
+.week-timetable-day-head:not(.is-selected):hover,
+.block-head-button:not(.is-selected-day):hover {
+  border-color: var(--day-accent, #9ab7d8);
+  box-shadow: 0 10px 22px rgba(49, 152, 228, 0.1);
+}
+
+.day-cell.is-selected,
+.week-day.active,
+.week-timetable-day-head.is-selected,
+.block-head-button.is-selected-day {
+  border-color: var(--day-accent, #75c5f4);
+  box-shadow: inset 0 0 0 3px rgba(26, 31, 54, 0.14), 0 10px 22px rgba(49, 152, 228, 0.12);
+}
+
+.week-timetable-day.cal-day--sunday,
+.week-timetable-day.cal-day--saturday {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.9)),
+    linear-gradient(145deg, var(--day-bg), var(--day-bg-2));
+}
+
 .block-head-button.is-selected-day .date-cell-content {
   color: #10233d;
 }

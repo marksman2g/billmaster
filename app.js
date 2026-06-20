@@ -95,7 +95,7 @@
   const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
   const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
   const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const calendarWeekdayColors = ["#ff6b6b", "#ffd54f", "#6ee7b7", "#e879f9", "#67e8f9", "#a3e635", "#fb7185"];
+  const calendarDayTones = ["sunday", "weekday", "weekday", "weekday", "weekday", "weekday", "saturday"];
   const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
   const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
@@ -2339,7 +2339,7 @@ function commandIllustration(iconName) {
         <path class="ci-dark" d="M10 27c0-7 6-13 13-13h50c7 0 13 6 13 13v5H10z"></path>
         <circle class="ci-alt ci-pulse" cx="31" cy="50" r="12"></circle>
         <path class="ci-line" d="M31 39v22M20 50h22"></path>
-        <path class="ci-thin" d="M56 45c8-9 20-2 12 10l-12 12-12-12c-8-12 4-19 12-10z"></path>
+        <path class="ci-thin ci-habit-heart" d="M56 45c8-9 20-2 12 10l-12 12-12-12c-8-12 4-19 12-10z"></path>
         <path class="ci-spark" d="M73 39l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path>
         <path class="ci-spark ci-spark-delay" d="M21 67l2 4 4 2-4 2-2 4-2-4-4-2 4-2z"></path>
       </svg>`,
@@ -2349,6 +2349,8 @@ function commandIllustration(iconName) {
         <path class="ci-line" d="M25 30h20M25 45h17M25 60h24M20 30l4 4 8-10"></path>
         <circle class="ci-coin" cx="56" cy="31" r="16"></circle>
         <text class="ci-dollar" x="56" y="37" text-anchor="middle">$</text>
+        <text class="ci-tracking-label ci-tracking-income" x="15" y="24">Income</text>
+        <text class="ci-tracking-label ci-tracking-expenses" x="8" y="89">Expenses</text>
         <rect class="ci-dark" x="55" y="47" width="28" height="34" rx="5"></rect>
         <rect class="ci-accent" x="61" y="54" width="16" height="7" rx="2"></rect>
         <g class="ci-calc">
@@ -4403,7 +4405,7 @@ function quickAction(action) {
       days.push(isoDate(date));
     }
     return `<div class="month-grid">
-      ${weekdays.map((d, index) => `<div class="weekday" style="--day-color:${calendarWeekdayColors[index]};">${d}</div>`).join("")}
+      ${weekdays.map((d, index) => `<div class="weekday cal-day--${calendarToneForWeekday(index)}" style="${calendarToneStyleByIndex(index)}">${d}</div>`).join("")}
       ${days.map((iso) => monthDayCell(iso, month, year)).join("")}
     </div>
     <div class="calendar-summary">${icon("calendar")} <strong>Month Total: ${hoursForMonth()}h</strong><span class="muted">Bills</span><span class="muted">Tasks</span><span class="muted">Subscriptions</span></div>`;
@@ -4418,7 +4420,7 @@ function quickAction(action) {
     const tasks = calendarItemsForDay(iso).filter((task) => task.includeHours);
     const bill = data.bills.find((b) => b.dueDate === iso);
     const sub = data.subscriptions.find((s) => s.nextDate === iso);
-    return `<div class="day-cell ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
+    return `<div class="day-cell ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
       ${dateViewZones(iso)}
       <div class="date-cell-content">
         <strong>${day}</strong>
@@ -4455,7 +4457,7 @@ function quickAction(action) {
   function weekTimetableHeader(iso) {
     const isSelected = iso === ui.selectedDate;
     const isToday = iso === todayIso();
-    return `<div class="week-timetable-head week-timetable-day-head ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateLabel(iso)}">
+    return `<div class="week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateLabel(iso)}">
       ${dateViewZones(iso)}
       ${calendarDateCardContent(iso)}
     </div>`;
@@ -4465,7 +4467,7 @@ function quickAction(action) {
     const startMinute = 7 * 60;
     const endMinute = 20 * 60;
     const items = tasksForDay(iso).filter((task) => task.start && task.end);
-    return `<div class="week-timetable-day" style="--week-day-index:${index};">
+    return `<div class="week-timetable-day ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}">
       ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
       ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
     </div>`;
@@ -4539,20 +4541,60 @@ function quickAction(action) {
     const isToday = iso === todayIso();
     const isCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && ui.dayCopyTargetDate === iso && iso !== ui.selectedDate;
     const canPickCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && iso !== ui.selectedDate;
-    return `<div class="week-day ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" data-copy-target-date="${iso}">
+    return `<div class="week-day ${calendarToneClass(iso)} ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" data-copy-target-date="${iso}">
       ${dateViewZones(iso)}
       ${calendarDateCardContent(iso)}
       ${canPickCopyTarget ? `<button class="copy-here-chip" data-action="select-day-copy-target" data-date="${iso}">${isCopyTarget ? `${icon("check")} Target` : "Copy here"}</button>` : ""}
     </div>`;
   }
 
-  function calendarDateColor(iso) {
-    const weekday = parseLocalDate(iso).getDay();
-    return calendarWeekdayColors[weekday] || calendarWeekdayColors[0];
+  function calendarToneForWeekday(weekday) {
+    return calendarDayTones[weekday] || "weekday";
+  }
+
+  function calendarDateTone(iso) {
+    return calendarToneForWeekday(parseLocalDate(iso).getDay());
+  }
+
+  function calendarToneVars(tone) {
+    const palettes = {
+      sunday: {
+        bg: "#f7fcff",
+        bg2: "#edf8ff",
+        border: "#c9eaff",
+        accent: "#75c5f4",
+      },
+      saturday: {
+        bg: "#eaf5ff",
+        bg2: "#d9edff",
+        border: "#a8d3fb",
+        accent: "#3198e4",
+      },
+      weekday: {
+        bg: "#fbfdff",
+        bg2: "#f5f8fc",
+        border: "#dce8f4",
+        accent: "#9ab7d8",
+      },
+    };
+    return palettes[tone] || palettes.weekday;
+  }
+
+  function calendarToneStyle(tone) {
+    const vars = calendarToneVars(tone);
+    return `--day-bg:${vars.bg};--day-bg-2:${vars.bg2};--day-border:${vars.border};--day-accent:${vars.accent};--day-color:linear-gradient(145deg, ${vars.bg}, ${vars.bg2});`;
+  }
+
+  function calendarToneStyleByIndex(index) {
+    return calendarToneStyle(calendarToneForWeekday(index));
   }
 
   function calendarDateColorStyle(iso) {
-    return `--day-color:${calendarDateColor(iso)};`;
+    return calendarToneStyle(calendarDateTone(iso));
+  }
+
+  function calendarToneClass(iso) {
+    return `cal-day--${calendarDateTone(iso)}`;
   }
 
   function calendarDateCardContent(iso) {
@@ -4675,7 +4717,7 @@ function quickAction(action) {
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
     const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">AM/PM</div>${weekdays.map((iso) => {
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateFull(iso)}">
+      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateFull(iso)}">
         ${dateViewZones(iso)}
         ${calendarDateCardContent(iso)}
       </div>`;
