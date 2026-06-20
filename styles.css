@@ -8224,6 +8224,11 @@ canvas {
 }
 
 .week-timetable-day.cal-day--sunday,
+.week-timetable-day.cal-day--monday,
+.week-timetable-day.cal-day--tuesday,
+.week-timetable-day.cal-day--wednesday,
+.week-timetable-day.cal-day--thursday,
+.week-timetable-day.cal-day--friday,
 .week-timetable-day.cal-day--saturday {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.9)),

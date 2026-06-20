@@ -95,7 +95,7 @@
   const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
   const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
   const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const calendarDayTones = ["sunday", "weekday", "weekday", "weekday", "weekday", "weekday", "saturday"];
+  const calendarDayTones = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
   const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
@@ -4559,16 +4559,46 @@ function quickAction(action) {
   function calendarToneVars(tone) {
     const palettes = {
       sunday: {
-        bg: "#f7fcff",
-        bg2: "#edf8ff",
-        border: "#c9eaff",
-        accent: "#75c5f4",
+        bg: "#f6fcff",
+        bg2: "#ddf3ff",
+        border: "#9edbff",
+        accent: "#38bdf8",
+      },
+      monday: {
+        bg: "#f5fff8",
+        bg2: "#d9f7e6",
+        border: "#86d9a9",
+        accent: "#22c55e",
+      },
+      tuesday: {
+        bg: "#f6fbff",
+        bg2: "#dfefff",
+        border: "#92c5ff",
+        accent: "#3b82f6",
+      },
+      wednesday: {
+        bg: "#fffdf2",
+        bg2: "#fff0b8",
+        border: "#f3d15f",
+        accent: "#f59e0b",
+      },
+      thursday: {
+        bg: "#fffbef",
+        bg2: "#ffe8a6",
+        border: "#efbf4f",
+        accent: "#e8a008",
+      },
+      friday: {
+        bg: "#fbf7ff",
+        bg2: "#eadcff",
+        border: "#c4a6f5",
+        accent: "#8b5cf6",
       },
       saturday: {
-        bg: "#eaf5ff",
-        bg2: "#d9edff",
-        border: "#a8d3fb",
-        accent: "#3198e4",
+        bg: "#f2fbff",
+        bg2: "#ccecff",
+        border: "#75cff7",
+        accent: "#0ea5e9",
       },
       weekday: {
         bg: "#fbfdff",
