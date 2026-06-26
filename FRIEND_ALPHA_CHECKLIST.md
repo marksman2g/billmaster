@@ -18,24 +18,25 @@ Let a small group of people open BillMaster online, create their own account, sa
 Use this link after the go/no-go checks pass:
 
 ```text
-https://marksman2g.github.io/billmaster/?v=20260616-1
+https://marksman2g.github.io/billmaster/?v=20260626-1
 ```
 
 ## Go/No-Go Checks
 
 1. Supabase project URL is in `billmaster-config.js`.
 2. Supabase publishable key is in `billmaster-config.js`.
-3. `supabase/schema.sql` has been run successfully.
-4. Row Level Security is enabled on `billmaster_workspaces`.
-5. A new BillMaster account can be created from the hosted app.
-6. A first-time user starts with a clean private cloud workspace by default.
-7. A user can save data and see auto-sync report that the workspace is saved.
-8. If a device goes offline, local data still saves and queues for the next online sync.
-9. The same user can sign in on a second device and retrieve cloud data.
-10. A change made on one device appears on another device after auto-sync catches up.
-11. A second test user cannot see the first user's workspace.
-12. Android browser test works.
-13. iPad browser test works.
+3. Supabase project is active and the setup test does not return `402 Payment Required`.
+4. `supabase/schema.sql` has been run successfully.
+5. Row Level Security is enabled on `billmaster_workspaces`.
+6. A new BillMaster account can be created from the hosted app.
+7. A first-time user starts with a clean private cloud workspace by default.
+8. A user can save data and see auto-sync report that the workspace is saved.
+9. If a device goes offline, local data still saves and queues for the next online sync.
+10. The same user can sign in on a second device and retrieve cloud data.
+11. A change made on one device appears on another device after auto-sync catches up.
+12. A second test user cannot see the first user's workspace.
+13. Android browser test works.
+14. iPad browser test works.
 
 ## What Friends Can Safely Test Now
 
@@ -49,7 +50,7 @@ https://marksman2g.github.io/billmaster/?v=20260616-1
 
 Ask each tester to do this:
 
-1. Open `https://marksman2g.github.io/billmaster/?v=20260616-1`.
+1. Open `https://marksman2g.github.io/billmaster/?v=20260626-1`.
 2. Go to Sync Center.
 3. Create a BillMaster cloud account. Leave "clean private workspace" on.
 4. Confirm email if Supabase asks, then sign in again from Sync Center.
