@@ -42,6 +42,13 @@ to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+drop policy if exists "Users can delete their own BillMaster workspace" on public.billmaster_workspaces;
+create policy "Users can delete their own BillMaster workspace"
+on public.billmaster_workspaces
+for delete
+to authenticated
+using (auth.uid() = user_id);
+
 -- Picture storage comes next. This bucket keeps one user-owned folder per account.
 insert into storage.buckets (id, name, public)
 values ('billmaster-media', 'billmaster-media', false)

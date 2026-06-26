@@ -12886,47 +12886,115 @@ canvas {
 .time-period-chip.afternoon,
 .time-of-day-badge.afternoon,
 .time-of-day-badge.noon {
-  color: #ffe44d;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff36d;
   background:
-    radial-gradient(circle at 50% 48%, rgba(255, 230, 64, 0.34) 0 16%, transparent 17%),
-    radial-gradient(circle at 50% 48%, rgba(255, 214, 10, 0.25) 0 31%, transparent 32%),
-    linear-gradient(135deg, #7b4a00 0%, #3f2800 68%, #171005 100%);
+    radial-gradient(circle at 50% 48%, rgba(255, 244, 143, 0.68) 0 15%, transparent 16%),
+    radial-gradient(circle at 50% 48%, rgba(255, 214, 10, 0.38) 0 34%, transparent 35%),
+    linear-gradient(135deg, #8a5100 0%, #3b2500 68%, #140d02 100%);
   border-color: #101828;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72), 0 0 10px rgba(255, 228, 77, 0.62);
-  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.16), 0 0 18px rgba(255, 214, 10, 0.2);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.78),
+    0 0 11px rgba(255, 245, 157, 0.98),
+    0 0 20px rgba(255, 214, 10, 0.78);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 40, 0.18),
+    0 0 20px rgba(255, 214, 10, 0.34),
+    inset 0 0 18px rgba(255, 193, 7, 0.16);
 }
 
 .time-period-chip.afternoon svg,
 .time-of-day-badge.afternoon svg,
 .time-of-day-badge.noon svg {
+  position: relative;
+  z-index: 1;
   color: #ffd60a;
   stroke: currentColor;
   fill: none;
-  filter: drop-shadow(0 0 9px rgba(255, 214, 10, 0.9));
-  animation: afternoon-sun-pulse 3.2s ease-in-out infinite;
+  filter:
+    brightness(1.35)
+    drop-shadow(0 0 9px rgba(255, 214, 10, 0.98))
+    drop-shadow(0 0 15px rgba(255, 245, 157, 0.86));
+  animation: afternoon-sun-pulse 3s ease-in-out infinite;
 }
 
 .time-period-chip.afternoon::after,
-.time-of-day-badge.afternoon::after {
-  display: none;
+.time-of-day-badge.afternoon::after,
+.time-of-day-badge.noon::after {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 246, 176, 0.92) 0 10%, rgba(255, 214, 10, 0.42) 18%, transparent 36%),
+    conic-gradient(from 0deg, transparent 0 14deg, rgba(255, 237, 74, 0.3) 15deg 22deg, transparent 23deg 45deg);
+  opacity: 0.65;
+  animation: afternoon-sun-aura 3s ease-in-out infinite;
 }
 
 .time-period-chip.night,
 .time-of-day-badge.night {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   color: #bdeeff;
   background:
-    radial-gradient(circle at 76% 22%, rgba(189, 238, 255, 0.28) 0 9%, transparent 10%),
-    linear-gradient(135deg, #021a45 0%, #075dff 62%, #001534 100%);
+    radial-gradient(circle at 24% 44%, rgba(189, 238, 255, 0.22) 0 11%, transparent 12%),
+    linear-gradient(135deg, #031538 0%, #063cbd 50%, #0a6cff 74%, #001534 100%);
   border-color: #101828;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.58), 0 0 8px rgba(189, 238, 255, 0.48);
-  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.18), inset 0 0 16px rgba(189, 238, 255, 0.15);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.64),
+    0 0 9px rgba(189, 238, 255, 0.72),
+    0 0 18px rgba(96, 165, 250, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 40, 0.2),
+    inset 0 0 18px rgba(189, 238, 255, 0.18);
 }
 
 .time-period-chip.night svg,
 .time-of-day-badge.night svg {
+  position: relative;
+  z-index: 1;
   color: #bdeeff;
   stroke: currentColor;
-  filter: drop-shadow(0 0 7px rgba(189, 238, 255, 0.58));
+  filter:
+    brightness(1.18)
+    drop-shadow(0 0 7px rgba(189, 238, 255, 0.72))
+    drop-shadow(0 0 14px rgba(96, 165, 250, 0.5));
+  animation: night-moon-float 3.8s ease-in-out infinite;
+}
+
+.time-period-chip.night::before,
+.time-of-day-badge.night::before {
+  content: "";
+  position: absolute;
+  inset: 2px 5px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 1.3px, transparent 1.7px) 14% 24% / 34px 18px,
+    radial-gradient(circle, rgba(189, 238, 255, 0.9) 0 1.1px, transparent 1.6px) 72% 34% / 28px 20px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.82) 0 1px, transparent 1.5px) 44% 72% / 32px 22px;
+  opacity: 0.55;
+  animation: night-stars-drift 4.8s ease-in-out infinite, night-stars-glow 2.7s ease-in-out infinite;
+}
+
+.time-period-chip.night::after,
+.time-of-day-badge.night::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 78% 24%, rgba(255, 255, 255, 0.7) 0 2px, transparent 2.8px),
+    radial-gradient(circle at 68% 70%, rgba(189, 238, 255, 0.56) 0 2px, transparent 3px),
+    radial-gradient(circle at 35% 24%, rgba(255, 255, 255, 0.42) 0 1.5px, transparent 2.4px);
+  opacity: 0.22;
+  animation: night-background-glow 3.2s ease-in-out infinite;
 }
 
 .time-period-chip.late-night,
@@ -12954,13 +13022,1181 @@ canvas {
 @keyframes afternoon-sun-pulse {
   0%,
   100% {
-    opacity: 0.76;
-    transform: scale(0.96);
-    filter: drop-shadow(0 0 5px rgba(255, 214, 10, 0.58));
+    opacity: 0.86;
+    transform: scale(0.95) rotate(0deg);
+    filter:
+      brightness(1.18)
+      drop-shadow(0 0 6px rgba(255, 214, 10, 0.72))
+      drop-shadow(0 0 12px rgba(255, 193, 7, 0.44));
   }
   50% {
     opacity: 1;
-    transform: scale(1.14);
-    filter: drop-shadow(0 0 15px rgba(255, 230, 64, 1));
+    transform: scale(1.32) rotate(4deg);
+    filter:
+      brightness(2.7)
+      saturate(2)
+      drop-shadow(0 0 13px rgba(255, 255, 184, 1))
+      drop-shadow(0 0 26px rgba(255, 234, 0, 1))
+      drop-shadow(0 0 42px rgba(255, 152, 0, 0.75));
+  }
+}
+
+@keyframes afternoon-sun-aura {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scale(0.9) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(28deg);
+  }
+}
+
+@keyframes night-moon-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-1px) rotate(3deg);
+  }
+}
+
+@keyframes night-stars-drift {
+  0%,
+  100% {
+    background-position: 14% 24%, 72% 34%, 44% 72%;
+    transform: translateX(0);
+  }
+  50% {
+    background-position: 24% 18%, 62% 42%, 54% 66%;
+    transform: translateX(2px);
+  }
+}
+
+@keyframes night-stars-glow {
+  0%,
+  100% {
+    opacity: 0.38;
+    filter: drop-shadow(0 0 2px rgba(189, 238, 255, 0.45));
+  }
+  50% {
+    opacity: 1;
+    filter:
+      brightness(1.8)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 12px rgba(125, 211, 252, 0.78));
+  }
+}
+
+@keyframes night-background-glow {
+  0%,
+  100% {
+    opacity: 0.18;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.78;
+    filter:
+      brightness(1.9)
+      drop-shadow(0 0 14px rgba(189, 238, 255, 0.75));
+  }
+}
+/* Stronger time-period chip animations: brighter afternoon sun and glowing night stars. */
+.time-period-chip.afternoon,
+.time-period-chip--afternoon,
+.period-chip.afternoon,
+.period-chip--afternoon,
+.time-filter-chip.afternoon,
+.time-filter-chip--afternoon,
+.time-of-day-badge.afternoon,
+.time-of-day-badge.noon,
+.time-of-day-badge--afternoon,
+.time-of-day-badge--noon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff36d;
+  background:
+    radial-gradient(circle at 46% 48%, rgba(255, 244, 108, 0.32) 0 18%, transparent 34%),
+    linear-gradient(135deg, #211900 0%, #6d4700 45%, #2d2100 100%);
+  border-color: #111827;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 246, 170, 0.38),
+    0 0 20px rgba(255, 183, 0, 0.38);
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.52),
+    0 0 12px rgba(255, 238, 80, 0.92);
+}
+
+.time-period-chip.afternoon svg,
+.time-period-chip--afternoon svg,
+.period-chip.afternoon svg,
+.period-chip--afternoon svg,
+.time-filter-chip.afternoon svg,
+.time-filter-chip--afternoon svg,
+.time-of-day-badge.afternoon svg,
+.time-of-day-badge.noon svg,
+.time-of-day-badge--afternoon svg,
+.time-of-day-badge--noon svg {
+  position: relative;
+  z-index: 3;
+  color: #fff36d;
+  stroke: currentColor;
+  fill: none;
+  transform-origin: center;
+  filter:
+    brightness(2.15)
+    saturate(2.5)
+    drop-shadow(0 0 16px rgba(255, 238, 80, 1))
+    drop-shadow(0 0 34px rgba(255, 176, 0, 0.82));
+  animation: billmaster-afternoon-sun-boost 2.9s ease-in-out infinite;
+}
+
+.time-period-chip.afternoon::after,
+.time-period-chip--afternoon::after,
+.period-chip.afternoon::after,
+.period-chip--afternoon::after,
+.time-filter-chip.afternoon::after,
+.time-filter-chip--afternoon::after,
+.time-of-day-badge.afternoon::after,
+.time-of-day-badge.noon::after,
+.time-of-day-badge--afternoon::after,
+.time-of-day-badge--noon::after {
+  content: "";
+  position: absolute;
+  inset: -58%;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 255, 220, 0.96) 0 7%, rgba(255, 242, 70, 0.86) 8% 18%, rgba(255, 176, 0, 0.48) 19% 34%, transparent 44%),
+    conic-gradient(from 0deg, transparent 0 12deg, rgba(255, 244, 96, 0.52) 13deg 20deg, transparent 21deg 45deg);
+  opacity: 0.72;
+  mix-blend-mode: screen;
+  filter: brightness(1.45);
+  animation: billmaster-afternoon-sun-halo 2.9s ease-in-out infinite;
+}
+
+.time-period-chip.afternoon > *,
+.time-period-chip--afternoon > *,
+.period-chip.afternoon > *,
+.period-chip--afternoon > *,
+.time-filter-chip.afternoon > *,
+.time-filter-chip--afternoon > *,
+.time-of-day-badge.afternoon > *,
+.time-of-day-badge.noon > *,
+.time-of-day-badge--afternoon > *,
+.time-of-day-badge--noon > * {
+  position: relative;
+  z-index: 4;
+}
+
+@keyframes billmaster-afternoon-sun-boost {
+  0%,
+  100% {
+    transform: scale(1);
+    filter:
+      brightness(2.85)
+      saturate(3)
+      drop-shadow(0 0 14px rgba(255, 255, 255, 1))
+      drop-shadow(0 0 28px rgba(255, 240, 74, 1))
+      drop-shadow(0 0 54px rgba(255, 170, 0, 0.92));
+  }
+
+  50% {
+    transform: scale(1.62);
+    filter:
+      brightness(5.8)
+      saturate(4.1)
+      drop-shadow(0 0 20px rgba(255, 255, 255, 1))
+      drop-shadow(0 0 48px rgba(255, 246, 74, 1))
+      drop-shadow(0 0 88px rgba(255, 178, 0, 1));
+  }
+}
+
+@keyframes billmaster-afternoon-sun-halo {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.86) rotate(0deg);
+    filter: brightness(1.35) blur(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.42) rotate(14deg);
+    filter: brightness(3.45) blur(0.45px);
+  }
+}
+
+.time-period-chip.night,
+.time-period-chip--night,
+.period-chip.night,
+.period-chip--night,
+.time-filter-chip.night,
+.time-filter-chip--night,
+.time-of-day-badge.night,
+.time-of-day-badge--night {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #d8f7ff;
+  background:
+    radial-gradient(circle at 22% 45%, rgba(216, 247, 255, 0.2) 0 10%, transparent 12%),
+    linear-gradient(135deg, #02091f 0%, #052d9d 46%, #0a62f0 72%, #001028 100%);
+  border-color: #111827;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.52),
+    0 0 10px rgba(138, 221, 255, 0.94);
+  box-shadow:
+    inset 0 0 0 1px rgba(216, 247, 255, 0.2),
+    0 0 18px rgba(52, 137, 255, 0.4);
+}
+
+.time-period-chip.night svg,
+.time-period-chip--night svg,
+.period-chip.night svg,
+.period-chip--night svg,
+.time-filter-chip.night svg,
+.time-filter-chip--night svg,
+.time-of-day-badge.night svg,
+.time-of-day-badge--night svg {
+  position: relative;
+  z-index: 4;
+  color: #d8f7ff;
+  stroke: currentColor;
+  filter:
+    brightness(1.42)
+    drop-shadow(0 0 10px rgba(138, 221, 255, 1))
+    drop-shadow(0 0 20px rgba(52, 137, 255, 0.58));
+  animation: billmaster-night-moon-drift 3.8s ease-in-out infinite;
+}
+
+.time-period-chip.night::before,
+.time-period-chip--night::before,
+.period-chip.night::before,
+.period-chip--night::before,
+.time-filter-chip.night::before,
+.time-filter-chip--night::before,
+.time-of-day-badge.night::before,
+.time-of-day-badge--night::before {
+  content: "";
+  position: absolute;
+  inset: 2px 3px 2px 34%;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 1.7px, transparent 2.1px),
+    radial-gradient(circle, rgba(138, 221, 255, 0.92) 0 1.2px, transparent 1.7px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.75) 0 1px, transparent 1.5px);
+  background-size: 22px 17px, 28px 19px, 18px 23px;
+  background-position: 2px 3px, 12px 8px, 7px 12px;
+  opacity: 0.7;
+  animation:
+    billmaster-night-stars-drift 5.5s ease-in-out infinite,
+    billmaster-night-stars-glow-boost 2.8s ease-in-out infinite;
+}
+
+.time-period-chip.night::after,
+.time-period-chip--night::after,
+.period-chip.night::after,
+.period-chip--night::after,
+.time-filter-chip.night::after,
+.time-filter-chip--night::after,
+.time-of-day-badge.night::after,
+.time-of-day-badge--night::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.72) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 22%, rgba(157, 225, 255, 0.62) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 70%, rgba(255, 255, 255, 0.5) 0 1px, transparent 2px);
+  opacity: 0.48;
+  animation: billmaster-night-background-twinkle 3.4s ease-in-out infinite;
+}
+
+.time-period-chip.night > *,
+.time-period-chip--night > *,
+.period-chip.night > *,
+.period-chip--night > *,
+.time-filter-chip.night > *,
+.time-filter-chip--night > *,
+.time-of-day-badge.night > *,
+.time-of-day-badge--night > * {
+  position: relative;
+  z-index: 5;
+}
+
+@keyframes billmaster-night-moon-drift {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-6deg);
+  }
+
+  50% {
+    transform: translateY(-1px) rotate(6deg);
+  }
+}
+
+@keyframes billmaster-night-stars-drift {
+  0%,
+  100% {
+    transform: translate(-2px, 1px) rotate(-8deg) scale(0.96);
+    background-position: 2px 3px, 12px 8px, 7px 12px;
+  }
+
+  35% {
+    transform: translate(5px, -4px) rotate(10deg) scale(1.16);
+    background-position: 9px 4px, 17px 6px, 11px 15px;
+  }
+
+  68% {
+    transform: translate(-4px, 3px) rotate(-5deg) scale(1.05);
+    background-position: 0 8px, 9px 3px, 14px 10px;
+  }
+}
+
+@keyframes billmaster-night-stars-glow-boost {
+  0%,
+  100% {
+    opacity: 0.32;
+    filter: brightness(0.75) drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+
+  45%,
+  60% {
+    opacity: 1;
+    filter:
+      brightness(4)
+      drop-shadow(0 0 7px rgba(255, 255, 255, 1))
+      drop-shadow(0 0 16px rgba(139, 214, 255, 0.95));
+  }
+}
+
+@keyframes billmaster-night-background-twinkle {
+  0%,
+  100% {
+    opacity: 0.22;
+    filter: brightness(0.75) drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+
+  50% {
+    opacity: 0.98;
+    filter:
+      brightness(3.4)
+      drop-shadow(0 0 7px rgba(255, 255, 255, 0.95))
+      drop-shadow(0 0 14px rgba(124, 207, 255, 0.85));
+  }
+}
+
+
+/* Day/week strip date cards: stronger readability */
+.week-strip .week-day:not(.active).is-today::after {
+  display: none !important;
+}
+
+.week-strip .week-day {
+  min-height: 104px;
+  padding: 12px 10px 10px;
+  border-width: 1.5px;
+  border-color: rgba(26, 31, 54, 0.24);
+  box-shadow: 0 8px 22px rgba(26, 31, 54, 0.08);
+}
+
+.week-strip .week-day span:first-child {
+  color: #2f425d;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.week-strip .week-day strong {
+  color: #10213a;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.week-strip .week-day.active span:first-child,
+.week-strip .week-day.active strong {
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .week-strip .week-day {
+    min-height: 92px;
+    min-width: 116px;
+    padding: 10px 8px;
+  }
+
+  .week-strip .week-day strong {
+    font-size: 19px;
+  }
+}
+/* BillMaster shared current-day treatment.
+   These selectors intentionally cover the different calendar renderers so the
+   same today glow/starburst appears in month, week, day, and block views. */
+:root {
+  --bm-today-star-core: #fffde7;
+  --bm-today-star-gold: #ffd43b;
+  --bm-today-star-amber: #ffb300;
+  --bm-today-star-pink: #ff4fa3;
+  --bm-today-star-violet: #7c3aed;
+  --bm-today-glow-soft: rgba(255, 211, 67, 0.44);
+  --bm-today-glow-hot: rgba(255, 79, 163, 0.34);
+}
+
+:where(
+  .calendar-day.is-today,
+  .calendar-day.today,
+  .calendar-day-card.is-today,
+  .calendar-day-card.today,
+  .calendar-day-tile.is-today,
+  .calendar-day-tile.today,
+  .calendar-date-card.is-today,
+  .calendar-date-card.today,
+  .day-card.is-today,
+  .day-card.today,
+  .day-strip-card.is-today,
+  .day-strip-card.today,
+  .week-day-card.is-today,
+  .week-day-card.today,
+  .week-grid-day.is-today,
+  .week-grid-day.today,
+  .calendar-week-day.is-today,
+  .calendar-week-day.today,
+  .month-day.is-today,
+  .month-day.today,
+  .month-day-cell.is-today,
+  .month-day-cell.today,
+  .block-day-header.is-today,
+  .block-day-header.today,
+  .block-calendar-day.is-today,
+  .block-calendar-day.today,
+  [data-today="true"],
+  [aria-current="date"]
+) {
+  position: relative !important;
+  isolation: isolate;
+  overflow: visible !important;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.94),
+    0 0 0 4px var(--bm-today-glow-soft),
+    0 0 24px rgba(255, 193, 7, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.74) !important;
+  animation: bmTodayTileGlow 2.35s ease-in-out infinite !important;
+}
+
+:where(
+  .today-star,
+  .today-spark,
+  .today-dot,
+  .today-marker,
+  .today-burst,
+  .today-highlight,
+  .calendar-today-star,
+  .calendar-today-dot,
+  .calendar-today-marker,
+  .current-day-star,
+  .current-day-marker,
+  .current-day-burst,
+  .current-day-highlight,
+  .day-current-marker,
+  .day-current-dot,
+  .day-card-today-star,
+  .calendar-current-star,
+  .calendar-day [class*="today-dot"],
+  .calendar-day [class*="today-marker"],
+  .calendar-day [class*="today-star"],
+  .calendar-day [class*="current-day"],
+  .month-day [class*="today-dot"],
+  .month-day [class*="today-marker"],
+  .month-day [class*="today-star"],
+  .month-day [class*="current-day"],
+  .day-card [class*="today-dot"],
+  .day-card [class*="today-marker"],
+  .day-card [class*="today-star"],
+  .day-card [class*="current-day"],
+  .block-day-header [class*="today-dot"],
+  .block-day-header [class*="today-marker"],
+  .block-day-header [class*="today-star"],
+  .block-day-header [class*="current-day"]
+) {
+  position: absolute !important;
+  top: 7px !important;
+  right: 7px !important;
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  border-radius: 0 !important;
+  clip-path: polygon(
+    50% 0%,
+    60% 31%,
+    94% 18%,
+    71% 44%,
+    100% 58%,
+    66% 63%,
+    79% 96%,
+    50% 76%,
+    21% 96%,
+    34% 63%,
+    0% 58%,
+    29% 44%,
+    6% 18%,
+    40% 31%
+  ) !important;
+  background:
+    radial-gradient(circle at 42% 36%, var(--bm-today-star-core) 0 15%, #fff176 16% 31%, var(--bm-today-star-gold) 32% 50%, var(--bm-today-star-pink) 51% 73%, var(--bm-today-star-violet) 74% 100%) !important;
+  border: 0 !important;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.96),
+    0 0 10px rgba(255, 242, 104, 0.98),
+    0 0 22px rgba(255, 79, 163, 0.64),
+    0 0 36px rgba(124, 58, 237, 0.42) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  pointer-events: none !important;
+  z-index: 40 !important;
+  transform-origin: center;
+  animation: bmTodayStarPop 1.45s ease-in-out infinite !important;
+}
+
+:where(
+  .calendar-day.is-today,
+  .calendar-day.today,
+  .calendar-day-card.is-today,
+  .calendar-day-card.today,
+  .calendar-day-tile.is-today,
+  .calendar-day-tile.today,
+  .calendar-date-card.is-today,
+  .calendar-date-card.today,
+  .day-card.is-today,
+  .day-card.today,
+  .day-strip-card.is-today,
+  .day-strip-card.today,
+  .week-day-card.is-today,
+  .week-day-card.today,
+  .week-grid-day.is-today,
+  .week-grid-day.today,
+  .calendar-week-day.is-today,
+  .calendar-week-day.today,
+  .month-day.is-today,
+  .month-day.today,
+  .month-day-cell.is-today,
+  .month-day-cell.today,
+  .block-day-header.is-today,
+  .block-day-header.today,
+  .block-calendar-day.is-today,
+  .block-calendar-day.today,
+  [data-today="true"],
+  [aria-current="date"]
+):not(:has(.today-star, .today-spark, .today-dot, .today-marker, .today-burst, .today-highlight, .calendar-today-star, .calendar-today-dot, .calendar-today-marker, .current-day-star, .current-day-marker, .current-day-burst, .current-day-highlight, .day-current-marker, .day-current-dot, .day-card-today-star, .calendar-current-star))::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  clip-path: polygon(
+    50% 0%,
+    60% 31%,
+    94% 18%,
+    71% 44%,
+    100% 58%,
+    66% 63%,
+    79% 96%,
+    50% 76%,
+    21% 96%,
+    34% 63%,
+    0% 58%,
+    29% 44%,
+    6% 18%,
+    40% 31%
+  );
+  background:
+    radial-gradient(circle at 42% 36%, var(--bm-today-star-core) 0 15%, #fff176 16% 31%, var(--bm-today-star-gold) 32% 50%, var(--bm-today-star-pink) 51% 73%, var(--bm-today-star-violet) 74% 100%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.96),
+    0 0 10px rgba(255, 242, 104, 0.98),
+    0 0 22px rgba(255, 79, 163, 0.64),
+    0 0 36px rgba(124, 58, 237, 0.42);
+  pointer-events: none;
+  z-index: 40;
+  animation: bmTodayStarPop 1.45s ease-in-out infinite;
+}
+
+:where(
+  .calendar-day.is-today,
+  .calendar-day.today,
+  .calendar-day-card.is-today,
+  .calendar-day-card.today,
+  .calendar-day-tile.is-today,
+  .calendar-day-tile.today,
+  .calendar-date-card.is-today,
+  .calendar-date-card.today,
+  .day-card.is-today,
+  .day-card.today,
+  .day-strip-card.is-today,
+  .day-strip-card.today,
+  .week-day-card.is-today,
+  .week-day-card.today,
+  .week-grid-day.is-today,
+  .week-grid-day.today,
+  .calendar-week-day.is-today,
+  .calendar-week-day.today,
+  .month-day.is-today,
+  .month-day.today,
+  .month-day-cell.is-today,
+  .month-day-cell.today,
+  .block-day-header.is-today,
+  .block-day-header.today,
+  .block-calendar-day.is-today,
+  .block-calendar-day.today,
+  [data-today="true"],
+  [aria-current="date"]
+)::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 88% 14%, rgba(255, 255, 255, 0.84) 0 2px, transparent 3px),
+    radial-gradient(circle at 89% 15%, rgba(255, 211, 67, 0.42) 0 12px, transparent 24px);
+  opacity: 0.86;
+  pointer-events: none;
+  z-index: -1;
+  animation: bmTodayAuraPulse 2.35s ease-in-out infinite;
+}
+
+@keyframes bmTodayTileGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.94),
+      0 0 0 4px var(--bm-today-glow-soft),
+      0 0 24px rgba(255, 193, 7, 0.38),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.74);
+    filter: saturate(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(255, 255, 255, 1),
+      0 0 0 8px rgba(255, 211, 67, 0.18),
+      0 0 36px var(--bm-today-glow-hot),
+      0 0 52px rgba(255, 193, 7, 0.28),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.92);
+    filter: saturate(1.14);
+  }
+}
+
+@keyframes bmTodayAuraPulse {
+  0%,
+  100% {
+    transform: scale(0.98);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.96;
+  }
+}
+
+@keyframes bmTodayStarPop {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1.15) contrast(1.15) saturate(1.2);
+  }
+  42% {
+    transform: scale(1.25) rotate(10deg);
+    filter: brightness(1.85) contrast(1.42) saturate(1.55);
+  }
+  72% {
+    transform: scale(0.96) rotate(-5deg);
+    filter: brightness(1.28) contrast(1.22) saturate(1.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    .calendar-day.is-today,
+    .calendar-day.today,
+    .calendar-day-card.is-today,
+    .calendar-day-card.today,
+    .calendar-day-tile.is-today,
+    .calendar-day-tile.today,
+    .calendar-date-card.is-today,
+    .calendar-date-card.today,
+    .day-card.is-today,
+    .day-card.today,
+    .day-strip-card.is-today,
+    .day-strip-card.today,
+    .week-day-card.is-today,
+    .week-day-card.today,
+    .week-grid-day.is-today,
+    .week-grid-day.today,
+    .calendar-week-day.is-today,
+    .calendar-week-day.today,
+    .month-day.is-today,
+    .month-day.today,
+    .month-day-cell.is-today,
+    .month-day-cell.today,
+    .block-day-header.is-today,
+    .block-day-header.today,
+    .block-calendar-day.is-today,
+    .block-calendar-day.today,
+    [data-today="true"],
+    [aria-current="date"],
+    .today-star,
+    .today-spark,
+    .today-dot,
+    .today-marker,
+    .today-burst,
+    .calendar-today-star,
+    .calendar-today-dot,
+    .calendar-today-marker,
+    .current-day-star,
+    .current-day-marker,
+    .current-day-burst,
+    .day-current-marker,
+    .day-current-dot,
+    .day-card-today-star,
+    .calendar-current-star
+  ),
+  :where(
+    .calendar-day.is-today,
+    .calendar-day.today,
+    .calendar-day-card.is-today,
+    .calendar-day-card.today,
+    .calendar-day-tile.is-today,
+    .calendar-day-tile.today,
+    .calendar-date-card.is-today,
+    .calendar-date-card.today,
+    .day-card.is-today,
+    .day-card.today,
+    .day-strip-card.is-today,
+    .day-strip-card.today,
+    .week-day-card.is-today,
+    .week-day-card.today,
+    .week-grid-day.is-today,
+    .week-grid-day.today,
+    .calendar-week-day.is-today,
+    .calendar-week-day.today,
+    .month-day.is-today,
+    .month-day.today,
+    .month-day-cell.is-today,
+    .month-day-cell.today,
+    .block-day-header.is-today,
+    .block-day-header.today,
+    .block-calendar-day.is-today,
+    .block-calendar-day.today,
+    [data-today="true"],
+    [aria-current="date"]
+  )::before,
+  :where(
+    .calendar-day.is-today,
+    .calendar-day.today,
+    .calendar-day-card.is-today,
+    .calendar-day-card.today,
+    .calendar-day-tile.is-today,
+    .calendar-day-tile.today,
+    .calendar-date-card.is-today,
+    .calendar-date-card.today,
+    .day-card.is-today,
+    .day-card.today,
+    .day-strip-card.is-today,
+    .day-strip-card.today,
+    .week-day-card.is-today,
+    .week-day-card.today,
+    .week-grid-day.is-today,
+    .week-grid-day.today,
+    .calendar-week-day.is-today,
+    .calendar-week-day.today,
+    .month-day.is-today,
+    .month-day.today,
+    .month-day-cell.is-today,
+    .month-day-cell.today,
+    .block-day-header.is-today,
+    .block-day-header.today,
+    .block-calendar-day.is-today,
+    .block-calendar-day.today,
+    [data-today="true"],
+    [aria-current="date"]
+  )::after {
+    animation: none !important;
+  }
+}
+/* Current-day treatment shared by month, week, day, and block calendar views. */
+:root {
+  --bm-today-gold: #ffd43b;
+  --bm-today-hot: #ff3fa8;
+  --bm-today-violet: #7c3aed;
+}
+
+:where(
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+) {
+  position: relative !important;
+  isolation: isolate;
+  overflow: visible !important;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.98),
+    0 0 0 5px rgba(255, 212, 59, 0.34),
+    0 0 28px rgba(255, 63, 168, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78) !important;
+  animation: bmTodayTileGlow 2.4s ease-in-out infinite !important;
+}
+
+:where(
+  .today-star,
+  .today-spark,
+  .today-dot,
+  .today-marker,
+  .today-burst,
+  .today-highlight,
+  .calendar-today-star,
+  .calendar-today-dot,
+  .calendar-today-marker,
+  .current-day-star,
+  .current-day-marker,
+  .current-day-burst,
+  .current-day-highlight,
+  .day-current-marker,
+  .day-current-dot,
+  .day-card-today-star,
+  .calendar-current-star
+) {
+  position: absolute !important;
+  top: 7px !important;
+  right: 7px !important;
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: polygon(50% 0%, 60% 31%, 94% 18%, 71% 44%, 100% 58%, 66% 63%, 79% 96%, 50% 76%, 21% 96%, 34% 63%, 0 58%, 29% 44%, 6% 18%, 40% 31%) !important;
+  background: radial-gradient(circle at 40% 35%, #fff 0 12%, #fff59d 13% 28%, var(--bm-today-gold) 29% 48%, var(--bm-today-hot) 49% 72%, var(--bm-today-violet) 73% 100%) !important;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 13px rgba(255, 245, 157, 0.98),
+    0 0 28px rgba(255, 63, 168, 0.7),
+    0 0 44px rgba(124, 58, 237, 0.45) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  pointer-events: none !important;
+  z-index: 50 !important;
+  animation: bmTodayStarPop 1.45s ease-in-out infinite !important;
+}
+
+:where(
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+)::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  clip-path: polygon(50% 0%, 60% 31%, 94% 18%, 71% 44%, 100% 58%, 66% 63%, 79% 96%, 50% 76%, 21% 96%, 34% 63%, 0 58%, 29% 44%, 6% 18%, 40% 31%);
+  background: radial-gradient(circle at 40% 35%, #fff 0 12%, #fff59d 13% 28%, var(--bm-today-gold) 29% 48%, var(--bm-today-hot) 49% 72%, var(--bm-today-violet) 73% 100%);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 13px rgba(255, 245, 157, 0.98),
+    0 0 28px rgba(255, 63, 168, 0.7),
+    0 0 44px rgba(124, 58, 237, 0.45);
+  pointer-events: none;
+  z-index: 45;
+  animation: bmTodayStarPop 1.45s ease-in-out infinite;
+}
+
+@keyframes bmTodayTileGlow {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes bmTodayStarPop {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1.2) contrast(1.15) saturate(1.25);
+  }
+  45% {
+    transform: scale(1.3) rotate(10deg);
+    filter: brightness(2) contrast(1.45) saturate(1.75);
+  }
+  72% {
+    transform: scale(0.95) rotate(-5deg);
+    filter: brightness(1.35) contrast(1.2) saturate(1.35);
+  }
+}
+/* Current-day glow + starburst marker shared by month, week, day, and block views. */
+:root {
+  --bm-current-day-gold: #ffd43b;
+  --bm-current-day-hot: #ff3fa8;
+  --bm-current-day-violet: #7c3aed;
+  --bm-current-day-blue: #38bdf8;
+}
+
+:where(
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .week-day-tile.today,
+  .week-day-tile.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .calendar-month-day.today,
+  .calendar-month-day.is-today,
+  .day-strip-card.today,
+  .day-strip-card.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+) {
+  position: relative !important;
+  isolation: isolate;
+  overflow: visible !important;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.98),
+    0 0 0 5px rgba(255, 212, 59, 0.34),
+    0 0 26px rgba(255, 63, 168, 0.28),
+    0 0 44px rgba(56, 189, 248, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.76) !important;
+  animation: bmCurrentDayGlowPulse 2.35s ease-in-out infinite !important;
+}
+
+:where(
+  .today-star,
+  .today-spark,
+  .today-dot,
+  .today-marker,
+  .today-burst,
+  .today-highlight,
+  .calendar-today-star,
+  .calendar-today-dot,
+  .calendar-today-marker,
+  .current-day-star,
+  .current-day-marker,
+  .current-day-burst,
+  .current-day-highlight,
+  .day-current-marker,
+  .day-current-dot,
+  .day-card-today-star,
+  .calendar-current-star
+) {
+  position: absolute !important;
+  top: 6px !important;
+  right: 6px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background:
+    radial-gradient(circle at 42% 34%, #fff 0 10%, #fffde7 11% 22%, var(--bm-current-day-gold) 23% 47%, var(--bm-current-day-hot) 48% 70%, var(--bm-current-day-violet) 71% 100%) !important;
+  clip-path: polygon(50% 0%, 59% 28%, 86% 10%, 76% 40%, 100% 50%, 76% 60%, 86% 90%, 59% 72%, 50% 100%, 41% 72%, 14% 90%, 24% 60%, 0% 50%, 24% 40%, 14% 10%, 41% 28%) !important;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 12px rgba(255, 255, 255, 0.95),
+    0 0 20px rgba(255, 212, 59, 0.95),
+    0 0 32px rgba(255, 63, 168, 0.72),
+    0 0 46px rgba(124, 58, 237, 0.46) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  pointer-events: none !important;
+  z-index: 60 !important;
+  animation: bmCurrentDayStarExplosion 1.45s ease-in-out infinite !important;
+}
+
+:where(
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .week-day-tile.today,
+  .week-day-tile.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .calendar-month-day.today,
+  .calendar-month-day.is-today,
+  .day-strip-card.today,
+  .day-strip-card.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+)::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  z-index: 45;
+  background:
+    radial-gradient(circle at 42% 34%, #fff 0 10%, #fffde7 11% 22%, var(--bm-current-day-gold) 23% 47%, var(--bm-current-day-hot) 48% 70%, var(--bm-current-day-violet) 71% 100%);
+  clip-path: polygon(50% 0%, 59% 28%, 86% 10%, 76% 40%, 100% 50%, 76% 60%, 86% 90%, 59% 72%, 50% 100%, 41% 72%, 14% 90%, 24% 60%, 0% 50%, 24% 40%, 14% 10%, 41% 28%);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 12px rgba(255, 255, 255, 0.95),
+    0 0 20px rgba(255, 212, 59, 0.95),
+    0 0 32px rgba(255, 63, 168, 0.72),
+    0 0 46px rgba(124, 58, 237, 0.46);
+  animation: bmCurrentDayStarExplosion 1.45s ease-in-out infinite;
+}
+
+:where(
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .week-day-tile.today,
+  .week-day-tile.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .calendar-month-day.today,
+  .calendar-month-day.is-today,
+  .day-strip-card.today,
+  .day-strip-card.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+):has(:where(
+  .today-star,
+  .today-spark,
+  .today-dot,
+  .today-marker,
+  .today-burst,
+  .today-highlight,
+  .calendar-today-star,
+  .calendar-today-dot,
+  .calendar-today-marker,
+  .current-day-star,
+  .current-day-marker,
+  .current-day-burst,
+  .current-day-highlight,
+  .day-current-marker,
+  .day-current-dot,
+  .day-card-today-star,
+  .calendar-current-star
+))::after {
+  display: none;
+}
+
+@keyframes bmCurrentDayGlowPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.98),
+      0 0 0 5px rgba(255, 212, 59, 0.26),
+      0 0 20px rgba(255, 63, 168, 0.2),
+      0 0 34px rgba(56, 189, 248, 0.14),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(255, 255, 255, 1),
+      0 0 0 8px rgba(255, 212, 59, 0.46),
+      0 0 36px rgba(255, 63, 168, 0.4),
+      0 0 62px rgba(56, 189, 248, 0.28),
+      inset 0 0 18px rgba(255, 255, 255, 0.62);
+  }
+}
+
+@keyframes bmCurrentDayStarExplosion {
+  0%,
+  100% {
+    transform: scale(0.92) rotate(0deg);
+    filter: saturate(1.1) brightness(1.05);
+  }
+
+  38% {
+    transform: scale(1.22) rotate(8deg);
+    filter: saturate(1.55) brightness(1.55);
+  }
+
+  68% {
+    transform: scale(1.04) rotate(-5deg);
+    filter: saturate(1.25) brightness(1.24);
   }
 }
