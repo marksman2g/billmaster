@@ -1460,25 +1460,48 @@ button.round-icon {
   animation: ci-goals-ring-blink 2.7s ease-in-out infinite;
 }
 
-.command-illustration--goals .ci-goals-note {
-  fill: #ffc857;
+.command-illustration--goals .ci-goals-red-line {
+  fill: none;
+  stroke: #ef233c;
+  stroke-width: 3.8;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-goals-red-line-blink 2.2s ease-in-out infinite;
+}
+
+.command-illustration--goals .ci-goals-red-line-mid {
+  animation-delay: 0.22s;
+}
+
+.command-illustration--goals .ci-goals-paper {
+  fill: #fff7d6;
   stroke: #11182e;
   stroke-width: 3.3;
   stroke-linejoin: round;
   filter: drop-shadow(0 4px 5px rgba(17, 24, 46, 0.16));
 }
 
+.command-illustration--goals .ci-goals-paper-fold {
+  fill: none;
+  stroke: #11182e;
+  stroke-width: 2.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .command-illustration--goals .ci-goals-text {
-  fill: #fff;
+  fill: #11182e;
   font-family: Arial, sans-serif;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 900;
-  letter-spacing: 0.2px;
+  letter-spacing: 0;
   pointer-events: none;
 }
 
 .command-illustration--goals .ci-goals-arrow {
-  animation: ci-goals-arrow-hit 4.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-goals-arrow-flash 2.2s ease-in-out infinite;
 }
 
 .command-illustration--goals .ci-goals-arrow-shaft {
@@ -1562,6 +1585,7 @@ button.round-icon {
 .ci-pulse,
 .ci-check-badge,
 .ci-goals-ring-pulse,
+.ci-goals-red-line,
 .ci-goals-arrow,
 .ci-goals-spark-dot {
   transform-box: fill-box;
@@ -2267,10 +2291,34 @@ button.round-icon {
   }
 }
 
-@keyframes ci-goals-arrow-hit {
-  0%, 68%, 100% { transform: translate(0, 0) rotate(0deg); }
-  76% { transform: translate(-2px, 2px) rotate(-2deg); }
-  86% { transform: translate(1px, -1px) rotate(1deg); }
+@keyframes ci-goals-red-line-blink {
+  0%, 42%, 100% {
+    opacity: 0.7;
+    filter: brightness(1);
+  }
+  52%, 66% {
+    opacity: 1;
+    filter: brightness(1.55) drop-shadow(0 0 8px rgba(239, 35, 60, 0.75));
+  }
+  76% {
+    opacity: 0.85;
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes ci-goals-arrow-flash {
+  0%, 48%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    filter: brightness(1);
+  }
+  58% {
+    transform: translate(1px, 1px) rotate(1deg);
+    filter: brightness(1.55) drop-shadow(0 0 9px rgba(255, 200, 87, 0.9));
+  }
+  70% {
+    transform: translate(-1px, -1px) rotate(-1deg);
+    filter: brightness(1.25) drop-shadow(0 0 6px rgba(217, 119, 6, 0.65));
+  }
 }
 
 @keyframes ci-goals-spark-blink {
