@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-6";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-7";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2648,12 +2648,14 @@ function commandIllustration(iconName) {
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
         <g class="ci-review-envelope">
           <rect class="ci-review-envelope-body" x="13" y="39" width="70" height="39" rx="3"></rect>
-          <path class="ci-review-envelope-fold" d="M15 40l33 27 33-27"></path>
+          <path class="ci-review-envelope-flap" d="M15 40l33 27 33-27z"></path>
           <path class="ci-review-envelope-fold" d="M15 77l25-23M81 77L56 54"></path>
         </g>
         <g class="ci-review-badge">
           <circle class="ci-review-badge-circle" cx="48" cy="27" r="19"></circle>
-          <path class="ci-review-arrow" d="M48 15v24M37 29l11 11 11-11"></path>
+          <g class="ci-review-arrow-symbol">
+            <path class="ci-review-arrow" d="M48 15v24M37 29l11 11 11-11"></path>
+          </g>
         </g>
       </svg>`,
     sync: `

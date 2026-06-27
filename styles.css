@@ -1764,17 +1764,36 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.ci-review-envelope-flap {
+  fill: #f3f8ff;
+  stroke: #11182e;
+  stroke-width: 5.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+
 .ci-review-badge-circle {
-  fill: #6c63ff;
-  filter: drop-shadow(0 7px 11px rgba(108, 99, 255, 0.28));
+  fill: #f7fbff;
+  stroke: #6c63ff;
+  stroke-width: 2.8;
+  filter: drop-shadow(0 7px 11px rgba(108, 99, 255, 0.24));
 }
 
 .ci-review-arrow {
   fill: none;
-  stroke: #ffffff;
+  stroke: currentColor;
   stroke-width: 7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.ci-review-arrow-symbol {
+  color: #ef4444;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-review-arrow-flip-color 3.8s ease-in-out infinite;
 }
 
 .command-illustration--reviewInbox .ci-review-badge {
@@ -1792,6 +1811,10 @@ button.round-icon {
 
 .command-illustration--reviewInbox .ci-review-envelope-fold {
   animation: ci-review-envelope-fold-flash 3.8s ease-in-out infinite;
+}
+
+.command-illustration--reviewInbox .ci-review-envelope-flap {
+  animation: ci-review-envelope-open-flap 3.8s ease-in-out infinite;
 }
 
 .command-illustration--habits .ci-pulse,
@@ -2726,6 +2749,25 @@ button.round-icon {
   70% { transform: translateY(-1px) scale(.99); }
 }
 
+@keyframes ci-review-arrow-flip-color {
+  0%, 100% {
+    color: #ef4444;
+    transform: rotate(0deg) scale(1);
+  }
+  28% {
+    color: #11182e;
+    transform: rotate(0deg) scale(1.04);
+  }
+  45%, 58% {
+    color: #d97706;
+    transform: rotate(180deg) scale(1.08);
+  }
+  76% {
+    color: #11182e;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
 @keyframes ci-review-envelope-pulse {
   0%, 100% {
     transform: translateY(0);
@@ -2738,6 +2780,19 @@ button.round-icon {
   58% {
     transform: translateY(0);
     filter: drop-shadow(0 0 6px rgba(0, 188, 212, 0.22));
+  }
+}
+
+@keyframes ci-review-envelope-open-flap {
+  0%, 26%, 78%, 100% {
+    transform: scaleY(1);
+    fill: #f3f8ff;
+    filter: none;
+  }
+  45%, 58% {
+    transform: scaleY(-0.72);
+    fill: #fff7df;
+    filter: drop-shadow(0 -4px 7px rgba(217, 119, 6, 0.26));
   }
 }
 
