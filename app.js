@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260626-1";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -179,6 +179,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      cloudLastSetupTestAt: "",
+      cloudLastSetupTestOk: false,
+      cloudLastSetupTestStatus: 0,
+      cloudLastSetupTestHost: "",
+      cloudLastSetupTestMessage: "",
       backupFrequency: "weekly",
       backupLastExportAt: "",
       backupLastExportName: "",
@@ -759,6 +764,33 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
   }
 
+  function cloudSetupTestReady() {
+    return Boolean(cloudConfigured() && data.settings?.cloudLastSetupTestOk && data.settings?.cloudLastSetupTestHost === cloudProjectHost());
+  }
+
+  function cloudSetupTestLabel() {
+    if (cloudSetupTestReady()) return `Passed ${cloudTimeLabel(data.settings.cloudLastSetupTestAt)}`;
+    if (data.settings?.cloudLastSetupTestMessage) {
+      const status = data.settings.cloudLastSetupTestStatus ? ` (${data.settings.cloudLastSetupTestStatus})` : "";
+      return `Failed ${cloudTimeLabel(data.settings.cloudLastSetupTestAt)}${status}`;
+    }
+    return "Not tested yet";
+  }
+
+  function recordCloudSetupTest(ok, message, status = 0) {
+    data.settings.cloudLastSetupTestAt = new Date().toISOString();
+    data.settings.cloudLastSetupTestOk = Boolean(ok);
+    data.settings.cloudLastSetupTestStatus = Number(status || 0);
+    data.settings.cloudLastSetupTestHost = cloudProjectHost();
+    data.settings.cloudLastSetupTestMessage = message || "";
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
+  }
+
+  function finishCloudSetupTest(ok, message, status = 0) {
+    recordCloudSetupTest(ok, message, status);
+    showToast(message, ok ? "success" : "danger");
+  }
+
   function cloudNextActionLabel() {
     if (!cloudConfigured()) return cloudHasProjectUrl() ? "Add publishable key" : "Add Supabase project";
     if (!cloudSignedIn()) return "Sign in";
@@ -911,8 +943,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function cloudFriendlyErrorMessage(message, status = 0) {
     const text = String(message || "").trim();
-    if (Number(status) === 402 || /payment required|project.*paused|project.*inactive|billing/i.test(text)) {
-      return "Supabase project is paused or billing needs attention. Open Supabase, restore the project, then test cloud setup again before inviting friends.";
+    if (Number(status) === 402 || /payment required|project.*paused|project.*inactive|billing|egress[_\s-]*quota|spend cap|restricted.*project|upgrade.*plan/i.test(text)) {
+      return "Supabase project is restricted, paused, or billing needs attention. Open Supabase, restore service or remove the spend-cap blocker, then test cloud setup again before inviting friends.";
     }
     return text || `Supabase request failed${status ? ` (${status})` : ""}.`;
   }
@@ -990,6 +1022,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       cloudSyncConflictAt: "",
       cloudSyncConflictRemoteAt: "",
       cloudSyncConflictMessage: "",
+      cloudLastSetupTestAt: "",
+      cloudLastSetupTestOk: false,
+      cloudLastSetupTestStatus: 0,
+      cloudLastSetupTestHost: "",
+      cloudLastSetupTestMessage: "",
       backupFrequency: "weekly",
       backupLastExportAt: "",
       backupLastExportName: "",
@@ -3351,6 +3388,7 @@ function quickAction(action) {
         <span><strong>Last push</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPushedAt))}</small></span>
         <span><strong>Last pull</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastPulledAt))}</small></span>
         <span><strong>Last check</strong><small>${esc(cloudTimeLabel(data.settings?.cloudLastAutoCheckAt))}</small></span>
+        <span><strong>Setup test</strong><small>${esc(cloudSetupTestLabel())}</small></span>
         </div>
       </details>
       <div class="cloud-sync-status-line ${cloudSyncStateClass(syncState)}">
@@ -3377,6 +3415,7 @@ function quickAction(action) {
     const checks = [
       { label: "Supabase project URL", ready: cloudHasProjectUrl(), detail: cloudHasProjectUrl() ? cloudProjectHost() : "Add project URL" },
       { label: "Publishable key", ready: Boolean(cloudConfig.anonKey), detail: cloudConfig.anonKey ? "Browser can sign in" : "Paste full key into billmaster-config.js" },
+      { label: "Live setup test", ready: cloudSetupTestReady(), detail: cloudSetupTestReady() ? cloudSetupTestLabel() : (data.settings?.cloudLastSetupTestMessage || "Run Add / test key before inviting friends") },
       { label: "BillMaster account", ready: cloudSignedIn(), detail: cloudSignedIn() ? cloudSafeEmail() : "Create or sign in from Sync Center" },
       { label: "First cloud workspace", ready: Boolean(data.settings?.cloudLastSyncAt), detail: data.settings?.cloudLastSyncAt ? `Synced ${dateLabel(data.settings.cloudLastSyncAt.slice(0, 10))}` : "Sign in, save one item, then Smart merge once" },
       { label: "Auto sync", ready: cloudAutoSyncEnabled(), detail: cloudAutoSyncEnabled() ? "Pushes local saves first, then pulls newer cloud changes" : "Turn on after the first successful Smart merge" },
@@ -15192,37 +15231,39 @@ function quickAction(action) {
     }
     saveCloudConfigLocal({ url, anonKey });
     if (!/^https:\/\/.+\.supabase\.co$/i.test(cloudConfig.url)) {
-      showToast("Check the Project URL. It should look like https://your-project.supabase.co", "danger");
+      finishCloudSetupTest(false, "Check the Project URL. It should look like https://your-project.supabase.co");
       return;
     }
     try {
       const authProbe = await cloudProbe("/auth/v1/health");
-      if (authProbe.ok) {
-        showToast("Supabase Auth responded. Setup looks ready.");
+      const tableProbe = await cloudProbe("/rest/v1/billmaster_workspaces?select=user_id&limit=1");
+      const message = [authProbe.message, tableProbe.message].filter(Boolean).join(" ");
+      const status = tableProbe.status || authProbe.status || 0;
+      if (/invalid api key|no api key|apikey|jwt malformed/i.test(message)) {
+        finishCloudSetupTest(false, "The key was rejected. Use the publishable/anon public key, not the service role key.", status);
         return;
       }
-
-      const tableProbe = await cloudProbe("/rest/v1/billmaster_workspaces?select=user_id&limit=1");
-      const message = String(tableProbe.message || authProbe.message || "");
-      if (/invalid api key|no api key|apikey|jwt malformed/i.test(message)) {
-        showToast("The key was rejected. Use the publishable/anon public key, not the service role key.", "danger");
+      if (/payment required|project.*paused|project.*inactive|billing|egress[_\s-]*quota|spend cap|restricted.*project|upgrade.*plan/i.test(message)) {
+        finishCloudSetupTest(false, cloudFriendlyErrorMessage(message, status), status);
         return;
       }
       if (/relation .*billmaster_workspaces.*does not exist|could not find .*billmaster_workspaces/i.test(message)) {
-        showToast("Supabase reached, but the BillMaster SQL table is missing. Run supabase/schema.sql first.", "danger");
+        finishCloudSetupTest(false, "Supabase reached, but the BillMaster SQL table is missing. Run supabase/schema.sql first.", status);
         return;
       }
       if (/permission denied|insufficient privilege|not exposed|schema cache/i.test(message)) {
-        showToast("Supabase reached, but the Data API grants are missing. Run the latest supabase/schema.sql again.", "danger");
+        finishCloudSetupTest(false, "Supabase reached, but the Data API grants are missing. Run the latest supabase/schema.sql again.", status);
         return;
       }
-      if (tableProbe.ok || [401, 403].includes(tableProbe.status)) {
-        showToast("Supabase reached. If it says protected until sign-in, that is normal.");
+      if (authProbe.ok && (tableProbe.ok || [401, 403].includes(tableProbe.status))) {
+        finishCloudSetupTest(true, tableProbe.ok
+          ? "Supabase Auth and the BillMaster workspace table responded. Setup looks ready."
+          : "Supabase Auth responded and the workspace table is protected until sign-in. Setup looks ready.", status);
         return;
       }
-      showToast(`Supabase test failed: ${message || `status ${tableProbe.status || authProbe.status}`}`, "danger");
+      finishCloudSetupTest(false, `Supabase test failed: ${message || `status ${status}`}`, status);
     } catch (error) {
-      showToast(`Supabase test failed. Check the URL/key and internet connection. ${error.message}`, "danger");
+      finishCloudSetupTest(false, `Supabase test failed. Check the URL/key and internet connection. ${error.message}`);
     }
   }
 
@@ -15345,6 +15386,10 @@ function quickAction(action) {
     if (cloudBrowserOffline()) {
       setCloudSyncState(cloudHasLocalUnsyncedChanges ? "queued" : "checked", cloudOfflineMessage(), { queued: cloudHasLocalUnsyncedChanges, checked: !cloudHasLocalUnsyncedChanges });
       saveData({ undo: false, cloudSync: false, syncStamp: false });
+      return;
+    }
+    if (cloudHasLocalUnsyncedChanges || data.settings?.cloudSyncState === "queued") {
+      scheduleCloudAutoPush(350);
       return;
     }
     scheduleCloudAutoPull(1500);

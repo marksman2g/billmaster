@@ -12,13 +12,14 @@ Let a small group of people open BillMaster online, create their own account, sa
 - Friend alpha is next: invite only 1-3 trusted testers after the checks below are green.
 - Friend data must stay private per account. A new tester should start with a clean workspace.
 - Keep this as a beta: no real bank passwords, no real bill pay, no live subscription cancellation, and no private financial secrets yet.
+- Live backend status on June 27, 2026: blocked. Supabase currently returns `402` with `exceed_egress_quota`, so restore service/remove the spend-cap blocker before inviting friends.
 
 ## Live Link To Send
 
 Use this link after the go/no-go checks pass:
 
 ```text
-https://marksman2g.github.io/billmaster/?v=20260626-1
+https://marksman2g.github.io/billmaster/?v=20260627-1
 ```
 
 ## Go/No-Go Checks
@@ -50,7 +51,7 @@ https://marksman2g.github.io/billmaster/?v=20260626-1
 
 Ask each tester to do this:
 
-1. Open `https://marksman2g.github.io/billmaster/?v=20260626-1`.
+1. Open `https://marksman2g.github.io/billmaster/?v=20260627-1`.
 2. Go to Sync Center.
 3. Create a BillMaster cloud account. Leave "clean private workspace" on.
 4. Confirm email if Supabase asks, then sign in again from Sync Center.
