@@ -611,6 +611,18 @@ video {
   box-shadow: var(--shadow);
 }
 
+.calendar-quick-add {
+  margin: 10px 0 14px;
+  background: linear-gradient(135deg, #ffffff, #f7fbff);
+  border-color: rgba(33, 150, 243, 0.22);
+  box-shadow: 0 12px 26px rgba(33, 150, 243, 0.1);
+}
+
+.calendar-quick-add .primary-btn {
+  background: #1f4a82;
+  color: #ffffff;
+}
+
 .quick-add input,
 .search-field input {
   min-width: 0;
@@ -1195,6 +1207,51 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.command-illustration--calendar {
+  background:
+    radial-gradient(circle at 75% 18%, rgba(255, 193, 7, 0.38), transparent 30%),
+    radial-gradient(circle at 22% 82%, rgba(33, 150, 243, 0.18), transparent 34%),
+    linear-gradient(145deg, #ffffff, #eef7ff);
+  border-color: rgba(33, 150, 243, 0.42);
+  box-shadow: 0 14px 28px rgba(33, 150, 243, 0.18);
+}
+
+.command-illustration--calendar .ci-calendar-glow {
+  fill: rgba(255, 193, 7, 0.25);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-calendar-glow-pop 3.5s ease-in-out infinite;
+}
+
+.command-illustration--calendar .ci-calendar-page {
+  filter: drop-shadow(0 8px 12px rgba(33, 150, 243, 0.16));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-calendar-page-pop 4.2s ease-in-out infinite;
+}
+
+.command-illustration--calendar .ci-calendar-header {
+  animation: ci-calendar-header-color 4.2s linear infinite;
+}
+
+.command-illustration--calendar .ci-calendar-sweep {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 12 42;
+  animation: ci-calendar-sweep 2.8s linear infinite;
+}
+
+.command-illustration--calendar .ci-calendar-sun {
+  fill: #ffc107;
+  stroke: #fff7cc;
+  stroke-width: 2.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-calendar-sun-pop 3.2s ease-in-out infinite;
+}
+
 .ci-dollar,
 .ci-title,
 .ci-at {
@@ -1521,39 +1578,66 @@ button.round-icon {
   pointer-events: none;
 }
 
-.command-illustration--goals .ci-goals-arrow {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: ci-goals-pen-spin-pulse 3.4s ease-in-out infinite;
-}
-
-.command-illustration--goals .ci-goals-arrow-shaft {
-  fill: none;
-  stroke: #d97706;
-  stroke-width: 5.5;
-  stroke-linecap: round;
-  animation: ci-goals-pen-color 2.7s linear infinite;
-}
-
-.command-illustration--goals .ci-goals-arrow-head {
-  fill: #d97706;
-  stroke: #11182e;
-  stroke-width: 3;
-  stroke-linejoin: round;
-  animation: ci-goals-pen-fill-color 2.7s linear infinite;
-}
-
-.command-illustration--goals .ci-goals-arrow-tail {
-  fill: none;
-  stroke: #d97706;
-  stroke-width: 3.4;
-  stroke-linecap: round;
-  animation: ci-goals-pen-color 2.7s linear infinite;
-}
-
 .command-illustration--goals .ci-goals-spark-dot {
   fill: #8e5bd8;
   animation: ci-goals-spark-blink 2.7s ease-in-out infinite;
+}
+
+.command-illustration--goals .ci-goals-dart {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-goals-dart-flight 3.1s ease-in-out infinite;
+  filter: drop-shadow(0 4px 7px rgba(17, 24, 46, 0.18));
+}
+
+.command-illustration--goals .ci-goals-dart-tip {
+  fill: none;
+  stroke: #11182e;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.command-illustration--goals .ci-goals-dart-barrel {
+  fill: #ef4444;
+  stroke: #11182e;
+  stroke-width: 2.8;
+  stroke-linejoin: round;
+  animation: ci-goals-dart-color 2.7s linear infinite;
+}
+
+.command-illustration--goals .ci-goals-dart-shaft {
+  fill: none;
+  stroke: #11182e;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+
+.command-illustration--goals .ci-goals-dart-flight {
+  fill: #2563eb;
+  stroke: #11182e;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  animation: ci-goals-dart-flight-color 2.7s linear infinite;
+}
+
+.command-illustration--goals .ci-goals-dart-flight-b {
+  animation-delay: .12s;
+}
+
+.command-illustration--goals .ci-goals-dart-flight-c {
+  fill: #f59e0b;
+  animation-delay: .24s;
+}
+
+.command-illustration--goals .ci-goals-hit-spark {
+  fill: none;
+  stroke: #ffc107;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-goals-hit-spark 3.1s ease-in-out infinite;
 }
 
 .ci-title-ai {
@@ -1612,7 +1696,8 @@ button.round-icon {
 .ci-check-badge,
 .ci-goals-ring-pulse,
 .ci-goals-red-line,
-.ci-goals-arrow,
+.ci-goals-dart,
+.ci-goals-hit-spark,
 .ci-goals-spark-dot {
   transform-box: fill-box;
   transform-origin: center;
@@ -1622,8 +1707,32 @@ button.round-icon {
   animation: ci-pencil-wiggle 3.8s ease-in-out infinite;
 }
 
+.command-illustration--tasks .ci-pencil-burst {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-pencil-burst-pop 3.8s ease-in-out infinite;
+}
+
+.command-illustration--tasks .ci-pencil-burst-core {
+  fill: #ffc107;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.command-illustration--tasks .ci-pencil-burst-ray {
+  fill: none;
+  stroke: #ff3d71;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+}
+
 .command-illustration--projects .ci-gear {
-  animation: ci-spin 8s linear infinite;
+  fill: #ef4444;
+  stroke: #11182e;
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  animation: ci-gear-week-color-spin 6.4s linear infinite;
 }
 
 .command-illustration--tracking .ci-coin,
@@ -1688,6 +1797,15 @@ button.round-icon {
 .command-illustration--habits .ci-pulse,
 .command-illustration--addresses .ci-pulse {
   animation: ci-pulse 2.8s ease-in-out infinite;
+}
+
+.command-illustration--habits .ci-habit-heart {
+  fill: rgba(239, 68, 68, 0.92);
+  stroke: #11182e;
+  stroke-width: 3.1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-heart-beat-color 2.4s ease-in-out infinite;
 }
 
 .command-illustration--addresses .ci-address-svg {
@@ -2230,9 +2348,28 @@ button.round-icon {
 }
 
 @keyframes ci-pencil-wiggle {
-  0%, 68%, 100% { transform: rotate(0deg); }
-  74% { transform: rotate(-7deg) translateY(-1px); }
-  82% { transform: rotate(5deg); }
+  0%, 58%, 100% { transform: rotate(0deg); }
+  66% { transform: rotate(-10deg) translateY(-2px); }
+  74% { transform: rotate(5deg) translateY(2px); }
+  80% { transform: rotate(0deg) translateY(0); }
+}
+
+@keyframes ci-pencil-burst-pop {
+  0%, 64%, 86%, 100% {
+    opacity: 0;
+    transform: scale(0.45);
+    filter: none;
+  }
+  74% {
+    opacity: 1;
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.9));
+  }
+  80% {
+    opacity: .72;
+    transform: scale(1.55);
+    filter: drop-shadow(0 0 12px rgba(255, 61, 113, 0.72));
+  }
 }
 
 @keyframes ci-note-pencil-write {
@@ -2295,6 +2432,58 @@ button.round-icon {
   45% {
     transform: scale(1.25);
     opacity: 1;
+  }
+}
+
+@keyframes ci-calendar-glow-pop {
+  0%, 100% {
+    transform: scale(0.82);
+    opacity: .45;
+  }
+  52% {
+    transform: scale(1.18);
+    opacity: .95;
+  }
+}
+
+@keyframes ci-calendar-page-pop {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.035);
+  }
+}
+
+@keyframes ci-calendar-header-color {
+  0%, 100% {
+    fill: #2196f3;
+  }
+  25% {
+    fill: #8e5bd8;
+  }
+  50% {
+    fill: #14b8a6;
+  }
+  75% {
+    fill: #ff9800;
+  }
+}
+
+@keyframes ci-calendar-sweep {
+  to {
+    stroke-dashoffset: -54;
+  }
+}
+
+@keyframes ci-calendar-sun-pop {
+  0%, 100% {
+    transform: scale(0.86);
+    filter: drop-shadow(0 0 3px rgba(255, 193, 7, 0.45));
+  }
+  52% {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 9px rgba(255, 193, 7, 0.9));
   }
 }
 
@@ -2386,6 +2575,61 @@ button.round-icon {
   }
 }
 
+@keyframes ci-goals-dart-flight {
+  0%, 100% {
+    transform: translate(-4px, -3px) rotate(-2deg) scale(0.98);
+    filter: drop-shadow(0 0 3px rgba(17, 24, 46, 0.2));
+  }
+  46% {
+    transform: translate(2px, 1px) rotate(1deg) scale(1.08);
+    filter: drop-shadow(0 0 8px rgba(255, 193, 7, 0.72));
+  }
+  58% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.58));
+  }
+}
+
+@keyframes ci-goals-dart-color {
+  0%, 100% {
+    fill: #ef4444;
+  }
+  33% {
+    fill: #2563eb;
+  }
+  66% {
+    fill: #f59e0b;
+  }
+}
+
+@keyframes ci-goals-dart-flight-color {
+  0%, 100% {
+    fill: #2563eb;
+  }
+  33% {
+    fill: #f59e0b;
+  }
+  66% {
+    fill: #ef4444;
+  }
+}
+
+@keyframes ci-goals-hit-spark {
+  0%, 42%, 72%, 100% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 9px rgba(255, 193, 7, 0.9));
+  }
+  62% {
+    opacity: .65;
+    transform: scale(1.45);
+  }
+}
+
 @keyframes ci-goals-spark-blink {
   0%, 100% {
     opacity: 0.55;
@@ -2399,6 +2643,56 @@ button.round-icon {
 
 @keyframes ci-spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes ci-gear-week-color-spin {
+  0% {
+    transform: rotate(0deg);
+    fill: #2196f3;
+  }
+  16% {
+    fill: #14b8a6;
+  }
+  33% {
+    fill: #ffc107;
+  }
+  50% {
+    fill: #ff9800;
+  }
+  66% {
+    fill: #8e5bd8;
+  }
+  83% {
+    fill: #4caf50;
+  }
+  100% {
+    transform: rotate(360deg);
+    fill: #2196f3;
+  }
+}
+
+@keyframes ci-heart-beat-color {
+  0%, 100% {
+    transform: scale(0.92);
+    fill: #ef4444;
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.34));
+  }
+  18% {
+    transform: scale(1.18);
+  }
+  34% {
+    transform: scale(0.98);
+    fill: #2563eb;
+    filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.48));
+  }
+  52% {
+    transform: scale(1.22);
+  }
+  68% {
+    transform: scale(1);
+    fill: #f59e0b;
+    filter: drop-shadow(0 0 9px rgba(245, 158, 11, 0.58));
+  }
 }
 
 @keyframes ci-sync-spin {

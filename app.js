@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-5";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-6";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2453,8 +2453,9 @@ function commandIllustration(iconName) {
   const drawings = {
     calendar: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <rect class="ci-soft" x="8" y="18" width="70" height="60" rx="13"></rect>
-        <path class="ci-accent" d="M8 31c0-7 6-13 13-13h44c7 0 13 6 13 13v7H8z"></path>
+        <circle class="ci-calendar-glow" cx="70" cy="27" r="19"></circle>
+        <rect class="ci-soft ci-calendar-page" x="8" y="18" width="70" height="60" rx="13"></rect>
+        <path class="ci-accent ci-calendar-header" d="M8 31c0-7 6-13 13-13h44c7 0 13 6 13 13v7H8z"></path>
         <rect class="ci-dark" x="20" y="8" width="9" height="20" rx="4"></rect>
         <rect class="ci-dark" x="58" y="8" width="9" height="20" rx="4"></rect>
         <g class="ci-grid">
@@ -2465,6 +2466,8 @@ function commandIllustration(iconName) {
           <rect x="38" y="61" width="10" height="10" rx="2"></rect>
           <rect x="56" y="61" width="10" height="10" rx="2"></rect>
         </g>
+        <path class="ci-calendar-sweep" d="M19 40h47"></path>
+        <circle class="ci-calendar-sun" cx="76" cy="26" r="6"></circle>
         <circle class="ci-check-badge" cx="72" cy="68" r="19"></circle>
         <path class="ci-white-line" d="M63 68l7 7 13-16"></path>
       </svg>`,
@@ -2477,6 +2480,10 @@ function commandIllustration(iconName) {
         <g class="ci-pencil">
           <path class="ci-money" d="M68 14h12v48l-6 13-6-13z"></path>
           <path class="ci-line" d="M68 24h12M74 62v10"></path>
+        </g>
+        <g class="ci-pencil-burst">
+          <circle class="ci-pencil-burst-core" cx="66" cy="63" r="4"></circle>
+          <path class="ci-pencil-burst-ray" d="M66 50v-9M66 76v9M53 63h-9M79 63h9M57 54l-7-7M75 72l7 7M75 54l7-7M57 72l-7 7"></path>
         </g>
       </svg>`,
     habits: `
@@ -2527,11 +2534,15 @@ function commandIllustration(iconName) {
           <circle class="ci-goals-red-line ci-goals-red-line-outer" cx="45" cy="51" r="31"></circle>
           <circle class="ci-goals-red-line ci-goals-red-line-mid" cx="45" cy="51" r="16"></circle>
         </g>
-        <g class="ci-goals-arrow ci-goals-pen">
-          <path class="ci-goals-arrow-shaft" d="M7 36 44 51"></path>
-          <path class="ci-goals-arrow-head" d="M42 46l12 8-14 3z"></path>
-          <path class="ci-goals-arrow-tail" d="M9 36l-8-10M13 38 1 43M18 41 5 51"></path>
+        <g class="ci-goals-dart">
+          <path class="ci-goals-dart-tip" d="M44 50l8 4-9 1"></path>
+          <path class="ci-goals-dart-barrel" d="M25 36l20 10-4 9-21-11z"></path>
+          <path class="ci-goals-dart-shaft" d="M11 31l16 8"></path>
+          <path class="ci-goals-dart-flight ci-goals-dart-flight-a" d="M13 32L1 19l2 16z"></path>
+          <path class="ci-goals-dart-flight ci-goals-dart-flight-b" d="M13 32L0 42l17 1z"></path>
+          <path class="ci-goals-dart-flight ci-goals-dart-flight-c" d="M17 34L8 22l14 6z"></path>
         </g>
+        <path class="ci-goals-hit-spark" d="M45 43v-7M45 66v7M34 54h-7M62 54h7M37 46l-5-5M57 63l5 5M57 46l5-5M37 63l-5 5"></path>
         <text class="ci-goals-text" x="47" y="58" text-anchor="middle">Goals</text>
         <circle class="ci-goals-spark-dot" cx="18" cy="20" r="4"></circle>
       </svg>`,
@@ -2657,7 +2668,7 @@ function commandIllustration(iconName) {
       </svg>`,
     ai: `
       <span class="ci-ai-gif-frame">
-        <img class="ci-ai-gif" src="assets/generated/ai-assistant-flash.gif?v=20260627-5" alt="" loading="eager" decoding="async" />
+        <img class="ci-ai-gif" src="assets/generated/ai-assistant-flash.gif?v=20260627-6" alt="" loading="eager" decoding="async" />
       </span>`
   };
 
@@ -4212,6 +4223,7 @@ function quickAction(action) {
       </div>
       ${calendarCategoryBar()}
       ${calendarColorSchemePicker()}
+      ${calendarQuickAddBar(view)}
       <div class="calendar-controls">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
@@ -4250,6 +4262,15 @@ function quickAction(action) {
     return `<div class="calendar-color-picker" aria-label="Calendar color scheme">
       <span class="calendar-color-picker__label">Color style</span>
       ${chips}
+    </div>`;
+  }
+
+  function calendarQuickAddBar(view) {
+    const label = view === "block" ? "Quick add block task..." : `Quick add ${filterLabel(view)} task...`;
+    return `<div class="quick-add calendar-quick-add">
+      <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
+      <input id="quickTaskInput" placeholder="${esc(label)} (Ctrl+T)" />
+      <button class="icon-btn primary-btn" data-action="quick-add-task" aria-label="Add calendar task">${icon("check")}</button>
     </div>`;
   }
 
@@ -4725,9 +4746,9 @@ function quickAction(action) {
   function getStoredCalendarPalette() {
     try {
       const saved = localStorage.getItem(calendarPaletteStorageKey);
-      return calendarPaletteSchemes[saved] ? saved : "soft";
+      return calendarPaletteSchemes[saved] ? saved : "bold";
     } catch (error) {
-      return "soft";
+      return "bold";
     }
   }
 
@@ -4743,8 +4764,8 @@ function quickAction(action) {
   }
 
   function calendarToneVars(tone) {
-    const scheme = calendarPaletteSchemes[activeCalendarPalette] || calendarPaletteSchemes.soft;
-    return scheme.tones[tone] || scheme.tones.weekday || calendarPaletteSchemes.soft.tones.weekday;
+    const scheme = calendarPaletteSchemes[activeCalendarPalette] || calendarPaletteSchemes.bold;
+    return scheme.tones[tone] || scheme.tones.weekday || calendarPaletteSchemes.bold.tones.weekday;
   }
 
   function calendarToneStyle(tone) {
@@ -16426,6 +16447,135 @@ function quickAction(action) {
     return String(text || "").replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll(";", "\\;").replaceAll("\n", "\\n");
   }
 
+  function aiNorm(text) {
+    return String(text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function aiGoalAnswer() {
+    const goals = safeArray(data.goals);
+    if (!goals.length) return "I do not see any goals saved in BillMaster yet.";
+    const totalTarget = goals.reduce((sum, goal) => sum + Number(goal.target || 0), 0);
+    const totalCurrent = goals.reduce((sum, goal) => sum + Number(goal.current || 0), 0);
+    const totalPct = totalTarget ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+    const lines = goals.map((goal) => {
+      const target = Number(goal.target || 0);
+      const current = Number(goal.current || 0);
+      const pct = target ? Math.round((current / target) * 100) : 0;
+      const remaining = Math.max(0, target - current);
+      return `${goal.name}: ${pct}% complete (${money(current)} of ${money(target)}), ${money(remaining)} left, target ${dateLabel(goal.targetDate)}.`;
+    });
+    return `Across your saved goals, you are ${totalPct}% funded (${money(totalCurrent)} of ${money(totalTarget)}). ${lines.join(" ")}`;
+  }
+
+  function aiDateInRange(iso, startIso, endIso) {
+    const value = parseLocalDate(iso).getTime();
+    return value >= parseLocalDate(startIso).getTime() && value <= parseLocalDate(endIso).getTime();
+  }
+
+  function aiHabitOccursOn(habit, iso) {
+    if (habit.status && habit.status !== "Active") return false;
+    if (habit.startDate && parseLocalDate(habit.startDate) > parseLocalDate(iso)) return false;
+    if (habit.endDate && parseLocalDate(habit.endDate) < parseLocalDate(iso)) return false;
+    const weekday = parseLocalDate(iso).getDay();
+    if (Array.isArray(habit.days) && habit.days.length) return habit.days.includes(weekday);
+    const schedule = String(habit.schedule || "").toLowerCase();
+    if (schedule.includes("weekday")) return weekday > 0 && weekday < 6;
+    return schedule.includes("daily") || schedule.includes("weekly") || schedule.includes("monthly");
+  }
+
+  function aiCalendarItems(startIso, endIso) {
+    const items = [];
+    safeArray(data.tasks).forEach((task) => {
+      if (task.date && aiDateInRange(task.date, startIso, endIso)) {
+        items.push({ type: "Task", title: task.title, date: task.date, time: task.start || "", detail: task.description || task.category || task.status || "" });
+      }
+    });
+    safeArray(data.habits).forEach((habit) => {
+      for (let iso = startIso; parseLocalDate(iso) <= parseLocalDate(endIso); iso = addDaysIso(iso, 1)) {
+        if (aiHabitOccursOn(habit, iso)) items.push({ type: "Habit", title: habit.title, date: iso, time: habit.start || "", detail: habit.type || habit.schedule || "" });
+      }
+    });
+    safeArray(data.bills).forEach((bill) => {
+      if (bill.dueDate && aiDateInRange(bill.dueDate, startIso, endIso)) {
+        items.push({ type: "Bill", title: bill.name, date: bill.dueDate, time: "", detail: `${money(bill.amount)} ${bill.status || ""}`.trim() });
+      }
+    });
+    safeArray(data.subscriptions).forEach((sub) => {
+      if (sub.nextDate && aiDateInRange(sub.nextDate, startIso, endIso)) {
+        items.push({ type: "Subscription", title: sub.name, date: sub.nextDate, time: "", detail: `${money(sub.amount)} ${sub.status || ""}`.trim() });
+      }
+    });
+    safeArray(data.projects).forEach((project) => {
+      if (project.dueDate && aiDateInRange(project.dueDate, startIso, endIso)) {
+        items.push({ type: "Project", title: project.name, date: project.dueDate, time: "", detail: `${project.level || ""} ${project.status || ""}`.trim() });
+      }
+    });
+    return items.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  }
+
+  function aiCalendarAnswer(prompt) {
+    const lower = aiNorm(prompt);
+    const startIso = lower.includes("this week") || lower.includes("week") ? startOfWeekIso(ui.selectedDate || todayIso()) : todayIso();
+    const endIso = lower.includes("this week") || lower.includes("week") ? addDaysIso(startIso, 6) : addDaysIso(startIso, 14);
+    let items = aiCalendarItems(startIso, endIso);
+    if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
+      items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
+      if (!items.length) return `I do not see a doctor or appointment item from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
+    }
+    if (!items.length) return `I do not see saved calendar items from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
+    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}, I found ${items.length} item${items.length === 1 ? "" : "s"}: ${items.slice(0, 8).map((item) => `${item.type}: ${item.title} on ${dateLabel(item.date)}${item.time ? ` at ${timeLabel(item.time)}` : ""}${item.detail ? ` (${item.detail})` : ""}`).join("; ")}${items.length > 8 ? `; plus ${items.length - 8} more.` : "."}`;
+  }
+
+  function aiSubjectFromPrompt(prompt) {
+    const cleaned = aiNorm(prompt);
+    const match = cleaned.match(/\b(?:about|pertaining to|regarding|subject|on)\s+(.+)$/);
+    const raw = match ? match[1] : cleaned;
+    return raw.replace(/\b(notes?|notebooks?|any|do|i|have|what|does|it|say|created|when|was|inside|app|certain|subject|and|if|so)\b/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function aiNotesAnswer(prompt) {
+    const subject = aiSubjectFromPrompt(prompt);
+    const haystack = (item) => aiNorm([item.title, item.content, item.subject, item.description, ...(item.subjects || [])].join(" "));
+    const notes = safeArray(data.notes).filter((note) => !subject || haystack(note).includes(subject));
+    const notebooks = safeArray(data.notebooks).filter((notebook) => !subject || haystack(notebook).includes(subject));
+    if (!notes.length && !notebooks.length) return subject ? `I do not see notes or notebooks about "${subject}" in BillMaster.` : "I do not see matching notes or notebooks in BillMaster.";
+    const notebookById = new Map(safeArray(data.notebooks).map((notebook) => [notebook.id, notebook]));
+    const noteText = notes.slice(0, 5).map((note) => {
+      const notebook = notebookById.get(note.notebookId);
+      const snippet = String(note.content || "").slice(0, 140);
+      return `${note.title} (${notebook?.title || "No notebook"}, created ${dateLabel(note.date)}): ${snippet || "No note body."}`;
+    });
+    const notebookText = notebooks.slice(0, 4).map((notebook) => `${notebook.title}${notebook.subjects?.length ? ` subjects: ${notebook.subjects.join(", ")}` : ""}`);
+    return `I found ${notes.length} note${notes.length === 1 ? "" : "s"} and ${notebooks.length} notebook${notebooks.length === 1 ? "" : "s"}${subject ? ` about "${subject}"` : ""}. ${[...noteText, ...notebookText].join(" ")}`;
+  }
+
+  function aiExpenseAnswer() {
+    const totals = new Map();
+    safeArray(data.transactions).filter((tx) => tx.type === "expense").forEach((tx) => {
+      const category = tx.category || "Uncategorized";
+      totals.set(category, (totals.get(category) || 0) + Number(tx.amount || 0));
+    });
+    const ranked = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (!ranked.length) return "I do not see saved expense transactions in BillMaster yet.";
+    return `Your biggest saved expense categories are ${ranked.map(([category, amount]) => `${category} at ${money(amount)}`).join(", ")}.`;
+  }
+
+  function aiSubscriptionAnswer() {
+    const subs = safeArray(data.subscriptions).slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+    if (!subs.length) return "I do not see subscriptions saved in BillMaster yet.";
+    return `Your highest saved subscriptions are ${subs.slice(0, 5).map((sub) => `${sub.name} at ${money(sub.amount)} ${sub.cycle || ""}, next ${dateLabel(sub.nextDate)}`).join("; ")}.`;
+  }
+
+  function aiAppDataAnswer(prompt) {
+    const lower = aiNorm(prompt);
+    if (lower.includes("goal")) return aiGoalAnswer();
+    if (/\b(note|notebook|subject)\b/.test(lower)) return aiNotesAnswer(prompt);
+    if (/\b(event|calendar|appointment|appt|doctor|week|coming up|due)\b/.test(lower)) return aiCalendarAnswer(prompt);
+    if (lower.includes("subscription") || lower.includes("cancel")) return aiSubscriptionAnswer();
+    if (lower.includes("expense") || lower.includes("biggest") || lower.includes("spending")) return aiExpenseAnswer();
+    return "I can answer from your saved BillMaster data about goals, calendar events, doctor appointments, bills, subscriptions, expenses, tasks, projects, notes, and notebooks. Try asking, \"How close am I to my goals?\" or \"What events do I have this week?\"";
+  }
+
   function resetData() {
     data = clone(seed);
     saveData();
@@ -16436,11 +16586,7 @@ function quickAction(action) {
     const prompt = String(text || "").trim();
     if (!prompt) return;
     data.aiMessages.push({ role: "user", text: prompt });
-    const lower = prompt.toLowerCase();
-    let response = "I found the strongest action is to review bills due in the next 7 days, then compare actual versus projected spending.";
-    if (lower.includes("subscription")) response = "Adobe is the highest variance subscription. Cancel or downgrade it first, then keep Netflix and Spotify unless their projected amounts drift.";
-    if (lower.includes("goal")) response = "Emergency Fund is 70% complete and on track. Vacation Fund needs about $725 more per month to hit the June target.";
-    if (lower.includes("expense") || lower.includes("biggest")) response = "Housing, utilities, and groceries are your biggest expenses. Groceries are the only category currently above projection.";
+    const response = aiAppDataAnswer(prompt);
     data.aiMessages.push({ role: "ai", text: response });
     ui.aiDraft = "";
     saveData();
