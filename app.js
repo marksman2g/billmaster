@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-7";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-8";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2553,6 +2553,13 @@ function commandIllustration(iconName) {
           <path class="ci-loan-clip" d="M28 10h16a4 4 0 0 1 4 4v6H24v-6a4 4 0 0 1 4-4z"></path>
           <text class="ci-title ci-title-loan" x="35.5" y="37" text-anchor="middle">Loan</text>
           <path class="ci-line ci-loan-lines" d="M24 48h23M24 57h23M24 66h17"></path>
+          <g class="ci-loan-splatter">
+            <circle class="ci-loan-splash ci-loan-splash-1" cx="23" cy="45" r="3"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-2" cx="50" cy="49" r="4"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-3" cx="31" cy="69" r="3.3"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-4" cx="48" cy="63" r="2.4"></circle>
+            <path class="ci-loan-splash ci-loan-splash-streak" d="M22 58c7-4 15-4 25 0"></path>
+          </g>
         </g>
         <g class="ci-loan-bag">
           <path class="ci-loan-bag-tie" d="M66 33l-6-8 7 3 7-3-4 8"></path>

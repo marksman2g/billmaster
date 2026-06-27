@@ -1673,9 +1673,33 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.command-illustration--loans .ci-loan-bag .ci-money,
+.command-illustration--loans .ci-loan-bag-tie {
+  animation: ci-loan-bag-gold-to-red 3.6s ease-in-out infinite;
+}
+
 .ci-loan-shine {
   fill: none;
   stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.command-illustration--loans .ci-loan-splatter {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-loan-splatter-burst 3.6s ease-in-out infinite;
+}
+
+.command-illustration--loans .ci-loan-splash {
+  fill: #8b0000;
+  stroke: none;
+}
+
+.command-illustration--loans .ci-loan-splash-streak {
+  fill: none;
+  stroke: #8b0000;
   stroke-width: 4;
   stroke-linecap: round;
 }
@@ -1690,6 +1714,7 @@ button.round-icon {
 .ci-coin,
 .ci-loan-paper,
 .ci-loan-bag,
+.ci-loan-splatter,
 .ci-review-envelope,
 .ci-review-badge,
 .ci-pulse,
@@ -2738,9 +2763,55 @@ button.round-icon {
 }
 
 @keyframes ci-loan-bag-pop {
-  0%, 100% { transform: translateY(0) scale(1); }
-  45% { transform: translateY(-3px) scale(1.05); }
-  65% { transform: translateY(-1px) scale(1.02); }
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 3px 6px rgba(255, 193, 7, 0.25));
+  }
+  42% {
+    transform: translateY(-4px) scale(1.18);
+    filter: drop-shadow(0 0 12px rgba(139, 0, 0, 0.62));
+  }
+  56% {
+    transform: translateY(-2px) scale(1.3);
+    filter: drop-shadow(0 0 16px rgba(139, 0, 0, 0.8));
+  }
+  68% {
+    transform: translateY(1px) scale(0.96);
+    filter: drop-shadow(0 3px 6px rgba(139, 0, 0, 0.35));
+  }
+}
+
+@keyframes ci-loan-bag-gold-to-red {
+  0%, 100% {
+    fill: #ffd84a;
+  }
+  38% {
+    fill: #b8860b;
+  }
+  54%, 66% {
+    fill: #8b0000;
+  }
+  78% {
+    fill: #c1121f;
+  }
+}
+
+@keyframes ci-loan-splatter-burst {
+  0%, 43%, 82%, 100% {
+    opacity: 0;
+    transform: scale(0.45);
+    filter: none;
+  }
+  56% {
+    opacity: 1;
+    transform: scale(1.18);
+    filter: drop-shadow(0 0 8px rgba(139, 0, 0, 0.64));
+  }
+  70% {
+    opacity: .86;
+    transform: scale(1.38);
+    filter: drop-shadow(0 0 5px rgba(139, 0, 0, 0.42));
+  }
 }
 
 @keyframes ci-review-inbox-drop {
