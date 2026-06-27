@@ -1431,27 +1431,35 @@ button.round-icon {
 }
 
 .ci-contact-shoulder {
-  fill: #c9d2dd;
+  fill: #d7e9ff;
   stroke: #11182e;
   stroke-width: 3.4;
   stroke-linejoin: round;
 }
 
 .ci-contact-neck {
-  fill: #dce5ee;
+  fill: #b97956;
   stroke: #11182e;
   stroke-width: 3;
   stroke-linejoin: round;
 }
 
 .ci-contact-head {
-  fill: #d7e0ea;
+  fill: #c98b66;
   stroke: #11182e;
   stroke-width: 3.6;
   stroke-linejoin: round;
 }
 
-.ci-contact-profile {
+.ci-contact-ear {
+  fill: #b97956;
+  stroke: #11182e;
+  stroke-width: 2.6;
+}
+
+.ci-contact-profile,
+.ci-contact-brow,
+.ci-contact-face-line {
   fill: none;
   stroke: #11182e;
   stroke-width: 3.2;
@@ -1459,8 +1467,13 @@ button.round-icon {
   stroke-linejoin: round;
 }
 
+.ci-contact-brow,
+.ci-contact-face-line {
+  stroke-width: 2.5;
+}
+
 .ci-contact-hair {
-  fill: #1a1f36;
+  fill: #11131f;
   stroke: #11182e;
   stroke-width: 2.4;
   stroke-linejoin: round;
@@ -1468,14 +1481,28 @@ button.round-icon {
 
 .ci-contact-lock {
   fill: none;
-  stroke: #1a1f36;
-  stroke-width: 4;
+  stroke: #11131f;
+  stroke-width: 4.6;
   stroke-linecap: round;
+}
+
+.ci-contact-front-lock {
+  stroke-width: 4.2;
+}
+
+.ci-contact-side-lock {
+  stroke-width: 5.2;
+}
+
+.ci-contact-dreads-back {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-contact-lock-sway 6.2s ease-in-out infinite;
 }
 
 .ci-contact-highlight {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.78);
+  stroke: rgba(255, 255, 255, 0.62);
   stroke-width: 3;
   stroke-linecap: round;
 }

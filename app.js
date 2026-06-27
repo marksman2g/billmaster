@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-9";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-10";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2630,20 +2630,29 @@ function commandIllustration(iconName) {
     contacts: `
       <svg class="ci-svg ci-contact-svg" viewBox="0 0 96 96" role="img">
         <rect class="ci-contact-card" x="13" y="13" width="70" height="70" rx="16"></rect>
-        <path class="ci-contact-shadow" d="M18 78c5-16 17-25 31-25 14 0 25 9 30 25z"></path>
-        <path class="ci-contact-shoulder" d="M20 77c6-13 16-20 29-20 12 0 23 7 28 20z"></path>
-        <path class="ci-contact-neck" d="M42 53c1 8 4 13 11 17H34c6-4 8-10 8-17z"></path>
-        <path class="ci-contact-head" d="M50 22c13 0 22 9 22 21 0 5-2 9-6 12l-8 5c-5 3-10 3-15 0-8-4-12-11-12-20 0-11 7-18 19-18z"></path>
-        <path class="ci-contact-profile" d="M62 35c4 3 7 7 11 10l-8 4c-1 7-7 12-15 12"></path>
-        <circle class="ci-contact-eye" cx="58" cy="39" r="2"></circle>
-        <path class="ci-contact-hair" d="M49 21c-13 1-22 9-24 21-1 8 3 15 8 20 1-10 4-18 12-23 6-4 13-5 24-3-3-9-10-15-20-15z"></path>
-        <g class="ci-contact-locks">
-          <path class="ci-contact-lock" d="M34 28c-8 8-9 19-4 29"></path>
-          <path class="ci-contact-lock" d="M40 24c-8 10-9 22-3 34"></path>
-          <path class="ci-contact-lock" d="M46 22c-7 10-7 22-1 35"></path>
-          <path class="ci-contact-lock" d="M28 38c-5 8-4 16 2 22"></path>
+        <path class="ci-contact-shadow" d="M17 79c6-15 18-24 32-24 15 0 27 9 33 24z"></path>
+        <g class="ci-contact-dreads-back">
+          <path class="ci-contact-lock" d="M36 26c-9 9-12 20-9 33 2 8 0 15-6 21"></path>
+          <path class="ci-contact-lock" d="M42 23c-8 11-10 23-5 37 3 8 1 15-5 21"></path>
+          <path class="ci-contact-lock" d="M50 22c-6 12-6 24-1 36 4 9 3 16-3 23"></path>
+          <path class="ci-contact-lock" d="M58 26c-2 11 0 21 7 30 5 7 6 14 2 22"></path>
         </g>
-        <path class="ci-contact-highlight" d="M52 29c6 1 10 4 13 9"></path>
+        <path class="ci-contact-shoulder" d="M21 78c6-12 16-19 28-19 13 0 23 7 29 19z"></path>
+        <path class="ci-contact-neck" d="M42 55c1 7 4 12 9 15H37c4-4 6-9 6-15z"></path>
+        <path class="ci-contact-head" d="M49 24c12 0 21 9 21 22s-9 22-21 22-21-9-21-22 9-22 21-22z"></path>
+        <circle class="ci-contact-ear" cx="67" cy="47" r="5.2"></circle>
+        <path class="ci-contact-hair" d="M30 43c0-13 8-22 20-22 12 0 20 8 22 20-7-5-14-7-23-6-9 1-15 4-19 8z"></path>
+        <g class="ci-contact-locks">
+          <path class="ci-contact-lock ci-contact-front-lock" d="M34 30c-6 8-8 17-5 27"></path>
+          <path class="ci-contact-lock ci-contact-front-lock" d="M40 26c-6 9-7 18-3 29"></path>
+          <path class="ci-contact-lock ci-contact-front-lock" d="M47 25c-5 10-5 20 0 30"></path>
+          <path class="ci-contact-lock ci-contact-front-lock" d="M55 27c-3 10-1 19 5 27"></path>
+          <path class="ci-contact-lock ci-contact-side-lock" d="M27 43c-5 8-4 17 3 25"></path>
+        </g>
+        <circle class="ci-contact-eye" cx="55" cy="43" r="2.3"></circle>
+        <path class="ci-contact-brow" d="M49 38c4-2 8-2 12 0"></path>
+        <path class="ci-contact-face-line" d="M58 46c3 4 3 8-1 11M47 59c4 2 9 2 13-1"></path>
+        <path class="ci-contact-highlight" d="M43 30c5-2 11-2 17 2"></path>
         <circle class="ci-contact-spark" cx="69" cy="25" r="3"></circle>
       </svg>`,
     addresses: `
