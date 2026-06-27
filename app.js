@@ -8,6 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260626-1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -92,12 +93,68 @@
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
-  const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
-  const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
-  const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const calendarDayTones = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
-  const DEFAULT_TASK_BG = "#ff7a1a";
+const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
+const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
+const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const calendarDayTones = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const calendarPaletteStorageKey = "billmaster.calendarPalette";
+const calendarPaletteSchemes = {
+  soft: {
+    label: "Soft",
+    tones: {
+      sunday: { bg: "#f6fcff", bg2: "#ddf3ff", border: "#9edbff", accent: "#38bdf8" },
+      monday: { bg: "#f5fff8", bg2: "#d9f7e6", border: "#86d9a9", accent: "#22c55e" },
+      tuesday: { bg: "#f6fbff", bg2: "#dfefff", border: "#92c5ff", accent: "#3b82f6" },
+      wednesday: { bg: "#fffdf2", bg2: "#fff0b8", border: "#f3d15f", accent: "#f59e0b" },
+      thursday: { bg: "#fffbef", bg2: "#ffe8a6", border: "#efbf4f", accent: "#e8a008" },
+      friday: { bg: "#fbf7ff", bg2: "#eadcff", border: "#c4a6f5", accent: "#8b5cf6" },
+      saturday: { bg: "#f2fbff", bg2: "#ccecff", border: "#75cff7", accent: "#0ea5e9" },
+      weekday: { bg: "#fbfdff", bg2: "#f5f8fc", border: "#dce8f4", accent: "#9ab7d8" },
+    },
+  },
+  calm: {
+    label: "Calm",
+    tones: {
+      sunday: { bg: "#f9fdff", bg2: "#e9f7ff", border: "#b8e5ff", accent: "#7dd3fc" },
+      monday: { bg: "#f8fff9", bg2: "#e9f8ee", border: "#b6e4c7", accent: "#62c784" },
+      tuesday: { bg: "#f8fbff", bg2: "#ebf3ff", border: "#bad8ff", accent: "#60a5fa" },
+      wednesday: { bg: "#fffdf7", bg2: "#fff3cc", border: "#f0d783", accent: "#eab308" },
+      thursday: { bg: "#fffcf5", bg2: "#fff0c7", border: "#e8cf7c", accent: "#d99a05" },
+      friday: { bg: "#fcfaff", bg2: "#f0e8ff", border: "#d6c3fb", accent: "#a78bfa" },
+      saturday: { bg: "#f6fcff", bg2: "#dff3ff", border: "#a6dcf8", accent: "#38bdf8" },
+      weekday: { bg: "#ffffff", bg2: "#f7fafc", border: "#e5edf5", accent: "#9fb4c7" },
+    },
+  },
+  clear: {
+    label: "Clear",
+    tones: {
+      sunday: { bg: "#eef9ff", bg2: "#ccecff", border: "#7cc7ee", accent: "#0ea5e9" },
+      monday: { bg: "#f0fff4", bg2: "#c8f1d6", border: "#74d89b", accent: "#16a34a" },
+      tuesday: { bg: "#eff6ff", bg2: "#cfe4ff", border: "#82b9ff", accent: "#2563eb" },
+      wednesday: { bg: "#fffbeb", bg2: "#ffe89d", border: "#f6c443", accent: "#d97706" },
+      thursday: { bg: "#fff8e6", bg2: "#ffdf7c", border: "#f5b72d", accent: "#ca8a04" },
+      friday: { bg: "#faf5ff", bg2: "#e5d4ff", border: "#b794f6", accent: "#7c3aed" },
+      saturday: { bg: "#edf9ff", bg2: "#bae6fd", border: "#67c5ed", accent: "#0284c7" },
+      weekday: { bg: "#f8fafc", bg2: "#eef4fb", border: "#cad8e8", accent: "#7f9db6" },
+    },
+  },
+  bold: {
+    label: "Bold",
+    tones: {
+      sunday: { bg: "#eaf8ff", bg2: "#aee4ff", border: "#38bdf8", accent: "#0284c7" },
+      monday: { bg: "#eafff0", bg2: "#9be7b2", border: "#22c55e", accent: "#15803d" },
+      tuesday: { bg: "#ecf5ff", bg2: "#a8d0ff", border: "#3b82f6", accent: "#1d4ed8" },
+      wednesday: { bg: "#fff7db", bg2: "#ffd85e", border: "#f59e0b", accent: "#b45309" },
+      thursday: { bg: "#fff4d0", bg2: "#ffcc4d", border: "#eab308", accent: "#a16207" },
+      friday: { bg: "#f5edff", bg2: "#cfb4ff", border: "#8b5cf6", accent: "#6d28d9" },
+      saturday: { bg: "#e7f7ff", bg2: "#90d6ff", border: "#0ea5e9", accent: "#0369a1" },
+      weekday: { bg: "#f4f7fb", bg2: "#e6edf6", border: "#aebfd3", accent: "#64748b" },
+    },
+  },
+};
+let activeCalendarPalette = getStoredCalendarPalette();
+const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
+const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
   const taskFonts = ["System", "Rounded", "Serif", "Mono"];
   const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
@@ -772,7 +829,7 @@
         saveCloudSession(null);
         throw new Error("Your cloud sign-in expired. Sign in again, then retry.");
       }
-      throw new Error(message);
+      throw new Error(cloudFriendlyErrorMessage(message, response.status));
     }
     return body;
   }
@@ -799,7 +856,7 @@
         saveCloudSession(null);
         throw new Error("Your cloud sign-in expired. Sign in again, then retry.");
       }
-      throw new Error(message);
+      throw new Error(cloudFriendlyErrorMessage(message, response.status));
     }
     return body;
   }
@@ -848,8 +905,16 @@
         body = text;
       }
     }
-    const message = body?.msg || body?.message || body?.error_description || body?.error || text || response.statusText || "";
+    const message = cloudFriendlyErrorMessage(body?.msg || body?.message || body?.error_description || body?.error || text || response.statusText || "", response.status);
     return { ok: response.ok, status: response.status, message, body };
+  }
+
+  function cloudFriendlyErrorMessage(message, status = 0) {
+    const text = String(message || "").trim();
+    if (Number(status) === 402 || /payment required|project.*paused|project.*inactive|billing/i.test(text)) {
+      return "Supabase project is paused or billing needs attention. Open Supabase, restore the project, then test cloud setup again before inviting friends.";
+    }
+    return text || `Supabase request failed${status ? ` (${status})` : ""}.`;
   }
 
   function saveProfiles() {
@@ -3402,11 +3467,11 @@ function quickAction(action) {
   }
 
   function friendAlphaHostedUrl() {
-    const liveUrl = "https://marksman2g.github.io/billmaster/?v=20260617-1";
+    const liveUrl = `https://marksman2g.github.io/billmaster/?v=${FRIEND_ALPHA_CACHE_VERSION}`;
     if (typeof location === "undefined") return liveUrl;
     const localHost = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname || "");
     if (localHost || location.protocol === "file:") return liveUrl;
-    return `${location.origin}${location.pathname}?v=20260617-1`;
+    return `${location.origin}${location.pathname}?v=${FRIEND_ALPHA_CACHE_VERSION}`;
   }
 
   function friendMobileReadyPanel() {
@@ -4068,6 +4133,7 @@ function quickAction(action) {
         ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
       </div>
       ${calendarCategoryBar()}
+      ${calendarColorSchemePicker()}
       <div class="calendar-controls">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
@@ -4084,6 +4150,28 @@ function quickAction(action) {
   function calendarCategoryBar() {
     return `<div class="category-filter-bar">
       ${taskCategories.map((category) => `<button class="${isTaskCategoryEnabled(category) ? "active" : ""}" data-action="toggle-task-category" data-category="${category}" style="--category-color:${taskCategoryColor(category)}">${esc(category)}</button>`).join("")}
+    </div>`;
+  }
+
+  function calendarColorSchemePicker() {
+    const toneKeys = ["sunday", "monday", "tuesday", "wednesday", "friday", "saturday"];
+    const chips = Object.entries(calendarPaletteSchemes)
+      .map(([key, scheme]) => {
+        const swatches = toneKeys
+          .map((tone) => {
+            const vars = scheme.tones[tone] || scheme.tones.weekday;
+            return `<span style="background:${vars.accent}"></span>`;
+          })
+          .join("");
+        return `<button class="calendar-color-chip ${activeCalendarPalette === key ? "is-active" : ""}" data-action="set-calendar-palette" data-palette="${key}" title="Use ${esc(scheme.label)} calendar colors">
+          <span class="calendar-color-chip__swatches" aria-hidden="true">${swatches}</span>
+          <span>${esc(scheme.label)}</span>
+        </button>`;
+      })
+      .join("");
+    return `<div class="calendar-color-picker" aria-label="Calendar color scheme">
+      <span class="calendar-color-picker__label">Color style</span>
+      ${chips}
     </div>`;
   }
 
@@ -4556,58 +4644,29 @@ function quickAction(action) {
     return calendarToneForWeekday(parseLocalDate(iso).getDay());
   }
 
+  function getStoredCalendarPalette() {
+    try {
+      const saved = localStorage.getItem(calendarPaletteStorageKey);
+      return calendarPaletteSchemes[saved] ? saved : "soft";
+    } catch (error) {
+      return "soft";
+    }
+  }
+
+  function setCalendarPalette(key) {
+    if (!calendarPaletteSchemes[key]) return;
+    activeCalendarPalette = key;
+    try {
+      localStorage.setItem(calendarPaletteStorageKey, key);
+    } catch (error) {
+      // Storage can be blocked in private browsers; the live view should still update.
+    }
+    render();
+  }
+
   function calendarToneVars(tone) {
-    const palettes = {
-      sunday: {
-        bg: "#f6fcff",
-        bg2: "#ddf3ff",
-        border: "#9edbff",
-        accent: "#38bdf8",
-      },
-      monday: {
-        bg: "#f5fff8",
-        bg2: "#d9f7e6",
-        border: "#86d9a9",
-        accent: "#22c55e",
-      },
-      tuesday: {
-        bg: "#f6fbff",
-        bg2: "#dfefff",
-        border: "#92c5ff",
-        accent: "#3b82f6",
-      },
-      wednesday: {
-        bg: "#fffdf2",
-        bg2: "#fff0b8",
-        border: "#f3d15f",
-        accent: "#f59e0b",
-      },
-      thursday: {
-        bg: "#fffbef",
-        bg2: "#ffe8a6",
-        border: "#efbf4f",
-        accent: "#e8a008",
-      },
-      friday: {
-        bg: "#fbf7ff",
-        bg2: "#eadcff",
-        border: "#c4a6f5",
-        accent: "#8b5cf6",
-      },
-      saturday: {
-        bg: "#f2fbff",
-        bg2: "#ccecff",
-        border: "#75cff7",
-        accent: "#0ea5e9",
-      },
-      weekday: {
-        bg: "#fbfdff",
-        bg2: "#f5f8fc",
-        border: "#dce8f4",
-        accent: "#9ab7d8",
-      },
-    };
-    return palettes[tone] || palettes.weekday;
+    const scheme = calendarPaletteSchemes[activeCalendarPalette] || calendarPaletteSchemes.soft;
+    return scheme.tones[tone] || scheme.tones.weekday || calendarPaletteSchemes.soft.tones.weekday;
   }
 
   function calendarToneStyle(tone) {
@@ -10191,6 +10250,7 @@ function quickAction(action) {
     if (action === "toggle-nav-section") return toggleNavSection(el.dataset.section);
     if (action === "toggle-interface-mode") return toggleInterfaceMode();
     if (action === "toggle-task-category") return toggleTaskCategory(el.dataset.category);
+    if (action === "set-calendar-palette") return setCalendarPalette(el.dataset.palette);
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);
     if (action === "pick-choice") return pickChoice(el);
     if (action === "image-fit") return setImageFit(el);
