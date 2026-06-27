@@ -1655,6 +1655,71 @@ button.round-icon {
   stroke-width: 3;
 }
 
+.command-illustration--notebooks .ci-notebook-book {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-notebook-book-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-back {
+  fill: color-mix(in srgb, var(--tile-color, var(--purple)) 46%, #fff);
+  stroke: none;
+  animation: ci-notebook-back-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-cover {
+  fill: #ffffff;
+  stroke: #11182e;
+  stroke-width: 4;
+  stroke-linejoin: round;
+  animation: ci-notebook-cover-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-spine {
+  fill: #11182e;
+  animation: ci-notebook-spine-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-rings circle {
+  fill: #ffffff;
+  stroke: #11182e;
+  stroke-width: 3;
+  animation: ci-notebook-ring-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-label {
+  fill: #dff4ff;
+  opacity: 1;
+  animation: ci-notebook-label-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-five,
+.command-illustration--notebooks .ci-notebook-word {
+  fill: #11182e;
+  font-family: Arial, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0;
+  opacity: 0;
+  pointer-events: none;
+  animation: ci-notebook-title-cycle 6.2s ease-in-out infinite;
+}
+
+.command-illustration--notebooks .ci-notebook-five {
+  font-size: 5.8px;
+}
+
+.command-illustration--notebooks .ci-notebook-word {
+  font-size: 5.6px;
+}
+
+.command-illustration--notebooks .ci-notebook-fizzles {
+  fill: #11182e;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-notebook-fizzle-dots 6.2s ease-in-out infinite;
+}
+
 .ci-loan-clip {
   fill: #fff;
   stroke: #11182e;
@@ -2450,6 +2515,134 @@ button.round-icon {
 @keyframes ci-note-ring-bounce {
   0%, 72%, 100% { transform: translateY(0); }
   82% { transform: translateY(-2px); }
+}
+
+@keyframes ci-notebook-book-cycle {
+  0%, 22%, 50%, 72%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+  }
+  61% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 8px rgba(17, 24, 46, 0.16));
+  }
+  82% {
+    opacity: .18;
+    transform: scale(.92) rotate(-2deg);
+    filter: blur(.55px);
+  }
+  90% {
+    opacity: .62;
+    transform: scale(.98) rotate(1deg);
+    filter: blur(.18px);
+  }
+}
+
+@keyframes ci-notebook-back-cycle {
+  0%, 20%, 100% {
+    fill: color-mix(in srgb, var(--tile-color, var(--purple)) 46%, #fff);
+  }
+  30%, 45% {
+    fill: #d9d9d9;
+  }
+  56%, 70% {
+    fill: #eeeeee;
+  }
+  82% {
+    fill: rgba(17, 24, 46, 0.18);
+  }
+}
+
+@keyframes ci-notebook-cover-cycle {
+  0%, 20%, 100% {
+    fill: #ffffff;
+    stroke: #11182e;
+  }
+  30%, 45% {
+    fill: #f8f8f8;
+    stroke: #000000;
+  }
+  56%, 70% {
+    fill: #fffdf3;
+    stroke: #11182e;
+  }
+  82% {
+    fill: rgba(255, 255, 255, .72);
+    stroke: rgba(17, 24, 46, .22);
+  }
+}
+
+@keyframes ci-notebook-spine-cycle {
+  0%, 20%, 100% {
+    fill: #11182e;
+  }
+  30%, 45% {
+    fill: #000000;
+  }
+  56%, 70% {
+    fill: #101010;
+  }
+  82% {
+    fill: rgba(17, 24, 46, .2);
+  }
+}
+
+@keyframes ci-notebook-ring-cycle {
+  0%, 20%, 100% {
+    fill: #ffffff;
+    stroke: #11182e;
+  }
+  30%, 45%, 56%, 70% {
+    fill: #ffffff;
+    stroke: #000000;
+  }
+  82% {
+    fill: rgba(255, 255, 255, .35);
+    stroke: rgba(17, 24, 46, .18);
+  }
+}
+
+@keyframes ci-notebook-label-cycle {
+  0%, 22%, 46%, 100% {
+    opacity: 1;
+    fill: #dff4ff;
+  }
+  30%, 45% {
+    opacity: .25;
+    fill: #ffffff;
+  }
+  55%, 70% {
+    opacity: 1;
+    fill: #f2f2f2;
+  }
+  82% {
+    opacity: 0;
+  }
+}
+
+@keyframes ci-notebook-title-cycle {
+  0%, 46%, 76%, 100% {
+    opacity: 0;
+  }
+  55%, 70% {
+    opacity: 1;
+  }
+}
+
+@keyframes ci-notebook-fizzle-dots {
+  0%, 70%, 100% {
+    opacity: 0;
+    transform: scale(.7) rotate(0deg);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1.24) rotate(8deg);
+  }
+  90% {
+    opacity: .5;
+    transform: scale(.92) rotate(-5deg);
+  }
 }
 
 @keyframes ci-contact-lock-sway {

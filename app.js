@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-8";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-9";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2570,16 +2570,27 @@ function commandIllustration(iconName) {
       </svg>`,
     notebooks: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <path class="ci-alt" d="M28 12h40c8 0 13 6 13 14v48c0 5-4 9-9 9H28z"></path>
-        <path class="ci-paper" d="M23 10h43c6 0 10 5 10 11v53c0 5-4 9-9 9H23z"></path>
-        <path class="ci-dark" d="M23 10h12v73H23z"></path>
-        <g class="ci-rings">
-          <circle cx="21" cy="23" r="4"></circle>
-          <circle cx="21" cy="37" r="4"></circle>
-          <circle cx="21" cy="51" r="4"></circle>
-          <circle cx="21" cy="65" r="4"></circle>
+        <g class="ci-notebook-book">
+          <path class="ci-notebook-back" d="M28 12h40c8 0 13 6 13 14v48c0 5-4 9-9 9H28z"></path>
+          <path class="ci-notebook-cover" d="M23 10h43c6 0 10 5 10 11v53c0 5-4 9-9 9H23z"></path>
+          <path class="ci-notebook-spine" d="M23 10h12v73H23z"></path>
+          <g class="ci-rings ci-notebook-rings">
+            <circle cx="21" cy="23" r="4"></circle>
+            <circle cx="21" cy="37" r="4"></circle>
+            <circle cx="21" cy="51" r="4"></circle>
+            <circle cx="21" cy="65" r="4"></circle>
+          </g>
+          <rect class="ci-notebook-label" x="42" y="27" width="27" height="20" rx="3"></rect>
+          <text class="ci-notebook-five" x="55.5" y="35" text-anchor="middle">5 SUBJECT</text>
+          <text class="ci-notebook-word" x="55.5" y="43" text-anchor="middle">NOTEBOOK</text>
         </g>
-        <rect class="ci-soft" x="43" y="28" width="21" height="15" rx="3"></rect>
+        <g class="ci-notebook-fizzles">
+          <circle cx="18" cy="20" r="2.2"></circle>
+          <circle cx="75" cy="28" r="2.6"></circle>
+          <circle cx="18" cy="74" r="2.4"></circle>
+          <circle cx="70" cy="76" r="2"></circle>
+          <circle cx="48" cy="12" r="1.8"></circle>
+        </g>
       </svg>`,
     notes: `
       <svg class="ci-svg ci-notes-svg" viewBox="0 0 96 96" role="img">
