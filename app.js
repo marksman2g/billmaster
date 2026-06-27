@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-3";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-4";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2516,20 +2516,22 @@ function commandIllustration(iconName) {
       </svg>`,
     goals: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <circle class="ci-goals-shadow" cx="45" cy="51" r="34"></circle>
-        <circle class="ci-goals-ring ci-goals-ring-outer" cx="45" cy="51" r="31"></circle>
-        <circle class="ci-goals-ring ci-goals-ring-white" cx="45" cy="51" r="23"></circle>
-        <circle class="ci-goals-ring ci-goals-ring-pulse" cx="45" cy="51" r="16"></circle>
-        <circle class="ci-goals-ring ci-goals-ring-core" cx="45" cy="51" r="8"></circle>
-        <circle class="ci-goals-red-line ci-goals-red-line-outer" cx="45" cy="51" r="31"></circle>
-        <circle class="ci-goals-red-line ci-goals-red-line-mid" cx="45" cy="51" r="16"></circle>
-        <g class="ci-goals-arrow">
+        <path class="ci-goals-paper" d="M26 39h34l8 8v25H26z"></path>
+        <path class="ci-goals-paper-fold" d="M60 39v8h8"></path>
+        <g class="ci-goals-target">
+          <circle class="ci-goals-shadow" cx="45" cy="51" r="34"></circle>
+          <circle class="ci-goals-ring ci-goals-ring-outer" cx="45" cy="51" r="31"></circle>
+          <circle class="ci-goals-ring ci-goals-ring-white" cx="45" cy="51" r="23"></circle>
+          <circle class="ci-goals-ring ci-goals-ring-pulse" cx="45" cy="51" r="16"></circle>
+          <circle class="ci-goals-ring ci-goals-ring-core" cx="45" cy="51" r="8"></circle>
+          <circle class="ci-goals-red-line ci-goals-red-line-outer" cx="45" cy="51" r="31"></circle>
+          <circle class="ci-goals-red-line ci-goals-red-line-mid" cx="45" cy="51" r="16"></circle>
+        </g>
+        <g class="ci-goals-arrow ci-goals-pen">
           <path class="ci-goals-arrow-shaft" d="M7 36 44 51"></path>
           <path class="ci-goals-arrow-head" d="M42 46l12 8-14 3z"></path>
           <path class="ci-goals-arrow-tail" d="M9 36l-8-10M13 38 1 43M18 41 5 51"></path>
         </g>
-        <path class="ci-goals-paper" d="M26 39h34l8 8v25H26z"></path>
-        <path class="ci-goals-paper-fold" d="M60 39v8h8"></path>
         <text class="ci-goals-text" x="47" y="58" text-anchor="middle">Goals</text>
         <circle class="ci-goals-spark-dot" cx="18" cy="20" r="4"></circle>
       </svg>`,
