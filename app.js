@@ -623,9 +623,20 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return Boolean(cloudConfig.url);
   }
 
+  function rememberStorageFailure(message, error) {
+    console.warn(message, error);
+    ui.lastSaveError = message;
+    return false;
+  }
+
   function saveCloudConfigLocal(config) {
     cloudConfig = normalizeCloudConfig(config);
-    localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+    try {
+      localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+      return true;
+    } catch (error) {
+      return rememberStorageFailure("BillMaster could not save cloud setup in this browser. Storage may be full or blocked.", error);
+    }
   }
 
   function loadCloudSession() {
@@ -641,8 +652,16 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function saveCloudSession(session) {
     cloudSession = session || null;
-    if (cloudSession) localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
-    else localStorage.removeItem(CLOUD_SESSION_KEY);
+    try {
+      if (cloudSession) localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+      else localStorage.removeItem(CLOUD_SESSION_KEY);
+      return true;
+    } catch (error) {
+      const message = cloudSession
+        ? "Cloud sign-in is active for this tab, but BillMaster could not remember it after reload. Browser storage may be full or blocked."
+        : "BillMaster could not update the saved cloud session in this browser.";
+      return rememberStorageFailure(message, error);
+    }
   }
 
   function normalizedCloudEmail(email) {
@@ -950,7 +969,31 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function saveProfiles() {
-    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    try {
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+      return true;
+    } catch (error) {
+      return rememberStorageFailure("BillMaster could not save the local profile list. Browser storage may be full or blocked.", error);
+    }
+  }
+
+  function persistActiveProfileId(profileId) {
+    try {
+      if (profileId) localStorage.setItem(ACTIVE_PROFILE_KEY, profileId);
+      else localStorage.removeItem(ACTIVE_PROFILE_KEY);
+      return true;
+    } catch (error) {
+      return rememberStorageFailure("BillMaster could not remember the active local profile. Browser storage may be full or blocked.", error);
+    }
+  }
+
+  function removeStoredProfileWorkspace(profileId) {
+    try {
+      localStorage.removeItem(profileDataKey(profileId));
+      return true;
+    } catch (error) {
+      return rememberStorageFailure("BillMaster could not remove that profile workspace from this browser.", error);
+    }
   }
 
   function activeProfile() {
@@ -2234,7 +2277,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           </section>
 
           <section class="section-card">
-            <div class="section-title"><h2>Active Goals</h2><button class="text-btn">View All</button></div>
+            <div class="section-title"><h2>Active Goals</h2><button class="text-btn" data-action="navigate" data-view="goals">View All</button></div>
             <div class="goal-strip">
               ${data.goals.map((goal) => goalCard(goal)).join("")}
             </div>
@@ -3548,10 +3591,11 @@ function quickAction(action) {
   }
 
   function friendPrivacyGatePanel() {
+    const setupReady = cloudSetupTestReady();
     const checks = [
       { label: "Separate account", ready: cloudSignedIn(), detail: cloudSignedIn() ? `This device is signed in as ${cloudSafeEmail()}.` : "Each friend must create their own BillMaster account." },
-      { label: "Private workspace row", ready: true, detail: "Supabase Row Level Security uses auth.uid() = user_id for each workspace." },
-      { label: "Private picture folders", ready: true, detail: "Media policies keep uploads inside each user's Supabase user-id folder." },
+      { label: "Private workspace row", ready: setupReady, detail: setupReady ? "Supabase Row Level Security uses auth.uid() = user_id for each workspace." : "Run Add / test key after supabase/schema.sql is applied." },
+      { label: "Private picture folders", ready: setupReady, detail: setupReady ? "Media policies keep uploads inside each user's Supabase user-id folder." : "Run the latest schema and setup test before picture testing." },
       { label: "No live bank credentials", ready: true, detail: "Alpha testers should only use manual finance data until bank/card sync is production-ready." },
       { label: "First tester watched", ready: false, detail: "Invite one trusted person first and watch where they get confused." }
     ];
@@ -5500,6 +5544,10 @@ function quickAction(action) {
     return sum(goalContributionHistory(goalId), "amount");
   }
 
+  function goalRemainingAmount(goal) {
+    return Math.max(moneyNumber(Number(goal?.target || 0) - Number(goal?.current || 0)), 0);
+  }
+
   function goalAccount(goal) {
     return data.accounts.find((account) => account.id === goal.contributionAccountId) || data.accounts[0] || null;
   }
@@ -5554,7 +5602,7 @@ function quickAction(action) {
     const pct = progressPct(goal.current, goal.target);
     const linkedTasks = data.tasks.filter((task) => task.goalId === goal.id);
     const media = entityImage(goal);
-    const remaining = Math.max(goal.target - goal.current, 0);
+    const remaining = goalRemainingAmount(goal);
     const account = goalAccount(goal);
     const history = goalContributionHistory(goal.id);
     const contributionTotal = goalContributionTotal(goal.id);
@@ -14567,7 +14615,10 @@ function quickAction(action) {
     };
     if (goal) Object.assign(goal, payload);
     else data.goals.unshift({ id: id("goal"), ...payload });
-    saveData();
+    if (!saveData()) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     closeModal();
   }
 
@@ -14626,10 +14677,33 @@ function quickAction(action) {
       showToast("Choose the account this contribution comes from.", "danger");
       return;
     }
+    const remaining = goalRemainingAmount(goal);
+    if (goal.status === "Completed" || remaining <= 0) {
+      showToast(`${goal.name} is already fully funded. Edit the target before adding more.`, "danger");
+      return;
+    }
+    if (amount > remaining) {
+      showToast(`This would overfund ${goal.name}. Add ${money(remaining)} or less, or edit the target.`, "danger");
+      return;
+    }
+    const available = moneyNumber(account.balance);
+    if (available < amount) {
+      showToast(`${account.name} only has ${money(available)} available for this contribution.`, "danger");
+      return;
+    }
     const contributionDate = value("goalContributionDate") || todayIso();
     const note = value("goalContributionNote") || `Goal contribution from ${account.name}.`;
+    const writeKey = `goal-contribution:${goal.id}:${account.id}:${amount}:${contributionDate}:${source}`;
+    if (shouldSkipRecentWrite(writeKey, 5000)) {
+      showToast("That goal contribution was already saved.", "danger");
+      return;
+    }
     applyGoalContribution(goal, account, amount, contributionDate, note, source);
-    saveData();
+    const saved = saveData();
+    if (!saved) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     closeModal();
     showToast(`${money(amount)} moved from ${account.name} to ${goal.name}. Account updated.`);
   }
@@ -14696,15 +14770,32 @@ function quickAction(action) {
       showToast("That username already exists on this device.", "danger");
       return;
     }
-    saveData({ undo: false });
+    if (!saveData({ undo: false })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     const profile = { id: id("profile"), username, displayName, password };
+    const previousProfileId = currentProfileId;
     profiles.push(profile);
-    saveProfiles();
+    if (!saveProfiles()) {
+      profiles = profiles.filter((item) => item.id !== profile.id);
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     currentProfileId = profile.id;
-    localStorage.setItem(ACTIVE_PROFILE_KEY, currentProfileId);
+    if (!persistActiveProfileId(currentProfileId)) {
+      currentProfileId = previousProfileId;
+      profiles = profiles.filter((item) => item.id !== profile.id);
+      saveProfiles();
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     data = document.getElementById("profileSampleData")?.checked === false ? blankWorkspace() : normalizeData(clone(seed));
     resetUndoBaseline();
-    saveData({ undo: false });
+    if (!saveData({ undo: false })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     ui.modal = null;
     ui.backStack = [];
     ui.view = "dashboard";
@@ -14719,9 +14810,15 @@ function quickAction(action) {
       showToast("That password did not match.", "danger");
       return;
     }
-    saveData({ undo: false });
+    if (!saveData({ undo: false })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
+    if (!persistActiveProfileId(profile.id)) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     currentProfileId = profile.id;
-    localStorage.setItem(ACTIVE_PROFILE_KEY, currentProfileId);
     data = loadData();
     resetUndoBaseline();
     ui.modal = null;
@@ -14732,9 +14829,15 @@ function quickAction(action) {
   }
 
   function lockProfile() {
-    saveData({ undo: false });
+    if (!saveData({ undo: false })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
+    if (!persistActiveProfileId("")) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     currentProfileId = "";
-    localStorage.removeItem(ACTIVE_PROFILE_KEY);
     ui.modal = null;
     render();
   }
@@ -14742,13 +14845,20 @@ function quickAction(action) {
   function deleteProfile(profileId) {
     const profile = profiles.find((item) => item.id === profileId);
     if (!profile || profiles.length <= 1 || !confirmDelete(`${profile.displayName}'s local profile`)) return;
+    const previousProfiles = profiles;
     profiles = profiles.filter((item) => item.id !== profileId);
-    saveProfiles();
-    localStorage.removeItem(profileDataKey(profileId));
+    if (!saveProfiles()) {
+      profiles = previousProfiles;
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
+    removeStoredProfileWorkspace(profileId);
     if (currentProfileId === profileId) {
       currentProfileId = profiles[0]?.id || "";
-      if (currentProfileId) localStorage.setItem(ACTIVE_PROFILE_KEY, currentProfileId);
-      else localStorage.removeItem(ACTIVE_PROFILE_KEY);
+      if (!persistActiveProfileId(currentProfileId)) {
+        showToast(ui.lastSaveError, "danger");
+        return;
+      }
       data = loadData();
       resetUndoBaseline();
     }
@@ -14764,7 +14874,10 @@ function quickAction(action) {
       showToast("Add your Supabase URL and anon key first.", "danger");
       return;
     }
-    saveCloudConfigLocal({ url, anonKey });
+    if (!saveCloudConfigLocal({ url, anonKey })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     ui.modal = null;
     showToast("Supabase setup saved for this browser.");
   }
@@ -15229,7 +15342,10 @@ function quickAction(action) {
       showToast("Add your Supabase URL and anon key first.", "danger");
       return;
     }
-    saveCloudConfigLocal({ url, anonKey });
+    if (!saveCloudConfigLocal({ url, anonKey })) {
+      showToast(ui.lastSaveError, "danger");
+      return;
+    }
     if (!/^https:\/\/.+\.supabase\.co$/i.test(cloudConfig.url)) {
       finishCloudSetupTest(false, "Check the Project URL. It should look like https://your-project.supabase.co");
       return;
@@ -15282,7 +15398,7 @@ function quickAction(action) {
         body: JSON.stringify({ email, password, data: { display_name: displayName } })
       }, false);
       if (result?.access_token) {
-        saveCloudSession(sessionFromAuthResult(result));
+        const sessionSaved = saveCloudSession(sessionFromAuthResult(result));
         if (startClean) {
           data = blankWorkspace();
           data.settings.cloudAutoSync = true;
@@ -15293,7 +15409,10 @@ function quickAction(action) {
         ui.modal = null;
         startCloudAutoSync();
         render();
-        showToast(startClean ? "Cloud account created with a clean workspace. Auto sync is on." : "Cloud account created and signed in. Push local when you are ready.");
+        showToast(sessionSaved
+          ? (startClean ? "Cloud account created with a clean workspace. Auto sync is on." : "Cloud account created and signed in. Push local when you are ready.")
+          : "Cloud account created for this tab, but BillMaster could not remember the sign-in after reload. Check browser storage before friend testing.",
+          sessionSaved ? "success" : "danger");
       } else {
         setPendingCleanSignup(email, startClean);
         showToast(startClean
@@ -15318,7 +15437,7 @@ function quickAction(action) {
         method: "POST",
         body: JSON.stringify({ email, password })
       }, false);
-      saveCloudSession(sessionFromAuthResult(result));
+      const sessionSaved = saveCloudSession(sessionFromAuthResult(result));
       ui.modal = null;
       try {
         const loaded = await loadCloudWorkspaceIntoLocal({ enableAutoSync: true });
@@ -15333,11 +15452,14 @@ function quickAction(action) {
         }
         startCloudAutoSync();
         render();
-        showToast(loaded
-          ? "Signed in and pulled your cloud workspace. Auto sync is on."
-          : shouldCreateCleanWorkspace
-            ? "Signed in and created your clean private cloud workspace. Auto sync is on."
-            : "Signed in. Push local to save this device to the cloud.");
+        showToast(sessionSaved
+          ? (loaded
+            ? "Signed in and pulled your cloud workspace. Auto sync is on."
+            : shouldCreateCleanWorkspace
+              ? "Signed in and created your clean private cloud workspace. Auto sync is on."
+              : "Signed in. Push local to save this device to the cloud.")
+          : "Signed in for this tab, but BillMaster could not remember the cloud session after reload. Check browser storage before friend testing.",
+          sessionSaved ? "success" : "danger");
       } catch (pullError) {
         startCloudAutoSync();
         render();
