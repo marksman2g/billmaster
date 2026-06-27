@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-13";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-14";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -423,6 +423,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "jump-calendar-date",
     "jump-calendar-month",
     "save-voice-task",
+    "ask-ai-from-voice",
     "save-voice-habit",
     "complete-task",
     "complete-selected-tasks",
@@ -6661,18 +6662,20 @@ function quickAction(action) {
       ${header("AI Assistant")}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
         <h2 class="panel-title" style="color:#fff;">Financial Monitor</h2>
-        <p style="color:rgba(255,255,255,.82);">Your forecast, bills, subscriptions, tasks, and goals are connected here.</p>
+        <p style="color:rgba(255,255,255,.82);">Ask about your schedule, habits, goals, bills, subscriptions, notes, projects, and money.</p>
       </section>
       <div class="ai-chat section-card">
         ${data.aiMessages.map((msg) => `<div class="message ${msg.role}">${esc(msg.text)}</div>`).join("")}
         <div class="filter-row">
+          <button data-action="ai-prompt" data-prompt="What do I have going on this week?">This week</button>
+          <button data-action="ai-prompt" data-prompt="Do I have meditation this week?">Meditation</button>
           <button data-action="ai-prompt" data-prompt="What are my biggest expenses?">Biggest expenses</button>
           <button data-action="ai-prompt" data-prompt="Am I on track for my goals?">Goal check</button>
-          <button data-action="ai-prompt" data-prompt="Which subscriptions should I cancel?">Subscriptions</button>
+          <button data-action="ai-prompt" data-prompt="Do I have notes about bills?">Notes</button>
         </div>
         <div class="quick-add">
           <span class="round-icon">${icon("ai")}</span>
-          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="Ask about your finances..." />
+          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="Ask about your BillMaster data..." />
           <button class="icon-btn primary-btn" data-action="send-ai">${icon("check")}</button>
         </div>
       </div>
@@ -7529,11 +7532,12 @@ function quickAction(action) {
         <span>Add task: Call Isaiah</span>
         <span>Tomorrow</span>
         <span>From 3 PM to 4 PM</span>
+        <span>Or: every Monday, Tuesday, and Wednesday</span>
         <span>At 217 Alexander Avenue, Bronx, NY</span>
         <span>High priority</span>
         <span>Project Isaiah</span>
       </div>`;
-    return `${modalHeader("Add Task By Voice", speechAvailable ? "Speak the title, time, address, priority, status, project, or category." : "Voice capture may be blocked here. Type or paste the sentence, then parse it.")}
+    return `${modalHeader("Add Task By Voice", speechAvailable ? "Speak a task, repeating task, or app question." : "Voice capture may be blocked here. Type or paste a task or question.")}
       <section class="voice-panel">
         <div class="voice-status ${ui.voiceListening ? "listening" : ""}">
           <span class="round-icon">${icon(ui.voiceListening ? "ai" : "mic")}</span>
@@ -7543,9 +7547,10 @@ function quickAction(action) {
           </div>
         </div>
         ${ui.voiceError ? `<div class="voice-message">${esc(ui.voiceError)}</div>` : example}
-        <div class="sheet-actions" style="grid-template-columns:1fr 1fr;margin-top:12px;">
+        <div class="sheet-actions" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px;">
           <button class="${listenClass}" data-action="${listenAction}" ${!ui.voiceListening && !speechAvailable ? "disabled" : ""}>${icon(ui.voiceListening ? "close" : "mic")} ${listenLabel}</button>
           <button class="outline-btn" data-action="parse-voice-task">${icon("search")} Parse Details</button>
+          <button class="outline-btn" data-action="ask-ai-from-voice">${icon("ai")} Ask AI</button>
         </div>
       </section>
       <div class="field" style="margin-top:16px;">
@@ -7553,7 +7558,7 @@ function quickAction(action) {
         <textarea id="voiceTranscript" placeholder="Add task..." autocomplete="off">${esc(transcript)}</textarea>
       </div>
       ${parsed ? voiceTaskPreview(parsed) : ""}
-      <div class="sheet-actions"><button class="secondary-btn" data-action="save-voice-task">${icon("check")} Save Voice Task</button></div>`;
+      <div class="sheet-actions"><button class="secondary-btn" data-action="save-voice-task">${icon("check")} ${parsed?.recurring ? "Save Repeating Task" : voicePromptLooksLikeQuestion(transcript) ? "Ask AI" : "Save Voice Task"}</button></div>`;
   }
 
   function modalVoiceHabit() {
@@ -10435,6 +10440,7 @@ function quickAction(action) {
     if (action === "start-voice-task") return startVoiceTask();
     if (action === "stop-voice-task") return stopVoiceTask();
     if (action === "parse-voice-task") return parseVoiceTaskFromInput();
+    if (action === "ask-ai-from-voice") return askAiFromVoiceTask();
     if (action === "start-voice-correction") return startVoiceCorrection();
     if (action === "stop-voice-correction") return stopVoiceCorrection();
     if (action === "apply-voice-correction") return applyVoiceCorrection();
@@ -11284,6 +11290,21 @@ function quickAction(action) {
     showToast("Task details parsed.");
   }
 
+  function askAiFromVoiceTask(promptText = "") {
+    const prompt = String(promptText || value("voiceTranscript") || ui.voiceTranscript || "").trim();
+    if (!prompt) {
+      showToast("Ask a question or type one in the task sentence box first.", "danger");
+      return;
+    }
+    ui.voiceListening = false;
+    ui.voiceCorrectionListening = false;
+    ui.voiceError = "";
+    ui.modal = null;
+    ui.view = "ai";
+    syncHash("ai");
+    sendAi(prompt);
+  }
+
   function applyVoiceCorrection() {
     const correction = value("voiceCorrection") || ui.voiceCorrectionDraft;
     const transcript = value("voiceTranscript") || ui.voiceTranscript;
@@ -11325,14 +11346,16 @@ function quickAction(action) {
       showToast("Add a task sentence first.", "danger");
       return;
     }
+    if (voicePromptLooksLikeQuestion(transcript)) return askAiFromVoiceTask(transcript);
     const parsed = ui.voiceParsedTask?.source === transcript ? ui.voiceParsedTask : parseVoiceTask(transcript);
     const title = parsed.title || "Voice Task";
-    const writeKey = `voice-task:${title.toLowerCase()}:${parsed.date}:${parsed.start}:${parsed.end}:${parsed.address ? addressKey(parsed.address) : ""}`;
+    const writeKey = `voice-task:${title.toLowerCase()}:${parsed.date}:${parsed.start}:${parsed.end}:${parsed.repeatLabel || parsed.repeat}:${parsed.address ? addressKey(parsed.address) : ""}`;
     if (shouldSkipRecentWrite(writeKey)) {
       showToast("That voice task was already saved.", "danger");
       return;
     }
     const addressId = createAddressFromVoice(parsed.address, title);
+    if (parsed.recurring) return saveVoiceRecurringTask(parsed, transcript, title, addressId);
     const task = {
       id: id("task"),
       title,
@@ -11369,6 +11392,58 @@ function quickAction(action) {
     syncHash("calendar");
     ui.modal = null;
     showToast(addressId ? "Voice task saved with address." : "Voice task saved.");
+  }
+
+  function saveVoiceRecurringTask(parsed, transcript, title, addressId) {
+    const habit = {
+      id: id("habit"),
+      title,
+      description: transcript,
+      type: voiceTaskHabitType(parsed),
+      schedule: parsed.repeatSchedule || "Daily",
+      days: parsed.repeatDays?.length ? parsed.repeatDays : parseVoiceHabitDays(normalizeVoiceText(transcript), parsed.date, parsed.repeatSchedule || "Daily"),
+      startDate: parsed.date,
+      endDate: parsed.repeatEndDate || "",
+      start: parsed.start,
+      end: parsed.end,
+      priority: parsed.priority || "Medium",
+      status: parsed.status === "Completed" || parsed.status === "Cancelled" ? "Active" : "Active",
+      includeHours: Boolean(parsed.start && parsed.end),
+      targetCount: 1,
+      addressId,
+      projectId: parsed.projectId || null,
+      color: taskCategoryColor(parsed.category || "Habit"),
+      image: "",
+      imageZoom: 1,
+      imageX: 0,
+      imageY: 0,
+      imageFit: "cover",
+      imageOpacity: 1,
+      completions: [],
+      skippedDates: []
+    };
+    data.habits.unshift(habit);
+    saveData();
+    ui.voiceTranscript = "";
+    ui.voiceParsedTask = null;
+    ui.voiceCorrectionDraft = "";
+    ui.voiceCorrectionListening = false;
+    ui.voiceError = "";
+    ui.selectedDate = habit.startDate;
+    ui.calendarView = "week";
+    ui.view = "calendar";
+    syncHash("calendar");
+    ui.modal = null;
+    showToast(`${habit.title} saved as a repeating task: ${voiceRecurringScheduleLabel(habit)}.`);
+  }
+
+  function voiceTaskHabitType(parsed) {
+    if (habitTypeOptions.includes(parsed.category)) return parsed.category;
+    if (parsed.category === "Finance") return "Finance";
+    if (parsed.category === "Personal") return "Personal";
+    if (parsed.category === "Project") return "Work";
+    if (parsed.category === "Habit") return "Personal";
+    return "Custom";
   }
 
   function parseVoiceHabitFromInput() {
@@ -11467,9 +11542,15 @@ function quickAction(action) {
     return (habit.days || []).map((day) => weekdayLabels[day]).filter(Boolean).join(", ") || "Weekly";
   }
 
+  function voiceRecurringScheduleLabel(habit) {
+    const time = habit.start ? ` ${timeLabel(habit.start)}${habit.end ? `-${timeLabel(habit.end)}` : ""}` : "";
+    return `${habitDaysLabel(habit)}${time}`;
+  }
+
   function voiceTaskPreview(parsed) {
     const project = data.projects.find((item) => item.id === parsed.projectId);
     const rows = [
+      ["Saved As", parsed.recurring ? "Repeating calendar item" : voicePromptLooksLikeQuestion(parsed.source) ? "AI question" : "One-time task"],
       ["Title", parsed.title || "Voice Task"],
       ["Start Date", dateLabel(parsed.date)],
       ["Start Time", timeLabel(parsed.start)],
@@ -11478,7 +11559,7 @@ function quickAction(action) {
       ["Priority", parsed.priority],
       ["Status", parsed.status],
       ["Category", parsed.category],
-      ["Repeat", parsed.repeat],
+      ["Repeat", parsed.repeatLabel || parsed.repeat],
       ["Project", project ? project.name : "No project"],
       ["Address", parsed.address ? addressText(parsed.address) : "No address"]
     ];
@@ -11492,7 +11573,7 @@ function quickAction(action) {
           <button class="outline-btn" data-action="${ui.voiceCorrectionListening ? "stop-voice-correction" : "start-voice-correction"}" ${!speechRecognitionCtor() && !ui.voiceCorrectionListening ? "disabled" : ""}>${icon(ui.voiceCorrectionListening ? "close" : "mic")} ${ui.voiceCorrectionListening ? "Stop" : "Listen Correction"}</button>
           <button class="outline-btn" data-action="apply-voice-correction">${icon("edit")} Apply</button>
         </div>
-        <p class="subtle">Correct one thing at a time: status, priority, date, start time, end time, title, category, repeat, project, or address.</p>
+        <p class="subtle">${parsed.recurring ? "Repeating voice tasks save as recurring calendar items so they appear on each scheduled day." : "Correct one thing at a time: status, priority, date, start time, end time, title, category, repeat, project, or address."}</p>
       </div>
     </section>`;
   }
@@ -11525,6 +11606,7 @@ function quickAction(action) {
     const priority = parseVoicePriority(normalized);
     const status = parseVoiceStatus(normalized);
     const repeat = parseVoiceRepeat(normalized);
+    const recurrence = parseVoiceTaskRecurrence(normalized, date);
     const address = parseVoiceAddress(source);
     return {
       source,
@@ -11535,12 +11617,59 @@ function quickAction(action) {
       end: range.end || (range.start ? timeFromMinutes(minutes(range.start) + 60) : "10:00"),
       priority,
       status,
-      repeat,
+      repeat: recurrence.repeat || repeat,
+      repeatSchedule: recurrence.schedule,
+      repeatDays: recurrence.days,
+      repeatLabel: recurrence.label,
+      recurring: recurrence.recurring,
       category,
       projectId: parseVoiceProject(normalized),
       address,
       bgColor: defaultTaskBgColor()
     };
+  }
+
+  function voicePromptLooksLikeQuestion(text) {
+    const normalized = normalizeVoiceText(text);
+    return /\?$/.test(String(text || "").trim())
+      || /^(what|when|where|which|who|why|how)\b/.test(normalized)
+      || /^(do i|did i|am i|can i|can you|tell me|show me|list|find)\b/.test(normalized)
+      || /\b(how close|what do i have|coming up|do i have|any notes|what events|what appointments)\b/.test(normalized);
+  }
+
+  function parseVoiceTaskRecurrence(text, startDate) {
+    if (!voiceTaskHasRecurrence(text)) return { recurring: false, repeat: "None", schedule: "None", days: [], label: "None" };
+    const schedule = parseVoiceHabitSchedule(text);
+    const days = parseVoiceHabitDays(text, startDate, schedule);
+    const label = voiceRecurrenceLabel(schedule, days, startDate);
+    return {
+      recurring: true,
+      repeat: schedule === "Weekdays" ? "Custom" : schedule,
+      schedule,
+      days,
+      label
+    };
+  }
+
+  function voiceTaskHasRecurrence(text) {
+    return /\b(repeat|recurring|daily|every day|each day|weekdays?|workdays?|weekly|every week|monthly|every month|every other week|bi weekly|bi-weekly)\b/.test(text)
+      || voiceTextHasSpecificDays(text);
+  }
+
+  function voiceTextHasSpecificDays(text) {
+    const dayMatches = Array.from(text.matchAll(/\b(sundays?|sun|mondays?|mon|tuesdays?|tues?|wednesdays?|wed|thursdays?|thurs?|thur|thu|fridays?|fri|saturdays?|sat)\b/g)).map((match) => match[1]);
+    const uniqueDays = new Set(dayMatches.map((day) => day.slice(0, 3)));
+    return /\bevery\s+(sundays?|sun|mondays?|mon|tuesdays?|tues?|wednesdays?|wed|thursdays?|thurs?|thur|thu|fridays?|fri|saturdays?|sat)\b/.test(text)
+      || /\b(sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)\b/.test(text)
+      || (/\b(every|on)\b/.test(text) && uniqueDays.size > 1);
+  }
+
+  function voiceRecurrenceLabel(schedule, days, startDate) {
+    if (schedule === "Daily") return "Every day";
+    if (schedule === "Weekdays") return "Monday through Friday";
+    if (schedule === "Monthly") return `Monthly on day ${Number(String(startDate || todayIso()).slice(-2))}`;
+    if (days?.length) return `Every ${days.map((day) => weekdayLabels[day]).filter(Boolean).join(", ")}`;
+    return schedule || "Repeating";
   }
 
   function parseVoiceHabit(rawText) {
@@ -11637,7 +11766,12 @@ function quickAction(action) {
 
     const repeat = parseVoiceRepeatCorrection(text);
     if (repeat) {
-      parsed.repeat = repeat;
+      const recurrence = parseVoiceTaskRecurrence(text, parsed.date || todayIso());
+      parsed.repeat = recurrence.repeat || repeat;
+      parsed.repeatSchedule = recurrence.schedule;
+      parsed.repeatDays = recurrence.days;
+      parsed.repeatLabel = recurrence.label;
+      parsed.recurring = recurrence.recurring;
       changes.push("repeat");
     }
 
@@ -11738,6 +11872,7 @@ function quickAction(action) {
   function parseVoiceHabitSchedule(text) {
     if (/\b(weekdays|weekday|workdays|monday through friday|mon through fri|mon to fri)\b/.test(text)) return "Weekdays";
     if (/\b(monthly|every month|once a month)\b/.test(text)) return "Monthly";
+    if (voiceTextHasSpecificDays(text)) return "Weekly";
     if (/\b(weekly|every week|once a week|on sundays|on mondays|on tuesdays|on wednesdays|on thursdays|on fridays|on saturdays)\b/.test(text)) return "Weekly";
     if (/\b(daily|every day|each day)\b/.test(text)) return "Daily";
     return "Daily";
@@ -11831,6 +11966,8 @@ function quickAction(action) {
 
   function parseVoiceRepeat(text) {
     if (/\b(every day|daily)\b/.test(text)) return "Daily";
+    if (/\b(weekdays|weekday|workdays|monday through friday|mon through fri|mon to fri)\b/.test(text)) return "Custom";
+    if (voiceTextHasSpecificDays(text)) return "Custom";
     if (/\b(bi weekly|bi-weekly|every other week)\b/.test(text)) return "Bi-Weekly";
     if (/\b(weekly|every week)\b/.test(text)) return "Weekly";
     if (/\b(monthly|every month)\b/.test(text)) return "Monthly";
@@ -12050,6 +12187,8 @@ function quickAction(action) {
       /\bbetween\s+\d/i,
       /\bat\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
       /\bat\s+\d{1,6}\s+[A-Za-z]/i,
+      /\bevery\s+(day|weekday|week|month|sunday|monday|tuesday|wednesday|thursday|friday|saturday)/i,
+      /\b(weekdays?|workdays?|daily|weekly|monthly)\b/i,
       /\b(address|location)\b/i,
       /\b(low|medium|high|urgent)\s+priority\b/i,
       /\b(status|project|category|repeat)\b/i
@@ -12073,6 +12212,8 @@ function quickAction(action) {
       .replace(/\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/ig, "")
       .replace(/\b(from|between|at|around|to|until|and)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?|am|pm)?\b/ig, "")
       .replace(/\b(for|duration)\s+\d+(?:\.\d+)?\s*(hours?|hrs?|minutes?|mins?)\b/ig, "")
+      .replace(/\bevery\s+(day|weekday|week|month|sunday|monday|tuesday|wednesday|thursday|friday|saturday)(?:\s*,?\s*(and\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday))*\b/ig, "")
+      .replace(/\b(weekdays?|workdays?|daily|weekly|monthly)\b/ig, "")
       .replace(/\b(low|medium|high|urgent)\s+priority\b/ig, "")
       .replace(/\b(status|project|category|repeat)\s+\w+\b/ig, "")
       .trim();
@@ -16560,12 +16701,12 @@ function quickAction(action) {
     const items = [];
     safeArray(data.tasks).forEach((task) => {
       if (task.date && aiDateInRange(task.date, startIso, endIso)) {
-        items.push({ type: "Task", title: task.title, date: task.date, time: task.start || "", detail: task.description || task.category || task.status || "" });
+        items.push({ type: "Task", title: task.title, date: task.date, time: task.start || "", end: task.end || "", detail: task.description || task.category || task.status || "" });
       }
     });
     safeArray(data.habits).forEach((habit) => {
       for (let iso = startIso; parseLocalDate(iso) <= parseLocalDate(endIso); iso = addDaysIso(iso, 1)) {
-        if (aiHabitOccursOn(habit, iso)) items.push({ type: "Habit", title: habit.title, date: iso, time: habit.start || "", detail: habit.type || habit.schedule || "" });
+        if (aiHabitOccursOn(habit, iso)) items.push({ type: "Habit", title: habit.title, date: iso, time: habit.start || "", end: habit.end || "", detail: habit.type || habit.schedule || "" });
       }
     });
     safeArray(data.bills).forEach((bill) => {
@@ -16591,12 +16732,72 @@ function quickAction(action) {
     const startIso = lower.includes("this week") || lower.includes("week") ? startOfWeekIso(ui.selectedDate || todayIso()) : todayIso();
     const endIso = lower.includes("this week") || lower.includes("week") ? addDaysIso(startIso, 6) : addDaysIso(startIso, 14);
     let items = aiCalendarItems(startIso, endIso);
+    const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
       items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
       if (!items.length) return `I do not see a doctor or appointment item from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
+    } else if (topic) {
+      items = items.filter((item) => aiCalendarItemMatchesTopic(item, topic));
+      if (!items.length) return `I do not see "${topic}" on your calendar from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
     }
     if (!items.length) return `I do not see saved calendar items from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
-    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}, I found ${items.length} item${items.length === 1 ? "" : "s"}: ${items.slice(0, 8).map((item) => `${item.type}: ${item.title} on ${dateLabel(item.date)}${item.time ? ` at ${timeLabel(item.time)}` : ""}${item.detail ? ` (${item.detail})` : ""}`).join("; ")}${items.length > 8 ? `; plus ${items.length - 8} more.` : "."}`;
+    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}, ${aiCalendarSummary(items, startIso, endIso)}`;
+  }
+
+  function aiCalendarTopic(prompt) {
+    const lower = aiNorm(prompt);
+    const generic = new Set("what do i have going on this week events event calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow".split(" "));
+    const words = lower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !generic.has(word));
+    return words.slice(0, 3).join(" ");
+  }
+
+  function aiCalendarItemMatchesTopic(item, topic) {
+    const haystack = aiNorm(`${item.type} ${item.title} ${item.detail}`);
+    return topic.split(/\s+/).every((word) => haystack.includes(word) || haystack.includes(word.replace(/s$/, "")));
+  }
+
+  function aiCalendarSummary(items, startIso, endIso) {
+    const groups = new Map();
+    items.forEach((item) => {
+      const key = [item.type, aiNorm(item.title), item.time || "", item.end || "", aiNorm(item.detail)].join("|");
+      const row = groups.get(key) || { ...item, dates: [] };
+      row.dates.push(item.date);
+      groups.set(key, row);
+    });
+    const summaries = Array.from(groups.values())
+      .sort((a, b) => `${a.dates[0]} ${a.time}`.localeCompare(`${b.dates[0]} ${b.time}`))
+      .map((group) => aiCalendarGroupSummary(group, startIso, endIso));
+    const shown = summaries.slice(0, 8);
+    return `I found ${items.length} item${items.length === 1 ? "" : "s"}. ${shown.join(" ")}${summaries.length > shown.length ? ` Plus ${summaries.length - shown.length} more grouped item${summaries.length - shown.length === 1 ? "" : "s"}.` : ""}`;
+  }
+
+  function aiCalendarGroupSummary(group, startIso, endIso) {
+    const sortedDates = Array.from(new Set(group.dates)).sort();
+    const when = aiDatePattern(sortedDates, startIso, endIso);
+    const time = group.time ? ` ${timeLabel(group.time)}${group.end ? `-${timeLabel(group.end)}` : ""}` : "";
+    const detail = group.detail ? ` (${group.detail})` : "";
+    return sortedDates.length > 1
+      ? `${group.type}: ${group.title}${time} happens ${when}${detail}.`
+      : `${group.type}: ${group.title}${time} on ${dateLabel(sortedDates[0])}${detail}.`;
+  }
+
+  function aiDatePattern(dates, startIso, endIso) {
+    const fullRange = dateRangeIso(startIso, endIso);
+    if (dates.length === fullRange.length && fullRange.every((iso) => dates.includes(iso))) return "every day";
+    const weekdayDates = fullRange.filter((iso) => {
+      const day = parseLocalDate(iso).getDay();
+      return day >= 1 && day <= 5;
+    });
+    const weekendDates = fullRange.filter((iso) => {
+      const day = parseLocalDate(iso).getDay();
+      return day === 0 || day === 6;
+    });
+    if (weekdayDates.length && weekdayDates.every((iso) => dates.includes(iso)) && weekendDates.every((iso) => !dates.includes(iso))) {
+      return "Monday through Friday, with Saturday and Sunday off";
+    }
+    const weekdays = Array.from(new Set(dates.map((iso) => parseLocalDate(iso).getDay()))).sort((a, b) => a - b);
+    if (dates.length > 1 && dates.length <= 7) return `on ${weekdays.map((day) => weekdayLabels[day]).join(", ")}`;
+    return `on ${dates.slice(0, 6).map((iso) => dateLabel(iso)).join(", ")}${dates.length > 6 ? ` and ${dates.length - 6} more dates` : ""}`;
   }
 
   function aiSubjectFromPrompt(prompt) {
