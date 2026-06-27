@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-12";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-13";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -19,6 +19,7 @@
     analyticsTab: "expenses",
     chartType: "pie",
     calendarView: "day",
+    dashboardPanel: "today",
     selectedDate: todayIso(),
     subscriptionFilter: "all",
     billQuery: "",
@@ -2188,37 +2189,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     const routeCount = todayItems.filter((item) => item.addressId).length;
     const mode = data.settings?.interfaceMode === "simple" ? "simple" : "power";
 
-    return `<section class="screen">
+    return `<section class="screen dashboard-screen">
       ${header("BillMaster Today", `<button class="mode-toggle ${mode === "power" ? "active" : ""}" data-action="toggle-interface-mode" title="Switch Simple / Power mode">${mode === "power" ? "Power" : "Simple"}</button><button class="icon-btn" data-action="open-modal" data-modal="dataTools" aria-label="Data tools">${icon("note")}</button><button class="icon-btn" data-action="navigate" data-view="ai" aria-label="AI Assistant">${icon("ai")}</button>`)}
-      <div class="dashboard-grid">
-        <div class="list">
-          <article class="section-card balance-panel">
-            <div class="balance-row">
-              <div>
-                <div class="balance-label">Available Balance</div>
-                <div class="balance-amount">${money(balance)}</div>
-                <div class="small-label">Last synced 2m ago</div>
-              </div>
-              <span class="pill dark">${icon("filter")} Comfortable</span>
-            </div>
-            <div class="balance-meta">
-              <span>${icon("wallet")} Income ${money(income)}</span>
-              <span>${icon("receipt")} Expenses ${money(expenses)}</span>
-              <span>${icon("chart")} Goals on track</span>
-            </div>
-          </article>
-
-          ${cloudDashboardPrompt()}
-
-          ${todayBriefingCard(today, todayItems, upcomingBills, reviewCount, routeCount)}
-
-          <div class="quick-add">
-            <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
-            <input id="quickTaskInput" placeholder="Quick add task... (Ctrl+T)" />
-            <button class="icon-btn primary-btn" data-action="quick-add-task" aria-label="Add task">${icon("check")}</button>
-          </div>
-
-          <section class="section-card">
+      <div class="dashboard-swipe" data-dashboard-swipe aria-label="BillMaster dashboard panels">
+        <div class="list dashboard-panel dashboard-panel--command" data-dashboard-panel="command" aria-label="Command Center">
+          <section class="section-card command-center-card">
             <div class="section-title"><h2>Command Center</h2><span class="status info">${mode === "power" ? "Power tools" : "Simple mode"}</span></div>
             ${dashboardActionGroups(mode)}
           </section>
@@ -2249,7 +2224,35 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           </section>
         </div>
 
-        <div class="list">
+        <div class="list dashboard-panel dashboard-panel--today" data-dashboard-panel="today" aria-label="BillMaster Today">
+          <article class="section-card balance-panel">
+            <div class="balance-row">
+              <div>
+                <div class="balance-label">Available Balance</div>
+                <div class="balance-amount">${money(balance)}</div>
+                <div class="small-label">Last synced 2m ago</div>
+              </div>
+              <span class="pill dark">${icon("filter")} Comfortable</span>
+            </div>
+            <div class="balance-meta">
+              <span>${icon("wallet")} Income ${money(income)}</span>
+              <span>${icon("receipt")} Expenses ${money(expenses)}</span>
+              <span>${icon("chart")} Goals on track</span>
+            </div>
+          </article>
+
+          ${cloudDashboardPrompt()}
+
+          ${todayBriefingCard(today, todayItems, upcomingBills, reviewCount, routeCount)}
+
+          <div class="quick-add">
+            <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
+            <input id="quickTaskInput" placeholder="Quick add task... (Ctrl+T)" />
+            <button class="icon-btn primary-btn" data-action="quick-add-task" aria-label="Add task">${icon("check")}</button>
+          </div>
+        </div>
+
+        <div class="list dashboard-panel dashboard-panel--accounts" data-dashboard-panel="accounts" aria-label="Accounts">
           <section class="section-card">
             <div class="section-title"><h2>Accounts</h2><button class="text-btn" data-action="open-modal" data-modal="accountConnections">Manage</button></div>
             <div class="account-strip">
@@ -4247,11 +4250,13 @@ function quickAction(action) {
     const view = ui.calendarView;
     return `<section class="screen calendar-screen calendar-screen--${esc(view)}">
       ${header("Financial Calendar", `<button class="icon-btn">${icon("search")}</button>${calendarUndoButton("icon-btn undo-icon")}<button class="icon-btn" data-action="open-modal" data-modal="calendarSync" title="Google Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="taskDefaults" title="Task defaults">${icon("settings")}</button><button class="icon-btn">${icon("filter")}</button>`)}
-      <div class="mini-tabs">
-        ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+      <div class="calendar-mode-row">
+        <div class="mini-tabs">
+          ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+        </div>
+        ${calendarTopTools(view)}
       </div>
       ${calendarCategoryBar()}
-      ${calendarTopTools(view)}
       <div class="calendar-controls">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
@@ -4273,7 +4278,6 @@ function quickAction(action) {
 
   function calendarTopTools(view) {
     return `<div class="calendar-top-tools">
-      <div class="calendar-top-tools__spacer" aria-hidden="true"></div>
       <div class="calendar-top-tools__panel">
         ${calendarQuickAddBar(view)}
         ${calendarColorSchemePicker()}
@@ -4282,7 +4286,7 @@ function quickAction(action) {
   }
 
   function calendarColorSchemePicker() {
-    const toneKeys = ["sunday", "monday", "tuesday", "wednesday", "friday", "saturday"];
+    const toneKeys = calendarDayTones;
     const chips = Object.entries(calendarPaletteSchemes)
       .map(([key, scheme]) => {
         const swatches = toneKeys
@@ -4953,7 +4957,7 @@ function quickAction(action) {
     const cols = weekdays.map((iso) => {
       const dayTasks = tasks.filter((task) => task.date === iso);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-col ${stateClass}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
+      return `<div class="block-col ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
@@ -8839,11 +8843,42 @@ function quickAction(action) {
   function afterRender() {
     const chart = document.getElementById("analyticsChart");
     if (chart) drawAnalyticsChart(chart);
+    attachDashboardSwipe();
     attachBlockInteractions();
     attachDayTaskInteractions();
     attachHabitInteractions();
     attachProjectTaskInteractions();
     attachNoteNotebookInteractions();
+  }
+
+  function attachDashboardSwipe() {
+    if (ui.view !== "dashboard" || typeof window === "undefined") return;
+    if (typeof document === "undefined" || typeof document.querySelector !== "function") return;
+    const scroller = document.querySelector("[data-dashboard-swipe]");
+    if (!scroller || !window.matchMedia?.("(max-width: 999px)")?.matches) return;
+    const panels = Array.from(scroller.querySelectorAll("[data-dashboard-panel]"));
+    if (!panels.length) return;
+    const targetPanel = panels.find((panel) => panel.dataset.dashboardPanel === ui.dashboardPanel) || panels.find((panel) => panel.dataset.dashboardPanel === "today") || panels[0];
+    const centerPanel = (panel) => {
+      const left = panel.offsetLeft - Math.max(0, (scroller.clientWidth - panel.clientWidth) / 2);
+      scroller.scrollLeft = left;
+    };
+    centerPanel(targetPanel);
+    let ticking = false;
+    scroller.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        const center = scroller.scrollLeft + (scroller.clientWidth / 2);
+        const active = panels.reduce((best, panel) => {
+          const panelCenter = panel.offsetLeft + (panel.clientWidth / 2);
+          const distance = Math.abs(panelCenter - center);
+          return !best || distance < best.distance ? { panel, distance } : best;
+        }, null)?.panel;
+        if (active?.dataset.dashboardPanel) ui.dashboardPanel = active.dataset.dashboardPanel;
+      });
+    }, { passive: true });
   }
 
   function attachDayTaskInteractions() {
