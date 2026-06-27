@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-14";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-15";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -343,6 +343,12 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     ]
   };
 
+  const TASK_ALERT_CHECK_MS = 30 * 1000;
+  const TASK_ALERT_GRACE_MS = 5 * 60 * 1000;
+  const TASK_ALERT_OFFSET_OPTIONS = [15, 0, 5, 30, 60];
+  const TASK_ALERT_DEFAULT_OFFSETS = [15, 0];
+  const TASK_ALERT_FIRED_LIMIT = 80;
+
   let profiles = loadProfiles();
   let currentProfileId = loadActiveProfileId(profiles);
   let data = loadData();
@@ -375,6 +381,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let dayDragState = null;
   let voiceRecognition = null;
   let voiceStopRequested = false;
+  let taskAlertSchedulerStarted = false;
+  let taskAlertAudioContext = null;
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockHoldMoveTolerance = 8;
@@ -440,6 +448,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "copy-selected-task-route",
     "copy-task-alert",
     "save-task-notify",
+    "request-task-alert-permission",
+    "test-task-alert",
     "copy-task-route-from-modal",
     "duplicate-block-horizontal",
     "duplicate-block-vertical",
@@ -1537,6 +1547,14 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         ? task.notifyOnStatuses.filter((status) => taskStatusOptions.includes(status))
         : [];
       task.notifyConfigured = Boolean(task.notifyConfigured);
+      task.alertOffsets = normalizeTaskAlertOffsets(task.alertOffsets);
+      task.alertDevice = task.alertDevice !== false;
+      task.alertSound = task.alertSound !== false;
+      task.alertEmail = Boolean(task.alertEmail);
+      task.alertConfigured = Boolean(task.alertConfigured && task.alertOffsets.length);
+      task.alertFiredKeys = Array.isArray(task.alertFiredKeys)
+        ? task.alertFiredKeys.map(String).filter(Boolean).slice(-TASK_ALERT_FIRED_LIMIT)
+        : [];
       task.updatedAt = String(task.updatedAt || "");
     });
   }
@@ -1567,6 +1585,14 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     const allowed = new Set(["email", "emailToText"]);
     const normalized = Array.from(new Set((Array.isArray(channels) ? channels : ["email"]).filter((channel) => allowed.has(channel))));
     return normalized.length ? normalized : ["email"];
+  }
+
+  function normalizeTaskAlertOffsets(offsets) {
+    const allowed = new Set(TASK_ALERT_OFFSET_OPTIONS);
+    return Array.from(new Set((Array.isArray(offsets) ? offsets : [])
+      .map((offset) => Number(offset))
+      .filter((offset) => allowed.has(offset))))
+      .sort((a, b) => b - a);
   }
 
   function normalizeSubtasks(subtasks) {
@@ -7103,7 +7129,7 @@ function quickAction(action) {
 
   function modalTask(taskId) {
     const projectDefault = ui.view === "projects" && ui.projectId ? ui.projectId : null;
-    const task = data.tasks.find((item) => item.id === taskId) || { date: ui.selectedDate, endDate: ui.selectedDate, start: "09:00", end: "10:00", priority: "Medium", status: "Not Started", repeat: "None", includeHours: true, bgColor: defaultTaskBgColor(), projectId: projectDefault };
+    const task = data.tasks.find((item) => item.id === taskId) || { date: ui.selectedDate, endDate: ui.selectedDate, start: "09:00", end: "10:00", priority: "Medium", status: "Not Started", repeat: "None", includeHours: true, bgColor: defaultTaskBgColor(), projectId: projectDefault, alertOffsets: TASK_ALERT_DEFAULT_OFFSETS, alertDevice: true, alertSound: true, alertEmail: false, alertConfigured: true, alertFiredKeys: [] };
     return `${modalHeader(task.id ? "Edit Task" : "Add Task")}
       <div class="field-grid">
         ${field("taskTitle", "Task Title", task.title || "", "Task Title")}
@@ -7140,6 +7166,7 @@ function quickAction(action) {
         ${selectField("taskProject", "Project", ["", ...data.projects.map((p) => p.id)], task.projectId || "", (value) => value ? data.projects.find((p) => p.id === value).name : "No project")}
         ${task.projectId ? `<button class="outline-btn inline-project-edit" data-action="open-modal" data-modal="editProjectName" data-id="${task.projectId}" data-return-modal="editTask" data-return-id="${task.id || ""}">${icon("edit")} Edit selected project</button>` : ""}
         ${selectField("taskContact", "Primary Contact", ["", ...data.contacts.map((contact) => contact.id)], task.contactId || "", (value) => value ? data.contacts.find((contact) => contact.id === value)?.name || "Contact" : "No primary contact")}
+        ${taskAlertPanel(task)}
         <section class="inline-add-panel task-notify-panel">
           <div class="inline-add-heading">${icon("bell")} Notify Contacts</div>
           <p class="subtle">${taskNotifySummary(task)}</p>
@@ -8848,6 +8875,7 @@ function quickAction(action) {
   function afterRender() {
     const chart = document.getElementById("analyticsChart");
     if (chart) drawAnalyticsChart(chart);
+    startTaskAlertScheduler();
     attachDashboardSwipe();
     attachBlockInteractions();
     attachDayTaskInteractions();
@@ -10557,6 +10585,8 @@ function quickAction(action) {
     if (action === "toggle-notify-group") return toggleNotifyGroup(el.dataset.id, el);
     if (action === "set-notify-status-preset") return setNotifyStatusPreset(el.dataset.preset);
     if (action === "save-task-notify") return saveTaskNotify(el.dataset.id);
+    if (action === "request-task-alert-permission") return requestTaskAlertPermission();
+    if (action === "test-task-alert") return testTaskAlert();
     if (action === "set-contact-group-filter") return setContactGroupFilter(el.dataset.id);
     if (action === "open-task-route") return openSelectedTaskRoute();
     if (action === "copy-task-route-from-modal") return copyTaskRouteFromModal();
@@ -11376,6 +11406,12 @@ function quickAction(action) {
       goalId: null,
       contactId: null,
       addressId,
+      alertOffsets: [...TASK_ALERT_DEFAULT_OFFSETS],
+      alertDevice: true,
+      alertSound: true,
+      alertEmail: false,
+      alertConfigured: true,
+      alertFiredKeys: [],
       tags: parsed.category ? [parsed.category.toLowerCase()] : [],
       updatedAt: new Date().toISOString()
     };
@@ -13217,6 +13253,7 @@ function quickAction(action) {
     const wantsNewAddress = selectedAddressId === ADD_TASK_ADDRESS_VALUE;
     const newAddressId = wantsNewAddress ? createTaskAddressFromForm() : "";
     const category = taskCategoryFromForm();
+    const alertOffsets = selectedTaskAlertOffsets();
     if (wantsNewAddress && !newAddressId) {
       showToast("Enter the new address details first.", "danger");
       return;
@@ -13255,6 +13292,12 @@ function quickAction(action) {
       notifyExtraRecipient: task?.notifyExtraRecipient || "",
       notifyMessage: task?.notifyMessage || "",
       notifyConfigured: Boolean(task?.notifyConfigured),
+      alertOffsets,
+      alertDevice: Boolean(document.getElementById("taskAlertDevice")?.checked),
+      alertSound: Boolean(document.getElementById("taskAlertSound")?.checked),
+      alertEmail: Boolean(document.getElementById("taskAlertEmail")?.checked),
+      alertConfigured: alertOffsets.length > 0,
+      alertFiredKeys: task?.alertFiredKeys || [],
       tags: task ? task.tags || [] : [],
       subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks),
       updatedAt: new Date().toISOString()
@@ -13360,6 +13403,12 @@ function quickAction(action) {
       goalId: null,
       contactId: null,
       addressId: null,
+      alertOffsets: [...TASK_ALERT_DEFAULT_OFFSETS],
+      alertDevice: true,
+      alertSound: true,
+      alertEmail: false,
+      alertConfigured: true,
+      alertFiredKeys: [],
       tags: category === "Habit" ? ["habit"] : [],
       subtasks: [],
       updatedAt: new Date().toISOString()
@@ -14081,6 +14130,58 @@ function quickAction(action) {
     return `Alerts are paused until you choose a status trigger.`;
   }
 
+  function taskAlertOffsets(task) {
+    return normalizeTaskAlertOffsets(task?.alertOffsets);
+  }
+
+  function taskAlertOffsetLabel(offset) {
+    if (offset === 0) return "At start";
+    if (offset === 1) return "1 min before";
+    return `${offset} min before`;
+  }
+
+  function taskAlertDeliverySummary(task) {
+    const methods = [];
+    if (task?.alertDevice !== false) methods.push("device popup");
+    if (task?.alertSound !== false) methods.push("sound");
+    if (task?.alertEmail) methods.push("email/text queue");
+    return methods.length ? methods.join(" + ") : "no delivery method selected";
+  }
+
+  function taskAlertSummary(task) {
+    const offsets = taskAlertOffsets(task);
+    if (!task?.alertConfigured || !offsets.length) return "No time alerts selected yet.";
+    return `Reminds ${offsets.map(taskAlertOffsetLabel).join(" and ")} by ${taskAlertDeliverySummary(task)}.`;
+  }
+
+  function taskAlertPanel(task) {
+    const offsets = new Set(taskAlertOffsets(task));
+    const device = task?.alertDevice !== false;
+    const sound = task?.alertSound !== false;
+    const email = Boolean(task?.alertEmail);
+    return `<section class="inline-add-panel task-alert-panel">
+      <div class="inline-add-heading">${icon("bell")} Task Alerts</div>
+      <p class="subtle">${taskAlertSummary(task)}</p>
+      <div class="notify-preset-row task-alert-offsets" aria-label="Task reminder times">
+        ${TASK_ALERT_OFFSET_OPTIONS.map((offset) => `<label class="outline-btn ${offsets.has(offset) ? "active" : ""}"><input class="taskAlertOffset" type="checkbox" value="${offset}" ${offsets.has(offset) ? "checked" : ""}> ${esc(taskAlertOffsetLabel(offset))}</label>`).join("")}
+      </div>
+      <div class="notify-channel-grid">
+        <label class="check-row"><input id="taskAlertDevice" type="checkbox" ${device ? "checked" : ""}> Device popup</label>
+        <label class="check-row"><input id="taskAlertSound" type="checkbox" ${sound ? "checked" : ""}> Sound</label>
+        <label class="check-row"><input id="taskAlertEmail" type="checkbox" ${email ? "checked" : ""}> Queue email/text</label>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="request-task-alert-permission">${icon("bell")} Enable browser alerts</button>
+        <button class="outline-btn" data-action="test-task-alert">${icon("playcard")} Test sound</button>
+      </div>
+      <p class="subtle">Device alerts and sounds work while BillMaster is open on that device. Email/text alerts use the Notification Outbox.</p>
+    </section>`;
+  }
+
+  function selectedTaskAlertOffsets() {
+    return normalizeTaskAlertOffsets(Array.from(document.querySelectorAll(".taskAlertOffset:checked")).map((input) => input.value));
+  }
+
   function selectedNotifyChannels() {
     return normalizeNotifyChannels(Array.from(document.querySelectorAll(".taskNotifyChannel:checked")).map((input) => input.value));
   }
@@ -14152,6 +14253,202 @@ function quickAction(action) {
       createdAt: new Date().toISOString()
     });
     return true;
+  }
+
+  function startTaskAlertScheduler() {
+    if (taskAlertSchedulerStarted || typeof window === "undefined") return;
+    const scheduleInterval = typeof window.setInterval === "function"
+      ? window.setInterval.bind(window)
+      : (typeof setInterval === "function" ? setInterval : null);
+    if (!scheduleInterval) return;
+    taskAlertSchedulerStarted = true;
+    scheduleInterval(scanTaskAlerts, TASK_ALERT_CHECK_MS);
+    if (typeof window.addEventListener === "function") window.addEventListener("focus", scanTaskAlerts);
+    if (typeof document !== "undefined" && typeof document.addEventListener === "function") document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) scanTaskAlerts();
+    });
+    scanTaskAlerts();
+  }
+
+  function scanTaskAlerts() {
+    if (!currentProfileId || !Array.isArray(data?.tasks)) return;
+    const now = new Date();
+    const nowMs = now.getTime();
+    let changed = false;
+    data.tasks.forEach((task) => {
+      if (!task?.alertConfigured || !task.start || !task.date) return;
+      if (task.status === "Completed" || task.status === "Cancelled") return;
+      const occurrenceIso = taskAlertOccurrenceIso(task, now);
+      if (!occurrenceIso) return;
+      const startDate = taskAlertStartDate(task, occurrenceIso);
+      if (!startDate) return;
+      const firedKeys = new Set(Array.isArray(task.alertFiredKeys) ? task.alertFiredKeys : []);
+      taskAlertOffsets(task).forEach((offset) => {
+        const dueMs = startDate.getTime() - offset * 60 * 1000;
+        if (nowMs < dueMs || nowMs - dueMs > TASK_ALERT_GRACE_MS) return;
+        const key = taskAlertFiredKey(occurrenceIso, task.start, offset);
+        if (firedKeys.has(key)) return;
+        task.alertFiredKeys = [...(task.alertFiredKeys || []), key].slice(-TASK_ALERT_FIRED_LIMIT);
+        firedKeys.add(key);
+        fireTaskAlert(task, offset, occurrenceIso);
+        changed = true;
+      });
+    });
+    if (changed) saveData({ undo: false });
+  }
+
+  function taskAlertOccurrenceIso(task, nowDate) {
+    const today = isoDate(nowDate);
+    return taskOccursForAlertOn(task, today) ? today : "";
+  }
+
+  function taskOccursForAlertOn(task, iso) {
+    if (!task?.date || task.date > iso) return false;
+    if (task.date === iso) return true;
+    if (task.repeatEndDate && task.repeatEndDate < iso) return false;
+    const repeat = String(task.repeat || "None");
+    const schedule = String(task.repeatSchedule || repeat || "None");
+    const repeatDays = Array.isArray(task.repeatDays) ? task.repeatDays.map(Number).filter((day) => day >= 0 && day <= 6) : [];
+    const isRecurring = task.recurring || repeat !== "None" || schedule !== "None" || repeatDays.length > 0;
+    if (!isRecurring) return false;
+    const date = parseLocalDate(iso);
+    const start = parseLocalDate(task.date);
+    const elapsedDays = Math.round((date.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+    if (elapsedDays < 0) return false;
+    const weekday = date.getDay();
+    if (repeatDays.length) return repeatDays.includes(weekday);
+    if (schedule === "Daily" || repeat === "Daily") return true;
+    if (schedule === "Weekdays") return weekday >= 1 && weekday <= 5;
+    if (schedule === "Monthly" || repeat === "Monthly") return date.getDate() === start.getDate();
+    if (schedule === "Bi-Weekly" || repeat === "Bi-Weekly") return elapsedDays % 14 === 0;
+    if (schedule === "Weekly" || repeat === "Weekly" || schedule === "Custom" || repeat === "Custom") return weekday === start.getDay();
+    return false;
+  }
+
+  function taskAlertStartDate(task, occurrenceIso) {
+    const match = String(task.start || "").match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const date = parseLocalDate(occurrenceIso);
+    date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    return date;
+  }
+
+  function taskAlertFiredKey(occurrenceIso, start, offset) {
+    return `${occurrenceIso}:${start || ""}:${offset}`;
+  }
+
+  function fireTaskAlert(task, offset, occurrenceIso) {
+    const title = offset ? `${task.title} starts in ${offset} minutes` : `${task.title} starts now`;
+    const message = taskAlertReminderMessage(task, offset, occurrenceIso);
+    if (task.alertDevice !== false) showBrowserTaskNotification(title, message, `task:${task.id}:${taskAlertFiredKey(occurrenceIso, task.start, offset)}`);
+    if (task.alertSound !== false) playTaskAlertSound();
+    const queued = task.alertEmail ? queueTaskTimeNotification(task, offset, occurrenceIso) : false;
+    if (task.alertEmail && !queued) showToast(`${title}. Add a notification recipient to queue email/text.`, "danger");
+    else showToast(queued ? `${title}. Email/text queued.` : title);
+  }
+
+  function taskAlertOccurrenceTask(task, occurrenceIso) {
+    const endDate = task.end && task.start && minutes(task.end) <= minutes(task.start) ? addDaysIso(occurrenceIso, 1) : occurrenceIso;
+    return { ...task, date: occurrenceIso, endDate };
+  }
+
+  function taskAlertReminderMessage(task, offset, occurrenceIso) {
+    const timing = offset ? `starts in ${offset} minutes` : "starts now";
+    return [
+      `Reminder: ${task.title} ${timing}.`,
+      "",
+      taskAlertMessage(taskAlertOccurrenceTask(task, occurrenceIso))
+    ].join("\n");
+  }
+
+  function queueTaskTimeNotification(task, offset, occurrenceIso) {
+    const channels = taskNotifyChannels(task);
+    const recipients = taskNotificationRecipients(task, channels);
+    if (!recipients.length) return false;
+    data.notificationLog.unshift({
+      id: id("notice"),
+      type: "task-time-alert",
+      taskId: task.id,
+      taskTitle: task.title,
+      previousStatus: "",
+      status: offset ? `${offset} minutes before` : "At start",
+      channels,
+      recipients,
+      message: task.notifyMessage || taskAlertReminderMessage(task, offset, occurrenceIso),
+      deliveryStatus: "queued",
+      trigger: "time-alert",
+      createdAt: new Date().toISOString()
+    });
+    return true;
+  }
+
+  function showBrowserTaskNotification(title, body, tag) {
+    if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return false;
+    try {
+      new Notification(title, { body, tag, renotify: true });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async function requestTaskAlertPermission() {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      showToast("Browser pop-up alerts are not available here.", "danger");
+      return false;
+    }
+    if (Notification.permission === "granted") {
+      showToast("Browser task alerts are already enabled.");
+      return true;
+    }
+    if (Notification.permission === "denied") {
+      showToast("Browser alerts are blocked. Enable notifications in browser settings.", "danger");
+      return false;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      showToast(permission === "granted" ? "Browser task alerts enabled." : "Browser task alerts were not enabled.");
+      return permission === "granted";
+    } catch (error) {
+      showToast("Browser alerts could not be enabled.", "danger");
+      return false;
+    }
+  }
+
+  async function testTaskAlert() {
+    const sounded = playTaskAlertSound();
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      showBrowserTaskNotification("BillMaster test alert", "Task alert sound and popup are ready.", `task:test:${Date.now()}`);
+    }
+    showToast(sounded ? "Task alert sound tested." : "This browser blocked or does not support alert sound.", sounded ? "success" : "danger");
+  }
+
+  function playTaskAlertSound() {
+    if (typeof window === "undefined") return false;
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return false;
+    try {
+      if (!taskAlertAudioContext) taskAlertAudioContext = new AudioContextCtor();
+      const context = taskAlertAudioContext;
+      if (context.state === "suspended") context.resume?.().catch(() => {});
+      const startedAt = context.currentTime + 0.03;
+      [880, 660, 990].forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = startedAt + index * 0.18;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.16);
+      });
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   function taskNotifySummary(task) {
