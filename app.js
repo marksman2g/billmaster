@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-11";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-12";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -4251,8 +4251,7 @@ function quickAction(action) {
         ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
       </div>
       ${calendarCategoryBar()}
-      ${calendarColorSchemePicker()}
-      ${calendarQuickAddBar(view)}
+      ${calendarTopTools(view)}
       <div class="calendar-controls">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
@@ -4269,6 +4268,16 @@ function quickAction(action) {
   function calendarCategoryBar() {
     return `<div class="category-filter-bar">
       ${taskCategories.map((category) => `<button class="${isTaskCategoryEnabled(category) ? "active" : ""}" data-action="toggle-task-category" data-category="${category}" style="--category-color:${taskCategoryColor(category)}">${esc(category)}</button>`).join("")}
+    </div>`;
+  }
+
+  function calendarTopTools(view) {
+    return `<div class="calendar-top-tools">
+      <div class="calendar-top-tools__spacer" aria-hidden="true"></div>
+      <div class="calendar-top-tools__panel">
+        ${calendarQuickAddBar(view)}
+        ${calendarColorSchemePicker()}
+      </div>
     </div>`;
   }
 
