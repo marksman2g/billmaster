@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-10";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-11";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -4245,7 +4245,7 @@ function quickAction(action) {
 
   function renderCalendar() {
     const view = ui.calendarView;
-    return `<section class="screen">
+    return `<section class="screen calendar-screen calendar-screen--${esc(view)}">
       ${header("Financial Calendar", `<button class="icon-btn">${icon("search")}</button>${calendarUndoButton("icon-btn undo-icon")}<button class="icon-btn" data-action="open-modal" data-modal="calendarSync" title="Google Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="taskDefaults" title="Task defaults">${icon("settings")}</button><button class="icon-btn">${icon("filter")}</button>`)}
       <div class="mini-tabs">
         ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
@@ -5084,7 +5084,7 @@ function quickAction(action) {
     for (let minute = range.start; minute < range.end; minute += 60) {
       const hour = ((Math.floor(minute / 60) % 24) + 24) % 24;
       const right = side === "right";
-      labels.push(`<div class="time-label ${right ? "right" : ""}">${right ? `${String(hour).padStart(2, "0")}:00` : ampmHourLabel(hour)}</div>`);
+      labels.push(`<div class="time-label ${right ? "right" : ""} ${hour % 3 === 0 ? "is-major-hour" : ""}">${right ? `${String(hour).padStart(2, "0")}:00` : ampmHourLabel(hour)}</div>`);
     }
     return labels.join("");
   }
