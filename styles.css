@@ -1108,6 +1108,23 @@ button.round-icon {
   overflow: visible;
 }
 
+.command-illustration--ai .ci-ai-gif-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #070418;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.command-illustration--ai .ci-ai-gif {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .ci-paper {
   fill: #fff;
   stroke: #11182e;

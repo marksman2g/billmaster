@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-2";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-3";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2654,20 +2654,9 @@ function commandIllustration(iconName) {
         </g>
       </svg>`,
     ai: `
-      <svg class="ci-svg ci-ai-svg" viewBox="0 0 96 96" role="img">
-        <circle class="ci-ai-halo" cx="48" cy="48" r="37"></circle>
-        <path class="ci-ai-head-glow" d="M33 73c-8-7-12-16-10-28 2-13 13-24 27-25 16-2 30 9 32 25 1 11-4 21-13 27v9H54v-8H43c-4 0-7-1-10-3z"></path>
-        <path class="ci-ai-head" d="M33 73c-8-7-12-16-10-28 2-13 13-24 27-25 16-2 30 9 32 25 1 11-4 21-13 27v9H54v-8H43c-4 0-7-1-10-3z"></path>
-        <path class="ci-ai-brain-fill" d="M36 49c-5-1-9-5-9-11 0-6 5-11 11-11 2-6 8-10 15-9 6 1 10 5 12 10 6 1 10 6 10 12 0 6-4 11-10 12-2 5-7 9-14 9-6 0-11-3-15-12z"></path>
-        <path class="ci-ai-fold ci-ai-fold-1" d="M38 30c4 2 6 5 5 10m9-18c-2 4-1 8 3 11m-20 15c4-3 9-3 13 0m6-11c5 0 9 3 11 8m-12 9c2-3 5-5 10-5"></path>
-        <path class="ci-ai-circuit" d="M33 67h15m0 0v-7m0 7h14m0 0v-9"></path>
-        <circle class="ci-ai-node ci-ai-node-1" cx="48" cy="60" r="2.6"></circle>
-        <circle class="ci-ai-node ci-ai-node-2" cx="62" cy="58" r="2.6"></circle>
-        <path class="ci-ai-spark ci-ai-spark-1" d="M22 23l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"></path>
-        <path class="ci-ai-spark ci-ai-spark-2" d="M75 16l1.6 4.8 4.8 1.6-4.8 1.6-1.6 4.8-1.6-4.8-4.8-1.6 4.8-1.6z"></path>
-        <path class="ci-ai-spark ci-ai-spark-3" d="M77 64l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"></path>
-        <text class="ci-ai-label" x="48" y="86" text-anchor="middle">AI</text>
-      </svg>`
+      <span class="ci-ai-gif-frame">
+        <img class="ci-ai-gif" src="assets/generated/ai-assistant-flash.gif?v=20260627-3" alt="" loading="eager" decoding="async" />
+      </span>`
   };
 
   return `<span class="command-illustration command-illustration--${esc(kind)}" aria-hidden="true">${drawings[kind] || drawings.tasks}</span>`;
