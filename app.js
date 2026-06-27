@@ -452,6 +452,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-goal",
     "save-goal-contribution",
     "save-goal-plan-contribution",
+    "delete-selected-notebooks",
     "save-contact",
     "save-alpha-feedback",
     "save-profile",
@@ -5963,7 +5964,7 @@ function quickAction(action) {
       ${organizedView ? "" : `<div class="note-action-bar notebook-action-bar">
         <span>${ui.selectedNotebooks.length ? `${ui.selectedNotebooks.length} notebook${ui.selectedNotebooks.length === 1 ? "" : "s"} selected` : "Select notebooks to duplicate the notebook and every note inside it"}</span>
         <button class="outline-btn" data-action="select-visible-notebooks">${selectedVisibleNotebooks === visibleNotebookIds.length && visibleNotebookIds.length ? "Deselect visible" : "Select visible"}</button>
-        ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
+        ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="danger-btn" data-action="delete-selected-notebooks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
       </div>`}
       ${organizedView ? noteNotebookDropStrip({
         compact: true,
@@ -10513,6 +10514,7 @@ function quickAction(action) {
     if (action === "clear-selected-notebooks") return clearSelectedNotebooks();
     if (action === "duplicate-notebook") return duplicateNotebooks([el.dataset.id]);
     if (action === "duplicate-selected-notebooks") return duplicateSelectedNotebooks();
+    if (action === "delete-selected-notebooks") return deleteSelectedNotebooks();
     if (action === "delete-notebook") return deleteNotebook(el.dataset.id);
     if (action === "delete-notebook-subject") return deleteNotebookSubject(el.dataset.id, el.dataset.subject);
     if (action === "delete-goal") return deleteGoal(el.dataset.id);
@@ -12471,7 +12473,8 @@ function quickAction(action) {
     if (!ids.length) return showToast("Select at least one note first.", "danger");
     data.notes = data.notes.filter((note) => !ids.includes(note.id));
     ui.selectedNotes = [];
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     showToast(`${ids.length} note${ids.length === 1 ? "" : "s"} deleted. Undo is available.`);
   }
 
@@ -12493,7 +12496,8 @@ function quickAction(action) {
     });
     data.notes.unshift(...created);
     ui.selectedNotes = created.map((note) => note.id);
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     closeModal();
     showToast(`${created.length} note duplicate${created.length === 1 ? "" : "s"} created.`);
   }
@@ -12513,7 +12517,8 @@ function quickAction(action) {
       note.updatedAt = now;
       if (note.notebookId && subject) ensureNotebookSubject(note.notebookId, subject);
     });
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     closeModal();
     render();
     showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} changed to ${subject || "No subject"}.`);
@@ -12540,7 +12545,8 @@ function quickAction(action) {
         note.updatedAt = now;
         if (note.subject) ensureNotebookSubject(notebook.id, note.subject);
       });
-      saveData();
+      const saved = saveData();
+      if (!saved) return showToast(ui.lastSaveError, "danger");
       closeModal();
       render();
       showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}.`);
@@ -12550,7 +12556,8 @@ function quickAction(action) {
       note.notebookId = null;
       note.updatedAt = now;
     });
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     closeModal();
     render();
     showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to Unassigned.`);
@@ -12597,6 +12604,30 @@ function quickAction(action) {
     return duplicateNotebooks(ui.selectedNotebooks);
   }
 
+  function deleteSelectedNotebooks() {
+    const sourceIds = Array.from(new Set(ui.selectedNotebooks.filter((idValue) => data.notebooks.some((notebook) => notebook.id === idValue))));
+    if (!sourceIds.length) return showToast("Select at least one notebook first.", "danger");
+    const selectedNames = data.notebooks
+      .filter((notebook) => sourceIds.includes(notebook.id))
+      .map((notebook) => notebook.title)
+      .join(", ");
+    if (!confirmDelete(`${sourceIds.length} selected notebook${sourceIds.length === 1 ? "" : "s"} (${selectedNames})`)) return;
+    data.notes.forEach((note) => {
+      if (sourceIds.includes(note.notebookId)) {
+        note.notebookId = null;
+        note.updatedAt = new Date().toISOString();
+      }
+    });
+    data.notebooks = data.notebooks.filter((notebook) => !sourceIds.includes(notebook.id));
+    ui.selectedNotebooks = [];
+    ui.selectedNotes = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
+    if (sourceIds.includes(ui.notebookId)) ui.notebookId = null;
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
+    render();
+    showToast(`${sourceIds.length} notebook${sourceIds.length === 1 ? "" : "s"} deleted. Notes are now unassigned. Undo is available.`);
+  }
+
   function duplicateNotebooks(notebookIds) {
     const sourceIds = Array.from(new Set((Array.isArray(notebookIds) ? notebookIds : [notebookIds]).filter((idValue) => data.notebooks.some((notebook) => notebook.id === idValue))));
     if (!sourceIds.length) return showToast("Select at least one notebook to duplicate.", "danger");
@@ -12627,21 +12658,26 @@ function quickAction(action) {
     data.notes.unshift(...createdNotes);
     ui.selectedNotebooks = createdNotebooks.map((notebook) => notebook.id);
     ui.selectedNotes = createdNotes.map((note) => note.id);
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     render();
     showToast(`${createdNotebooks.length} notebook${createdNotebooks.length === 1 ? "" : "s"} duplicated with ${createdNotes.length} note${createdNotes.length === 1 ? "" : "s"}.`);
   }
 
   function deleteNotebook(notebookId) {
     const notebook = data.notebooks.find((item) => item.id === notebookId);
-    if (!notebook) return;
+    if (!notebook || !confirmDelete(notebook.title)) return;
     data.notes.forEach((note) => {
-      if (note.notebookId === notebookId) note.notebookId = null;
+      if (note.notebookId === notebookId) {
+        note.notebookId = null;
+        note.updatedAt = new Date().toISOString();
+      }
     });
     data.notebooks = data.notebooks.filter((item) => item.id !== notebookId);
     if (ui.notebookId === notebookId) ui.notebookId = null;
     ui.modal = null;
-    saveData();
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
     showToast("Notebook deleted. Its notes are now unassigned. Undo is available.");
   }
 
