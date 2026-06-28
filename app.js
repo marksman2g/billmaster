@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-11";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-12";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2005,7 +2005,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ["tracking", "wallet", "Money"],
       ["analytics", "chart", "Analytics"],
       ["bills", "receipt", "Bills"],
-      ["subscriptions", "playcard", "Sub Hub"]
+      ["subscriptions", "playcard", "Subscription"]
     ];
   }
 
@@ -2314,7 +2314,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
               ${data.loans.filter((loan) => loanRemaining(loan) > 0).slice(0, 3).map((loan) => monitorLoanRow(loan)).join("") || `<p class="muted">No open lending items need attention.</p>`}
             </div>
             <div class="filter-row">
-              <button data-action="navigate-root" data-view="subscriptions">${icon("playcard")} Subscriptions</button>
+              <button data-action="navigate-root" data-view="subscriptions">${icon("playcard")} Subscription</button>
               <button data-action="navigate" data-view="lending">${icon("loan")} Loans</button>
               <button data-action="navigate-root" data-view="bills">${icon("receipt")} Bills</button>
               <button data-action="navigate" data-view="goals">${icon("folder")} Goals</button>
@@ -2445,7 +2445,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ["Money", [
         { view: "tracking", iconName: "wallet", label: "Tracking", color: "teal", tone: "money", detail: "Income + spend" },
         { view: "bills", iconName: "receipt", label: "Bills", color: "coral", tone: "bills", detail: "Due + paid" },
-        { view: "subscriptions", iconName: "playcard", label: "Subscriptions", color: "purple", tone: "subs", detail: "Subscription hub" },
+        { view: "subscriptions", iconName: "playcard", label: "Subscription", color: "purple", tone: "subs", detail: "Recurring charges" },
         { view: "goals", iconName: "chart", label: "Goals", color: "green", tone: "goals", detail: "Fund progress" },
         { view: "lending", iconName: "loan", label: "Loans", color: "teal", tone: "loans", detail: "Owed + repaid" }
       ]],
@@ -3196,7 +3196,7 @@ function quickAction(action) {
       </div>
       <div class="inbox-grid">${filtered.length ? filtered.map((item) => billInboxCard(item)).join("") : `<section class="section-card"><p class="muted">No inbox items in this filter.</p></section>`}</div>
       <section class="section-card">
-        <div class="section-title"><h2>Cancellation Center</h2><button class="text-btn" data-action="navigate-root" data-view="subscriptions">Subscriptions</button></div>
+        <div class="section-title"><h2>Cancellation Center</h2><button class="text-btn" data-action="navigate-root" data-view="subscriptions">Subscription</button></div>
         ${cancellationRows()}
       </section>
     </section>`;
@@ -4236,7 +4236,7 @@ function quickAction(action) {
     const projectedSixMonths = projectedMonthly * 6;
     const yearly = monthly * 12;
     return `<section class="screen">
-      ${header("Subscription Hub", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="open-modal" data-modal="subscriptionTransactions">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="importStatement">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription">${icon("plus")}</button>`)}
+      ${header("Subscription", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="open-modal" data-modal="subscriptionTransactions">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="importStatement">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription">${icon("plus")}</button>`)}
       <section class="section-card balance-panel subscription-summary" style="margin-bottom:16px;">
         <h2 class="panel-title" style="color:#fff;">Total Subscription Cost</h2>
         <div class="metrics-grid subscription-summary-grid">
@@ -8681,7 +8681,7 @@ function quickAction(action) {
       ["projects", "Projects"],
       ["notebooks", "Notebooks"],
       ["notes", "Notes"],
-      ["subscriptions", "Subscriptions"],
+      ["subscriptions", "Subscription"],
       ["loans", "Lending"],
       ["goals", "Goals"],
       ["bills", "Bills"]
@@ -16774,7 +16774,7 @@ function quickAction(action) {
 
     const inboxItems = [
       { id: "plaid_inbox_verizon", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Verizon Wireless", merchant: "Verizon", category: "Utilities", amount: 85, projected: 80, dueDate: addDaysIso(today, 18), confidence: 94, notes: "Plaid sandbox found this as a recurring phone bill. Review before adding to Bill Management." },
-      { id: "plaid_inbox_netflix", type: "subscription", status: "pending", source: "Plaid Sandbox", title: "Netflix", merchant: "Netflix", category: "Entertainment", amount: 15.99, projected: 15.99, dueDate: addDaysIso(today, 25), confidence: 96, notes: "Plaid sandbox found this as a recurring subscription. Review before adding to Sub Hub." },
+      { id: "plaid_inbox_netflix", type: "subscription", status: "pending", source: "Plaid Sandbox", title: "Netflix", merchant: "Netflix", category: "Entertainment", amount: 15.99, projected: 15.99, dueDate: addDaysIso(today, 25), confidence: 96, notes: "Plaid sandbox found this as a recurring subscription. Review before adding to Subscription." },
       { id: "plaid_inbox_electric", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Electric Bill", merchant: "City Power & Light", category: "Utilities", amount: 127.5, projected: 130, dueDate: addDaysIso(today, 12), confidence: 91, notes: "Plaid sandbox found a repeat utility pattern with amount and next due date." }
     ];
     inboxItems.forEach((item) => upsertById(data.billInbox, item));
@@ -16810,7 +16810,7 @@ function quickAction(action) {
 4. Backend exchanges public_token for access_token.
 5. Store only token metadata and account IDs per BillMaster user.
 6. Pull accounts, balances, and transactions on demand or scheduled refresh.
-7. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills or Sub Hub.
+7. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills or Subscription.
 8. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
 9. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
     showToast("Plaid production plan copied.");
