@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-18";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-5";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -347,6 +347,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   const TASK_ALERT_CHECK_MS = 30 * 1000;
   const TASK_ALERT_GRACE_MS = 5 * 60 * 1000;
+  const TASK_ALERT_START_GRACE_MS = 15 * 60 * 1000;
+  const TASK_ALERT_CATCHUP_MS = 45 * 60 * 1000;
   const TASK_ALERT_OFFSET_OPTIONS = [15, 0, 5, 30, 60];
   const TASK_ALERT_DEFAULT_OFFSETS = [15, 0];
   const TASK_ALERT_FIRED_LIMIT = 80;
@@ -498,10 +500,6 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "dismiss-inbox-item",
     "save-subscription",
     "save-subscription-media",
-    "quick-add-task",
-    "quick-ask-ai",
-    "send-ai",
-    "ai-prompt",
     "reset-data"
   ]);
   saveData({ undo: false, cloudSync: false, syncStamp: false });
@@ -4312,12 +4310,14 @@ function quickAction(action) {
     return `<section class="screen calendar-screen calendar-screen--${esc(view)}">
       ${header("Financial Calendar", `<button class="icon-btn">${icon("search")}</button>${calendarUndoButton("icon-btn undo-icon")}<button class="icon-btn" data-action="open-modal" data-modal="calendarSync" title="Google Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="taskDefaults" title="Task defaults">${icon("settings")}</button><button class="icon-btn">${icon("filter")}</button>`)}
       <div class="calendar-mode-row">
-        <div class="mini-tabs">
-          ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+        <div class="calendar-left-tools">
+          <div class="mini-tabs">
+            ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+          </div>
+          ${calendarCategoryBar()}
         </div>
         ${calendarTopTools(view)}
       </div>
-      ${calendarCategoryBar()}
       <div class="calendar-controls">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
@@ -6789,8 +6789,8 @@ function quickAction(action) {
         </div>
         <div class="quick-add">
           <span class="round-icon">${icon("ai")}</span>
-          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="Ask about your BillMaster data..." />
-          <button class="icon-btn primary-btn" data-action="send-ai">${icon("check")}</button>
+          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="Type a question, then tap Ask or press Enter..." />
+          <button class="primary-btn ai-send-btn" data-action="send-ai" title="Ask BillMaster AI">${icon("ai")} Ask</button>
         </div>
       </div>
     </section>`;
@@ -10469,6 +10469,10 @@ function quickAction(action) {
       event.preventDefault();
       const input = document.getElementById("quickTaskInput");
       if (input) input.focus();
+    }
+    if (event.key === "Enter" && event.target?.id === "aiInput") {
+      event.preventDefault();
+      return sendAi(event.target.value);
     }
     if (event.key === "Escape" && ui.modal) {
       ui.modal = null;
@@ -14285,7 +14289,7 @@ function quickAction(action) {
         <button class="outline-btn" data-action="request-task-alert-permission">${icon("bell")} Enable browser alerts</button>
         <button class="outline-btn" data-action="test-task-alert">${icon("playcard")} Test sound</button>
       </div>
-      <p class="subtle">Device alerts and sounds work while BillMaster is open on that device. Email/text alerts use the Notification Outbox.</p>
+      <p class="subtle">Leave BillMaster open on each device for popups and sound. Use Enable browser alerts and Test sound once on each device. Email/text alerts use the Notification Outbox.</p>
     </section>`;
   }
 
@@ -14396,7 +14400,7 @@ function quickAction(action) {
       const firedKeys = new Set(Array.isArray(task.alertFiredKeys) ? task.alertFiredKeys : []);
       taskAlertOffsets(task).forEach((offset) => {
         const dueMs = startDate.getTime() - offset * 60 * 1000;
-        if (nowMs < dueMs || nowMs - dueMs > TASK_ALERT_GRACE_MS) return;
+        if (!taskAlertIsDue(nowMs, startDate.getTime(), dueMs, offset)) return;
         const key = taskAlertFiredKey(occurrenceIso, task.start, offset);
         if (firedKeys.has(key)) return;
         task.alertFiredKeys = [...(task.alertFiredKeys || []), key].slice(-TASK_ALERT_FIRED_LIMIT);
@@ -14406,6 +14410,14 @@ function quickAction(action) {
       });
     });
     if (changed) saveData({ undo: false });
+  }
+
+  function taskAlertIsDue(nowMs, startMs, dueMs, offset) {
+    if (nowMs < dueMs) return false;
+    const lateMs = nowMs - dueMs;
+    if (offset === 0) return lateMs <= TASK_ALERT_START_GRACE_MS;
+    if (nowMs <= startMs) return lateMs <= Math.max(TASK_ALERT_GRACE_MS, Math.min(TASK_ALERT_CATCHUP_MS, offset * 60 * 1000));
+    return lateMs <= TASK_ALERT_GRACE_MS;
   }
 
   function taskAlertOccurrenceIso(task, nowDate) {
@@ -17137,8 +17149,9 @@ function quickAction(action) {
 
   function aiCalendarAnswer(prompt) {
     const lower = aiNorm(prompt);
-    const startIso = lower.includes("this week") || lower.includes("week") ? startOfWeekIso(ui.selectedDate || todayIso()) : todayIso();
-    const endIso = lower.includes("this week") || lower.includes("week") ? addDaysIso(startIso, 6) : addDaysIso(startIso, 14);
+    const range = aiCalendarRange(lower);
+    const startIso = range.startIso;
+    const endIso = range.endIso;
     let items = aiCalendarItems(startIso, endIso);
     const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
@@ -17154,9 +17167,27 @@ function quickAction(action) {
 
   function aiCalendarTopic(prompt) {
     const lower = aiNorm(prompt);
-    const generic = new Set("what do i have going on this week events event calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow".split(" "));
+    const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill".split(" "));
     const words = lower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !generic.has(word));
     return words.slice(0, 3).join(" ");
+  }
+
+  function aiCalendarRange(lower) {
+    const base = ui.selectedDate || todayIso();
+    if (/\btoday\b/.test(lower) || /\bto do today\b/.test(lower) || /\bhave to do today\b/.test(lower)) {
+      const today = todayIso();
+      return { startIso: today, endIso: today };
+    }
+    if (/\btomorrow\b/.test(lower)) {
+      const tomorrow = addDaysIso(todayIso(), 1);
+      return { startIso: tomorrow, endIso: tomorrow };
+    }
+    if (lower.includes("this week") || /\bweek\b/.test(lower)) {
+      const startIso = startOfWeekIso(base);
+      return { startIso, endIso: addDaysIso(startIso, 6) };
+    }
+    const startIso = todayIso();
+    return { startIso, endIso: addDaysIso(startIso, 14) };
   }
 
   function aiCalendarItemMatchesTopic(item, topic) {
@@ -17252,7 +17283,7 @@ function quickAction(action) {
     const lower = aiNorm(prompt);
     if (lower.includes("goal")) return aiGoalAnswer();
     if (/\b(note|notebook|subject)\b/.test(lower)) return aiNotesAnswer(prompt);
-    if (/\b(event|calendar|appointment|appt|doctor|week|coming up|due)\b/.test(lower)) return aiCalendarAnswer(prompt);
+    if (/\b(events?|calendar|appointments?|appt|doctor|week|today|tomorrow|coming up|due|tasks?|todos?|to do|schedule|scheduled|have to do|going on)\b/.test(lower)) return aiCalendarAnswer(prompt);
     if (lower.includes("subscription") || lower.includes("cancel")) return aiSubscriptionAnswer();
     if (lower.includes("expense") || lower.includes("biggest") || lower.includes("spending")) return aiExpenseAnswer();
     return "I can answer from your saved BillMaster data about goals, calendar events, doctor appointments, bills, subscriptions, expenses, tasks, projects, notes, and notebooks. Try asking, \"How close am I to my goals?\" or \"What events do I have this week?\"";
@@ -17266,7 +17297,15 @@ function quickAction(action) {
 
   function sendAi(text) {
     const prompt = String(text || "").trim();
-    if (!prompt) return;
+    if (!prompt) {
+      const input = document.getElementById("aiInput");
+      if (input) {
+        input.placeholder = "Type your question here first, then tap Ask.";
+        input.classList.add("needs-question");
+        input.focus();
+      }
+      return;
+    }
     data.aiMessages.push({ role: "user", text: prompt });
     const response = aiAppDataAnswer(prompt);
     data.aiMessages.push({ role: "ai", text: response });

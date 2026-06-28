@@ -712,6 +712,11 @@ video {
   color: #a9b4ba;
 }
 
+.quick-add input.needs-question::placeholder {
+  color: #1f4a82;
+  font-weight: 850;
+}
+
 .contact-combo-field {
   display: grid;
   gap: 8px;
@@ -7699,23 +7704,43 @@ canvas {
 }
 
 .calendar-screen {
-  padding-top: 12px;
+  padding-top: 8px;
 }
 
 .calendar-screen .mini-tabs {
   margin: 0;
 }
 
-.calendar-screen .category-filter-bar {
-  margin: -2px 0 8px;
+.calendar-left-tools {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.calendar-left-tools .mini-tabs,
+.calendar-left-tools .category-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calendar-left-tools .category-filter-bar {
+  margin: 0;
+}
+
+.calendar-left-tools .category-filter-bar button {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
 }
 
 .calendar-mode-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+  grid-template-columns: minmax(300px, 1fr) minmax(320px, 520px);
   align-items: start;
-  gap: 12px;
-  margin: 6px 0 8px;
+  gap: 10px;
+  margin: 4px 0 6px;
 }
 
 .calendar-top-tools {
@@ -7725,31 +7750,48 @@ canvas {
 
 .calendar-top-tools__panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-self: end;
   width: min(520px, 100%);
-  gap: 5px;
+  max-width: 100%;
+  gap: 3px;
+}
+
+.calendar-top-tools__panel > * {
+  min-width: 0;
 }
 
 .calendar-top-tools .calendar-quick-add {
-  grid-template-columns: 38px minmax(0, 1fr) 38px 38px;
-  min-height: 48px;
+  grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 40px;
   margin: 0;
-  padding: 5px;
+  padding: 4px;
 }
 
 .calendar-top-tools .round-icon,
 .calendar-top-tools .icon-btn {
-  width: 38px;
-  height: 38px;
-  min-height: 38px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.calendar-top-tools .calendar-quick-add input {
+  width: auto;
+  min-height: 32px;
+  font-size: 0.82rem;
 }
 
 .calendar-screen .calendar-color-picker {
   display: flex;
   flex-wrap: wrap;
+  align-content: start;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 4px;
   margin: 0;
 }
 
@@ -7763,13 +7805,13 @@ canvas {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 25px;
-  padding: 2px 7px;
+  min-height: 22px;
+  padding: 1px 6px;
   color: #1d3858;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(31, 74, 130, 0.2);
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 0.69rem;
   font-weight: 820;
 }
 
@@ -7787,8 +7829,8 @@ canvas {
 }
 
 .calendar-color-chip__swatches span {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(23, 52, 86, 0.16);
 }
@@ -7797,7 +7839,7 @@ canvas {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -7805,20 +7847,20 @@ canvas {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  min-height: 25px;
-  padding: 2px 5px;
+  min-height: 22px;
+  padding: 1px 4px;
   color: #1d3858;
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(31, 74, 130, 0.18);
   border-radius: 6px;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 850;
 }
 
 .calendar-day-color-control input {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
   padding: 0;
   overflow: hidden;
   background: transparent;
@@ -7827,12 +7869,12 @@ canvas {
 }
 
 .calendar-day-color-reset {
-  min-height: 25px;
-  padding-inline: 7px;
+  min-height: 22px;
+  padding-inline: 6px;
 }
 
 .calendar-screen .calendar-controls {
-  margin: 6px 0 8px;
+  margin: 2px 0 6px;
 }
 
 @media (max-width: 760px) {
@@ -7840,8 +7882,16 @@ canvas {
     grid-template-columns: 1fr;
   }
 
-  .calendar-top-tools__spacer {
-    display: none;
+  .calendar-left-tools {
+    gap: 6px;
+  }
+
+  .calendar-left-tools .category-filter-bar {
+    gap: 5px;
+  }
+
+  .calendar-left-tools .category-filter-bar button {
+    flex: 1 1 calc(50% - 6px);
   }
 
   .calendar-top-tools__panel {
@@ -10532,6 +10582,21 @@ canvas {
 .ai-chat {
   display: grid;
   gap: 12px;
+}
+
+.ai-chat .quick-add {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.ai-send-btn {
+  min-width: 74px;
+  gap: 6px;
+  padding-inline: 12px;
+}
+
+.ai-send-btn .icon {
+  width: 16px;
+  height: 16px;
 }
 
 .message {
