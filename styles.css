@@ -8161,15 +8161,16 @@ canvas {
 
 .weather-mini {
   max-width: 86px;
-  min-height: 20px;
-  padding: 0 6px;
+  min-height: 23px;
+  padding: 0 8px;
   margin: 3px auto 0;
-  font-size: 0.62rem;
+  font-size: 0.74rem;
+  font-weight: 920;
 }
 
 .weather-mini .icon {
-  width: 0.72rem;
-  height: 0.72rem;
+  width: 0.84rem;
+  height: 0.84rem;
 }
 
 .weather-block {
@@ -8263,12 +8264,13 @@ canvas {
 .hour-chip {
   display: inline-flex;
   margin-top: 4px;
-  padding: 2px 5px;
+  padding: 3px 7px;
   color: #fff;
   background: rgba(33, 150, 243, 0.86);
-  border-radius: 8px;
-  font-size: 0.62rem;
-  font-weight: 800;
+  border-radius: 9px;
+  font-size: 0.76rem;
+  font-weight: 920;
+  line-height: 1;
 }
 
 .date-cell-content {
