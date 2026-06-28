@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-12";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-13";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -384,6 +384,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let blockLastCreateAnchor = null;
   let blockLastTouchAnchor = null;
   let blockDeferredCreateTimer = null;
+  let calendarDayColorSaveTimer = null;
   let dayDragState = null;
   let voiceRecognition = null;
   let voiceStopRequested = false;
@@ -4728,7 +4729,7 @@ function quickAction(action) {
     const tasks = calendarItemsForDay(iso).filter((task) => task.includeHours);
     const bill = data.bills.find((b) => b.dueDate === iso);
     const sub = data.subscriptions.find((s) => s.nextDate === iso);
-    return `<div class="day-cell ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
+    return `<div class="day-cell ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
       ${dateViewZones(iso)}
       <div class="date-cell-content">
         <strong>${day}</strong>
@@ -4765,7 +4766,7 @@ function quickAction(action) {
   function weekTimetableHeader(iso) {
     const isSelected = iso === ui.selectedDate;
     const isToday = iso === todayIso();
-    return `<div class="week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateLabel(iso)}">
+    return `<div class="week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateLabel(iso)}">
       ${dateViewZones(iso)}
       ${calendarDateCardContent(iso)}
     </div>`;
@@ -4775,7 +4776,7 @@ function quickAction(action) {
     const startMinute = 7 * 60;
     const endMinute = 20 * 60;
     const items = tasksForDay(iso).filter((task) => task.start && task.end);
-    return `<div class="week-timetable-day ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}">
+    return `<div class="week-timetable-day ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}" ${calendarWeekdayAttr(iso)}>
       ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
       ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
     </div>`;
@@ -4848,7 +4849,7 @@ function quickAction(action) {
     const isToday = iso === todayIso();
     const isCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && ui.dayCopyTargetDate === iso && iso !== ui.selectedDate;
     const canPickCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && iso !== ui.selectedDate;
-    return `<div class="week-day ${calendarToneClass(iso)} ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" data-copy-target-date="${iso}">
+    return `<div class="week-day ${calendarToneClass(iso)} ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} data-copy-target-date="${iso}">
       ${dateViewZones(iso)}
       ${calendarDateCardContent(iso)}
       ${canPickCopyTarget ? `<button class="copy-here-chip" data-action="select-day-copy-target" data-date="${iso}">${isCopyTarget ? `${icon("check")} Target` : "Copy here"}</button>` : ""}
@@ -4890,9 +4891,26 @@ function quickAction(action) {
     data.settings = data.settings || {};
     data.settings.calendarDayColors = normalizeCalendarDayColors(data.settings.calendarDayColors);
     data.settings.calendarDayColors[key] = color;
+    if (options.live) {
+      applyCalendarDayColorPreview(index, color);
+      queueCalendarDayColorSave();
+      return;
+    }
+    if (calendarDayColorSaveTimer) {
+      window.clearTimeout(calendarDayColorSaveTimer);
+      calendarDayColorSaveTimer = null;
+    }
     saveData({ undo: false });
-    render();
+    if (options.render !== false) render();
     if (!options.quiet) showToast(`${weekdayLabels[index]} color updated across all calendar views.`);
+  }
+
+  function queueCalendarDayColorSave() {
+    if (calendarDayColorSaveTimer) window.clearTimeout(calendarDayColorSaveTimer);
+    calendarDayColorSaveTimer = window.setTimeout(() => {
+      calendarDayColorSaveTimer = null;
+      saveData({ undo: false });
+    }, 260);
   }
 
   function resetCalendarDayColors() {
@@ -4925,6 +4943,18 @@ function quickAction(action) {
     return `--day-bg:color-mix(in srgb, ${color} 13%, white);--day-bg-2:color-mix(in srgb, ${color} 36%, white);--day-border:color-mix(in srgb, ${color} 72%, white);--day-accent:${color};--day-color:linear-gradient(145deg, color-mix(in srgb, ${color} 13%, white), color-mix(in srgb, ${color} 36%, white));`;
   }
 
+  function applyCalendarDayColorPreview(dayIndex, color) {
+    const index = Number(dayIndex);
+    if (!Number.isInteger(index) || !isHexColor(color) || typeof document === "undefined") return;
+    document.querySelectorAll(`[data-calendar-weekday="${index}"]`).forEach((el) => {
+      el.style.setProperty("--day-bg", `color-mix(in srgb, ${color} 13%, white)`);
+      el.style.setProperty("--day-bg-2", `color-mix(in srgb, ${color} 36%, white)`);
+      el.style.setProperty("--day-border", `color-mix(in srgb, ${color} 72%, white)`);
+      el.style.setProperty("--day-accent", color);
+      el.style.setProperty("--day-color", `linear-gradient(145deg, color-mix(in srgb, ${color} 13%, white), color-mix(in srgb, ${color} 36%, white))`);
+    });
+  }
+
   function calendarToneStyle(tone) {
     const vars = calendarToneVars(tone);
     return `--day-bg:${vars.bg};--day-bg-2:${vars.bg2};--day-border:${vars.border};--day-accent:${vars.accent};--day-color:linear-gradient(145deg, ${vars.bg}, ${vars.bg2});`;
@@ -4937,6 +4967,10 @@ function quickAction(action) {
 
   function calendarDateColorStyle(iso) {
     return calendarToneStyleByIndex(parseLocalDate(iso).getDay());
+  }
+
+  function calendarWeekdayAttr(iso) {
+    return `data-calendar-weekday="${parseLocalDate(iso).getDay()}"`;
   }
 
   function calendarToneClass(iso) {
@@ -5064,7 +5098,7 @@ function quickAction(action) {
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
     const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">AM/PM</div>${weekdays.map((iso) => {
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" title="Open ${dateFull(iso)}">
+      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
         ${dateViewZones(iso)}
         ${calendarDateCardContent(iso)}
       </div>`;
@@ -5074,7 +5108,7 @@ function quickAction(action) {
     const cols = weekdays.map((iso) => {
       const dayTasks = tasks.filter((task) => task.date === iso);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-col ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}">${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
+      return `<div class="block-col ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
@@ -10322,7 +10356,7 @@ function quickAction(action) {
       syncLoanContactCombo(target);
     }
     if (target && target.dataset.calendarDayColor !== undefined) {
-      setCalendarDayColor(target.dataset.calendarDayColor, target.value, { quiet: true });
+      setCalendarDayColor(target.dataset.calendarDayColor, target.value, { live: true, quiet: true });
       return;
     }
     if (target && target.dataset.action === "notify-search") {
@@ -10376,6 +10410,10 @@ function quickAction(action) {
 
   document.addEventListener("change", (event) => {
     const target = event.target;
+    if (target && target.dataset.calendarDayColor !== undefined) {
+      setCalendarDayColor(target.dataset.calendarDayColor, target.value, { quiet: true });
+      return;
+    }
     if (target && target.id === "taskStart") focusPairedEndTime("taskStart", "taskEnd", 60);
     if (target && target.id === "habitStart") focusPairedEndTime("habitStart", "habitEnd", 30);
     if (target && target.id === "taskAddress") toggleTaskAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
