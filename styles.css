@@ -8886,9 +8886,17 @@ canvas {
 
 .time-of-day-legend {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   margin: -4px 0 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.time-of-day-legend::-webkit-scrollbar {
+  display: none;
 }
 
 .time-period-chip {
@@ -10112,7 +10120,7 @@ canvas {
 .block-select-tools {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 
@@ -10175,18 +10183,56 @@ canvas {
 
 .calendar-summary {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  margin: 12px 0;
+  padding: 7px 10px;
+  margin: 9px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   background: #eaf4ff;
   border: 1px solid #c8e2ff;
   border-radius: 8px;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-summary::-webkit-scrollbar {
+  display: none;
+}
+
+.calendar-summary > * {
+  flex: 0 0 auto;
+}
+
+.calendar-summary-label {
+  line-height: 1;
+  font-weight: 760;
 }
 
 .day-toolbar .muted {
-  margin-right: auto;
+  max-width: 220px;
+  margin-right: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-summary.day-toolbar {
+  gap: 7px;
+  margin: 7px 0 8px;
+}
+
+.day-toolbar .time-of-day-legend {
+  margin: 0 0 0 2px;
+  padding: 0;
+  overflow: visible;
+}
+
+.day-toolbar .time-period-chip {
+  min-height: 28px;
+  padding: 4px 9px;
+  font-size: 0.74rem;
 }
 
 .floating-fab {
@@ -12166,8 +12212,6 @@ canvas {
 
   .section-title,
   .briefing-head,
-  .calendar-summary,
-  .day-toolbar,
   .filter-row,
   .category-filter-row {
     min-width: 0;
@@ -12175,16 +12219,18 @@ canvas {
   }
 
   .calendar-summary {
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   .day-toolbar .muted {
-    width: 100%;
+    width: auto;
+    max-width: 190px;
     margin-right: 0;
   }
 
   .day-toolbar button {
-    flex: 1 1 128px;
+    flex: 0 0 auto;
     min-width: 0;
   }
 
@@ -12638,20 +12684,20 @@ canvas {
   }
 
   .day-toolbar {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .day-toolbar > .icon,
   .day-toolbar > strong,
   .day-toolbar > .muted {
-    grid-column: 1 / -1;
+    flex: 0 0 auto;
   }
 
   .day-add-task-btn {
-    grid-column: 1 / -1;
-    min-height: 46px;
+    min-height: 36px;
   }
 
   .day-task-card {
@@ -13930,7 +13976,11 @@ canvas {
 }
 
 .calendar-summary.block-toolbar > .muted {
-  flex: 1 1 280px;
+  flex: 0 1 300px;
+  min-width: 180px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 0.78rem;
   line-height: 1.15;
 }
@@ -13944,6 +13994,11 @@ canvas {
   min-height: 26px;
   padding: 0 8px;
   font-size: 0.72rem;
+}
+
+.calendar-summary.block-toolbar .block-select-tools button {
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .calendar-summary.block-toolbar .block-timed-task-btn {
