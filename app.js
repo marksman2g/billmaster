@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-14";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-15";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -4995,12 +4995,18 @@ function quickAction(action) {
     const tasks = calendarItemsForDay(iso);
     const dayHours = round1(totalTaskHours(tasks));
     return `<div class="date-cell-content">
-      <div class="subtle">${d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+      <div class="subtle">${calendarWeekdayGlowLabel(d.toLocaleDateString("en-US", { weekday: "short" }))}</div>
       <strong>${d.getDate()}</strong>
       ${weatherChip(iso, "mini")}
       <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${data.bills.some((b) => b.dueDate === iso) ? `<span class="dot coral"></span>` : ""}</div>
       ${dayHours ? `<span class="hour-chip">${dayHours}h</span>` : ""}
     </div>`;
+  }
+
+  function calendarWeekdayGlowLabel(label) {
+    const text = String(label || "").slice(0, 3);
+    const letters = text.split("").map((letter) => `<span>${esc(letter)}</span>`).join("");
+    return `<span class="calendar-weekday-name" aria-label="${esc(text)}">${letters}</span>`;
   }
 
   function dateViewZones(iso) {

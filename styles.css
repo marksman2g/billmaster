@@ -8219,6 +8219,51 @@ canvas {
   line-height: 1.15;
 }
 
+.calendar-weekday-name {
+  display: inline-flex;
+  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  min-height: 15px;
+  color: #516278;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.calendar-weekday-name span {
+  display: inline-block;
+}
+
+.day-cell.is-today .calendar-weekday-name,
+.week-day.is-today .calendar-weekday-name,
+.week-timetable-day-head.is-today .calendar-weekday-name,
+.block-head-button.is-today .calendar-weekday-name {
+  color: #10233d;
+}
+
+.day-cell.is-today .calendar-weekday-name span,
+.week-day.is-today .calendar-weekday-name span,
+.week-timetable-day-head.is-today .calendar-weekday-name span,
+.block-head-button.is-today .calendar-weekday-name span {
+  animation: current-weekday-glow 1.75s ease-in-out infinite;
+}
+
+.day-cell.is-today .calendar-weekday-name span:nth-child(2),
+.week-day.is-today .calendar-weekday-name span:nth-child(2),
+.week-timetable-day-head.is-today .calendar-weekday-name span:nth-child(2),
+.block-head-button.is-today .calendar-weekday-name span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.day-cell.is-today .calendar-weekday-name span:nth-child(3),
+.week-day.is-today .calendar-weekday-name span:nth-child(3),
+.week-timetable-day-head.is-today .calendar-weekday-name span:nth-child(3),
+.block-head-button.is-today .calendar-weekday-name span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
 .date-cell-content > strong {
   display: block;
   width: 100%;
@@ -8309,6 +8354,21 @@ canvas {
   right: 28px;
 }
 
+.day-cell.is-today::after,
+.week-day.is-today::after,
+.week-timetable-day-head.is-today::after,
+.block-head-button.is-today::after {
+  content: none !important;
+  display: none !important;
+}
+
+.day-cell.is-today .date-zone.top-right .date-zone-label,
+.week-day.is-today .date-zone.top-right .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.top-right .date-zone-label,
+.block-head-button.is-today .date-zone.top-right .date-zone-label {
+  right: 5px !important;
+}
+
 .date-zone.top-left {
   grid-area: 1 / 1;
   border-top-left-radius: 8px;
@@ -8382,6 +8442,23 @@ canvas {
     transform: scale(1.18) rotate(8deg);
     opacity: 1;
     filter: drop-shadow(0 0 14px rgba(255, 205, 57, 0.95));
+  }
+}
+
+@keyframes current-weekday-glow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    color: #10233d;
+    text-shadow: 0 0 0 rgba(255, 211, 67, 0);
+  }
+
+  45% {
+    transform: translateY(-1px) scale(1.18);
+    color: #11182e;
+    text-shadow:
+      0 0 5px rgba(255, 255, 255, 0.95),
+      0 0 11px rgba(255, 211, 67, 0.95),
+      0 0 18px rgba(33, 150, 243, 0.55);
   }
 }
 
@@ -14991,6 +15068,15 @@ canvas {
 .week-strip .week-day.active span:first-child,
 .week-strip .week-day.active strong {
   color: #ffffff;
+}
+
+.week-strip .week-day .calendar-weekday-name,
+.week-strip .week-day .calendar-weekday-name span,
+.week-strip .week-day.active .calendar-weekday-name,
+.week-strip .week-day.active .calendar-weekday-name span {
+  color: #10233d;
+  font-size: 0.78rem;
+  font-weight: 950;
 }
 
 @media (max-width: 720px) {
