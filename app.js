@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-16";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-17";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -99,6 +99,7 @@ const habitScheduleOptions = ["Daily", "Weekdays", "Weekly", "Monthly"];
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const calendarDayTones = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const calendarPaletteStorageKey = "billmaster.calendarPalette";
+const calendarDayColorKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const calendarPaletteSchemes = {
   soft: {
     label: "Soft",
@@ -167,6 +168,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     settings: {
       taskDefaultBgColor: DEFAULT_TASK_BG,
       categoryColors: { ...defaultCategoryColors },
+      calendarDayColors: {},
       customTaskCategories: [],
       interfaceMode: "power",
       cloudAutoSync: false,
@@ -1067,6 +1069,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     nextData.settings = {
       taskDefaultBgColor: DEFAULT_TASK_BG,
       categoryColors: { ...defaultCategoryColors },
+      calendarDayColors: {},
       interfaceMode: "power",
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
@@ -1098,6 +1101,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ...(nextData.settings || {})
     };
     nextData.settings.categoryColors = { ...defaultCategoryColors, ...(nextData.settings.categoryColors || {}) };
+    nextData.settings.calendarDayColors = normalizeCalendarDayColors(nextData.settings.calendarDayColors);
     nextData.settings.deletedItems = normalizeDeletedItemsMap(nextData.settings.deletedItems);
     nextData.settings.customTaskCategories = normalizeCustomTaskCategories(nextData.settings.customTaskCategories);
     nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
@@ -1586,6 +1590,15 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     const allowed = new Set(["email", "emailToText"]);
     const normalized = Array.from(new Set((Array.isArray(channels) ? channels : ["email"]).filter((channel) => allowed.has(channel))));
     return normalized.length ? normalized : ["email"];
+  }
+
+  function normalizeCalendarDayColors(colors) {
+    const normalized = {};
+    calendarDayColorKeys.forEach((key) => {
+      const color = colors?.[key];
+      if (isHexColor(color)) normalized[key] = color;
+    });
+    return normalized;
   }
 
   function normalizeTaskAlertOffsets(offsets) {
@@ -4332,6 +4345,21 @@ function quickAction(action) {
     return `<div class="calendar-color-picker" aria-label="Calendar color scheme">
       <span class="calendar-color-picker__label">Color style</span>
       ${chips}
+      ${calendarDayColorEditor()}
+    </div>`;
+  }
+
+  function calendarDayColorEditor() {
+    return `<div class="calendar-day-color-editor" aria-label="Customize weekday colors">
+      <span class="calendar-color-picker__label">Days</span>
+      ${calendarDayColorKeys.map((key, index) => {
+        const color = calendarDayColorValue(index);
+        return `<label class="calendar-day-color-control" title="Set ${weekdayLabels[index]} color">
+          <span>${weekdayLabels[index]}</span>
+          <input type="color" value="${esc(color)}" data-calendar-day-color="${index}" aria-label="${weekdayLabels[index]} color">
+        </label>`;
+      }).join("")}
+      <button class="calendar-color-chip calendar-day-color-reset" data-action="reset-calendar-day-colors" title="Reset day colors to the selected style">Reset</button>
     </div>`;
   }
 
@@ -4834,9 +4862,46 @@ function quickAction(action) {
     render();
   }
 
+  function setCalendarDayColor(dayIndex, color, options = {}) {
+    const index = Number(dayIndex);
+    const key = calendarDayColorKeys[index];
+    if (!key || !isHexColor(color)) return;
+    data.settings = data.settings || {};
+    data.settings.calendarDayColors = normalizeCalendarDayColors(data.settings.calendarDayColors);
+    data.settings.calendarDayColors[key] = color;
+    saveData({ undo: false });
+    render();
+    if (!options.quiet) showToast(`${weekdayLabels[index]} color updated across all calendar views.`);
+  }
+
+  function resetCalendarDayColors() {
+    data.settings = data.settings || {};
+    data.settings.calendarDayColors = {};
+    saveData({ undo: false });
+    render();
+    showToast("Calendar day colors reset to the selected style.");
+  }
+
   function calendarToneVars(tone) {
     const scheme = calendarPaletteSchemes[activeCalendarPalette] || calendarPaletteSchemes.bold;
     return scheme.tones[tone] || scheme.tones.weekday || calendarPaletteSchemes.bold.tones.weekday;
+  }
+
+  function calendarDayColorValue(weekdayIndex) {
+    const key = calendarDayColorKeys[Number(weekdayIndex)];
+    const stored = data?.settings?.calendarDayColors?.[key];
+    if (isHexColor(stored)) return stored;
+    return calendarToneVars(calendarToneForWeekday(Number(weekdayIndex))).accent;
+  }
+
+  function calendarDayOverrideColor(weekdayIndex) {
+    const key = calendarDayColorKeys[Number(weekdayIndex)];
+    const stored = data?.settings?.calendarDayColors?.[key];
+    return isHexColor(stored) ? stored : "";
+  }
+
+  function calendarCustomColorStyle(color) {
+    return `--day-bg:color-mix(in srgb, ${color} 13%, white);--day-bg-2:color-mix(in srgb, ${color} 36%, white);--day-border:color-mix(in srgb, ${color} 72%, white);--day-accent:${color};--day-color:linear-gradient(145deg, color-mix(in srgb, ${color} 13%, white), color-mix(in srgb, ${color} 36%, white));`;
   }
 
   function calendarToneStyle(tone) {
@@ -4845,11 +4910,12 @@ function quickAction(action) {
   }
 
   function calendarToneStyleByIndex(index) {
-    return calendarToneStyle(calendarToneForWeekday(index));
+    const override = calendarDayOverrideColor(index);
+    return override ? calendarCustomColorStyle(override) : calendarToneStyle(calendarToneForWeekday(index));
   }
 
   function calendarDateColorStyle(iso) {
-    return calendarToneStyle(calendarDateTone(iso));
+    return calendarToneStyleByIndex(parseLocalDate(iso).getDay());
   }
 
   function calendarToneClass(iso) {
@@ -10229,6 +10295,10 @@ function quickAction(action) {
       ui.loanContactQuery = target.value;
       syncLoanContactCombo(target);
     }
+    if (target && target.dataset.calendarDayColor !== undefined) {
+      setCalendarDayColor(target.dataset.calendarDayColor, target.value, { quiet: true });
+      return;
+    }
     if (target && target.dataset.action === "notify-search") {
       filterNotifyPicker(target.value);
     }
@@ -10462,6 +10532,7 @@ function quickAction(action) {
     if (action === "toggle-interface-mode") return toggleInterfaceMode();
     if (action === "toggle-task-category") return toggleTaskCategory(el.dataset.category);
     if (action === "set-calendar-palette") return setCalendarPalette(el.dataset.palette);
+    if (action === "reset-calendar-day-colors") return resetCalendarDayColors();
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);
     if (action === "pick-choice") return pickChoice(el);
     if (action === "image-fit") return setImageFit(el);
