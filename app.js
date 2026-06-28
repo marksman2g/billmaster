@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-10";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-11";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -64,6 +64,8 @@
     blockQuickCreateDraft: null,
     modal: null,
     aiDraft: "",
+    aiListening: false,
+    aiVoiceError: "",
     voiceTranscript: "",
     voiceParsedTask: null,
     voiceCorrectionDraft: "",
@@ -6772,11 +6774,13 @@ function quickAction(action) {
   }
 
   function renderAi() {
+    const aiVoiceAvailable = Boolean(speechRecognitionCtor());
+    const lastAiText = lastAiMessageText();
     return `<section class="screen">
       ${header("AI Assistant")}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
         <h2 class="panel-title" style="color:#fff;">Financial Monitor</h2>
-        <p style="color:rgba(255,255,255,.82);">Ask about your schedule, habits, goals, bills, subscriptions, notes, projects, and money.</p>
+        <p style="color:rgba(255,255,255,.82);">Ask out loud or type a question about your schedule, habits, goals, bills, subscriptions, notes, projects, and money.</p>
       </section>
       <div class="ai-chat section-card">
         ${data.aiMessages.map((msg) => `<div class="message ${msg.role}">${esc(msg.text)}</div>`).join("")}
@@ -6788,10 +6792,12 @@ function quickAction(action) {
           <button data-action="ai-prompt" data-prompt="Do I have notes about bills?">Notes</button>
         </div>
         <div class="quick-add">
-          <span class="round-icon">${icon("ai")}</span>
-          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="Type a question, then tap Ask or press Enter..." />
+          <button class="round-icon ai-voice-btn ${ui.aiListening ? "is-listening" : ""}" data-action="${ui.aiListening ? "stop-ai-voice" : "start-ai-voice"}" aria-label="${ui.aiListening ? "Stop listening" : "Ask BillMaster by voice"}" title="${aiVoiceAvailable ? ui.aiListening ? "Stop listening" : "Ask by voice" : "Voice may need Chrome or Edge microphone support"}">${icon(ui.aiListening ? "close" : "mic")}</button>
+          <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="${ui.aiListening ? "Listening for your question..." : "Type a question, tap the mic, or press Enter..."}" />
+          <button class="icon-btn ai-speak-btn" data-action="speak-last-ai" title="Read last answer aloud" aria-label="Read last answer aloud" ${lastAiText ? "" : "disabled"}>${icon("speaker")}</button>
           <button class="primary-btn ai-send-btn" data-action="send-ai" title="Ask BillMaster AI">${icon("ai")} Ask</button>
         </div>
+        ${ui.aiVoiceError ? `<div class="voice-message ai-voice-message">${esc(ui.aiVoiceError)}</div>` : ""}
       </div>
     </section>`;
   }
@@ -10800,6 +10806,9 @@ function quickAction(action) {
     if (action === "reset-data") return resetData();
     if (action === "ai-prompt") return sendAi(el.dataset.prompt);
     if (action === "send-ai") return sendAi(document.getElementById("aiInput")?.value);
+    if (action === "start-ai-voice") return startAiVoice();
+    if (action === "stop-ai-voice") return stopAiVoice();
+    if (action === "speak-last-ai") return speakLastAiAnswer(true);
   }
 
   function navigate(view, root = false) {
@@ -11087,17 +11096,149 @@ function quickAction(action) {
     const input = document.getElementById("quickTaskInput");
     const prompt = String(input?.value || "").trim();
     if (!prompt) {
-      ui.view = "ai";
-      syncHash("ai");
-      render();
+      navigate("ai");
       showToast("Ask BillMaster about tasks, bills, goals, notes, and more.");
       return;
     }
     if (input) input.value = "";
-    ui.view = "ai";
-    syncHash("ai");
+    navigate("ai");
     sendAi(prompt);
     showToast("BillMaster AI answered from your app data.");
+  }
+
+  function lastAiMessageText() {
+    const last = safeArray(data.aiMessages).slice().reverse().find((message) => message.role === "ai" && message.text);
+    return last?.text || "";
+  }
+
+  function aiSpeechSupported() {
+    return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+  }
+
+  function speakLastAiAnswer(manual = false) {
+    const text = lastAiMessageText();
+    if (!text) {
+      if (manual) showToast("No AI answer to read yet.", "danger");
+      return;
+    }
+    speakAiText(text, { manual });
+  }
+
+  function speakAiText(text, options = {}) {
+    if (!text || !aiSpeechSupported()) {
+      if (options.manual) showToast("This browser cannot read answers aloud.", "danger");
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, " ").trim());
+      utterance.lang = "en-US";
+      utterance.rate = 0.95;
+      utterance.pitch = 1.02;
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      if (options.manual) showToast("BillMaster could not read that answer aloud.", "danger");
+    }
+  }
+
+  function startAiVoice() {
+    const Recognition = speechRecognitionCtor();
+    if (!Recognition) {
+      ui.aiVoiceError = "Voice questions are not available in this browser. You can still type your question and tap Ask.";
+      showToast("Voice questions are not available here.", "danger");
+      return;
+    }
+    if (voiceRecognition && ui.aiListening) {
+      stopAiVoice();
+      return;
+    }
+    if (voiceRecognition && ui.voiceListening) stopVoiceTask();
+    if (voiceRecognition && ui.voiceCorrectionListening) stopVoiceCorrection();
+    if (voiceRecognition && ui.habitVoiceListening) stopVoiceHabit();
+    const recognition = new Recognition();
+    voiceRecognition = recognition;
+    voiceStopRequested = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    ui.aiListening = true;
+    ui.aiVoiceError = "";
+    render();
+    recognition.onresult = (event) => {
+      const transcript = collectSpeechTranscript(event) || ui.aiDraft;
+      ui.aiDraft = transcript;
+      ui.aiListening = false;
+      ui.aiVoiceError = "";
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      if (transcript) {
+        sendAi(transcript);
+        showToast("BillMaster heard your question.");
+      } else {
+        ui.aiVoiceError = "I did not catch that. Tap the mic and ask again, or type the question.";
+        render();
+      }
+    };
+    recognition.onerror = (event) => {
+      ui.aiListening = false;
+      voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        ui.aiVoiceError = "Listening stopped. Tap the mic again when you are ready.";
+        showToast("Listening stopped.");
+        return;
+      }
+      ui.aiVoiceError = aiVoiceErrorMessage(event?.error);
+      showToast(ui.aiVoiceError, "danger");
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      if (ui.aiListening) {
+        ui.aiListening = false;
+        if (voiceStopRequested) ui.aiVoiceError = "Listening stopped. Tap the mic again when you are ready.";
+        render();
+      }
+      voiceStopRequested = false;
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      ui.aiListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      ui.aiVoiceError = "Could not start voice questions. Try typing the question instead.";
+      showToast(ui.aiVoiceError, "danger");
+    }
+  }
+
+  function stopAiVoice() {
+    if (!voiceRecognition) {
+      ui.aiListening = false;
+      ui.aiVoiceError = ui.aiDraft ? "Listening stopped. Review the question or tap Ask." : "Listening stopped.";
+      render();
+      return;
+    }
+    voiceStopRequested = true;
+    ui.aiListening = false;
+    ui.aiVoiceError = ui.aiDraft ? "Listening stopped. Review the question or tap Ask." : "Listening stopped.";
+    try {
+      voiceRecognition.stop();
+    } catch (error) {
+      voiceRecognition = null;
+      voiceStopRequested = false;
+    }
+    render();
+  }
+
+  function aiVoiceErrorMessage(errorCode) {
+    const map = {
+      "not-allowed": "Microphone permission was blocked. You can still type the question and tap Ask.",
+      "no-speech": "I did not hear a question. Tap the mic and try again.",
+      "audio-capture": "No microphone was found. Type the question instead.",
+      network: "Voice questions need browser speech services. Type the question instead."
+    };
+    return map[errorCode] || "Voice question capture stopped. You can type the question and tap Ask.";
   }
 
   function speechRecognitionCtor() {
@@ -17156,13 +17297,13 @@ function quickAction(action) {
     const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
       items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
-      if (!items.length) return `I do not see a doctor or appointment item from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
+      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see a doctor or appointment item.`;
     } else if (topic) {
       items = items.filter((item) => aiCalendarItemMatchesTopic(item, topic));
-      if (!items.length) return `I do not see "${topic}" on your calendar from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
+      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see anything matching "${topic}" on your calendar.`;
     }
-    if (!items.length) return `I do not see saved calendar items from ${dateLabel(startIso)} to ${dateLabel(endIso)}.`;
-    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}, ${aiCalendarSummary(items, startIso, endIso)}`;
+    if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see any saved calendar items.`;
+    return aiCalendarSummary(items, startIso, endIso);
   }
 
   function aiCalendarTopic(prompt) {
@@ -17207,17 +17348,45 @@ function quickAction(action) {
       .sort((a, b) => `${a.dates[0]} ${a.time}`.localeCompare(`${b.dates[0]} ${b.time}`))
       .map((group) => aiCalendarGroupSummary(group, startIso, endIso));
     const shown = summaries.slice(0, 8);
-    return `I found ${items.length} item${items.length === 1 ? "" : "s"}. ${shown.join(" ")}${summaries.length > shown.length ? ` Plus ${summaries.length - shown.length} more grouped item${summaries.length - shown.length === 1 ? "" : "s"}.` : ""}`;
+    const countLabel = aiCountLabel(summaries.length);
+    const thingLabel = summaries.length === 1 ? "thing" : "things";
+    const extra = summaries.length > shown.length ? ` I also see ${summaries.length - shown.length} more.` : "";
+    return `${aiCalendarRangeIntro(startIso, endIso)}, I see ${countLabel} ${thingLabel}: ${aiJoinList(shown)}.${extra}`;
   }
 
   function aiCalendarGroupSummary(group, startIso, endIso) {
     const sortedDates = Array.from(new Set(group.dates)).sort();
     const when = aiDatePattern(sortedDates, startIso, endIso);
-    const time = group.time ? ` ${timeLabel(group.time)}${group.end ? `-${timeLabel(group.end)}` : ""}` : "";
+    const time = group.time ? ` from ${timeLabel(group.time)}${group.end ? ` to ${timeLabel(group.end)}` : ""}` : "";
     const detail = group.detail ? ` (${group.detail})` : "";
+    const prefix = ["Task", "Habit"].includes(group.type) ? "" : `${group.type}: `;
     return sortedDates.length > 1
-      ? `${group.type}: ${group.title}${time} happens ${when}${detail}.`
-      : `${group.type}: ${group.title}${time} on ${dateLabel(sortedDates[0])}${detail}.`;
+      ? `${prefix}${group.title}${time} ${when}${detail}`
+      : `${prefix}${group.title}${time}${startIso === endIso ? "" : ` on ${dateLabel(sortedDates[0])}`}${detail}`;
+  }
+
+  function aiCalendarRangeIntro(startIso, endIso) {
+    const today = todayIso();
+    if (startIso === endIso) {
+      if (startIso === today) return "For today";
+      if (startIso === addDaysIso(today, 1)) return "For tomorrow";
+      return `For ${dateLabel(startIso)}`;
+    }
+    const weekStart = startOfWeekIso(ui.selectedDate || today);
+    if (startIso === weekStart && endIso === addDaysIso(weekStart, 6)) return "For this week";
+    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}`;
+  }
+
+  function aiCountLabel(count) {
+    const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+    return words[count] || String(count);
+  }
+
+  function aiJoinList(items) {
+    if (!items.length) return "";
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
   }
 
   function aiDatePattern(dates, startIso, endIso) {
@@ -17269,13 +17438,13 @@ function quickAction(action) {
       totals.set(category, (totals.get(category) || 0) + Number(tx.amount || 0));
     });
     const ranked = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (!ranked.length) return "I do not see saved expense transactions in BillMaster yet.";
+    if (!ranked.length) return "I don't see saved expense transactions in BillMaster yet.";
     return `Your biggest saved expense categories are ${ranked.map(([category, amount]) => `${category} at ${money(amount)}`).join(", ")}.`;
   }
 
   function aiSubscriptionAnswer() {
     const subs = safeArray(data.subscriptions).slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
-    if (!subs.length) return "I do not see subscriptions saved in BillMaster yet.";
+    if (!subs.length) return "I don't see subscriptions saved in BillMaster yet.";
     return `Your highest saved subscriptions are ${subs.slice(0, 5).map((sub) => `${sub.name} at ${money(sub.amount)} ${sub.cycle || ""}, next ${dateLabel(sub.nextDate)}`).join("; ")}.`;
   }
 
@@ -17286,7 +17455,7 @@ function quickAction(action) {
     if (/\b(events?|calendar|appointments?|appt|doctor|week|today|tomorrow|coming up|due|tasks?|todos?|to do|schedule|scheduled|have to do|going on)\b/.test(lower)) return aiCalendarAnswer(prompt);
     if (lower.includes("subscription") || lower.includes("cancel")) return aiSubscriptionAnswer();
     if (lower.includes("expense") || lower.includes("biggest") || lower.includes("spending")) return aiExpenseAnswer();
-    return "I can answer from your saved BillMaster data about goals, calendar events, doctor appointments, bills, subscriptions, expenses, tasks, projects, notes, and notebooks. Try asking, \"How close am I to my goals?\" or \"What events do I have this week?\"";
+    return "I can help with what is saved in BillMaster: goals, calendar events, doctor appointments, bills, subscriptions, expenses, tasks, projects, notes, and notebooks. Try asking, \"What do I have today?\" or \"How close am I to my goals?\"";
   }
 
   function resetData() {
@@ -17310,8 +17479,10 @@ function quickAction(action) {
     const response = aiAppDataAnswer(prompt);
     data.aiMessages.push({ role: "ai", text: response });
     ui.aiDraft = "";
+    ui.aiVoiceError = "";
     saveData();
     render();
+    speakAiText(response);
   }
 
   startLocalWorkspaceSync();

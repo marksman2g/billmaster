@@ -10680,7 +10680,26 @@ canvas {
 }
 
 .ai-chat .quick-add {
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) 44px auto;
+}
+
+.ai-voice-btn {
+  color: #fff;
+  background: var(--navy-2);
+}
+
+.ai-voice-btn.is-listening {
+  background: var(--coral);
+  animation: pulse-mic 1.1s ease-in-out infinite;
+}
+
+.ai-speak-btn {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  color: var(--navy-2);
+  background: #eef6ff;
+  border-color: #c8e2ff;
 }
 
 .ai-send-btn {
@@ -10692,6 +10711,10 @@ canvas {
 .ai-send-btn .icon {
   width: 16px;
   height: 16px;
+}
+
+.ai-voice-message {
+  margin-top: -4px;
 }
 
 .message {
