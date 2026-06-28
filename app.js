@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-13";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-14";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2594,23 +2594,36 @@ function commandIllustration(iconName) {
     loans: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">
         <g class="ci-loan-paper">
-          <rect class="ci-paper" x="12" y="13" width="47" height="64" rx="7"></rect>
-          <path class="ci-loan-clip" d="M28 10h16a4 4 0 0 1 4 4v6H24v-6a4 4 0 0 1 4-4z"></path>
-          <text class="ci-title ci-title-loan" x="35.5" y="37" text-anchor="middle">Loan</text>
-          <path class="ci-line ci-loan-lines" d="M24 48h23M24 57h23M24 66h17"></path>
+          <rect class="ci-paper ci-loan-page" x="8" y="10" width="58" height="70" rx="8"></rect>
+          <rect class="ci-loan-page-flash" x="10" y="12" width="54" height="66" rx="7"></rect>
+          <path class="ci-loan-clip" d="M27 8h18a4 4 0 0 1 4 4v8H23v-8a4 4 0 0 1 4-4z"></path>
+          <path class="ci-line ci-loan-lines" d="M21 48h29M21 57h27M21 66h21"></path>
+          <path class="ci-loan-tear ci-loan-tear-1" d="M16 39l7 5-5 5 8 5"></path>
+          <path class="ci-loan-tear ci-loan-tear-2" d="M52 25l-6 7 7 5-5 8"></path>
           <g class="ci-loan-splatter">
-            <circle class="ci-loan-splash ci-loan-splash-1" cx="23" cy="45" r="3"></circle>
-            <circle class="ci-loan-splash ci-loan-splash-2" cx="50" cy="49" r="4"></circle>
-            <circle class="ci-loan-splash ci-loan-splash-3" cx="31" cy="69" r="3.3"></circle>
-            <circle class="ci-loan-splash ci-loan-splash-4" cx="48" cy="63" r="2.4"></circle>
-            <path class="ci-loan-splash ci-loan-splash-streak" d="M22 58c7-4 15-4 25 0"></path>
+            <circle class="ci-loan-splash ci-loan-splash-1" cx="18" cy="40" r="3.4"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-2" cx="51" cy="44" r="4.8"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-3" cx="26" cy="70" r="3.7"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-4" cx="55" cy="63" r="2.8"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-5" cx="14" cy="57" r="2.5"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-6" cx="39" cy="53" r="3.1"></circle>
+            <path class="ci-loan-splash ci-loan-splash-streak" d="M14 58c12-7 29-7 44 1"></path>
+            <path class="ci-loan-splash ci-loan-splash-drip" d="M45 48c-2 8-1 16 3 23"></path>
           </g>
+          <text class="ci-title ci-title-loan" x="31" y="36" text-anchor="middle">Loan</text>
+        </g>
+        <g class="ci-loan-burst">
+          <path d="M60 31l-8-10"></path>
+          <path d="M75 30l8-11"></path>
+          <path d="M84 44l10-5"></path>
+          <path d="M53 50l-12-3"></path>
+          <path d="M82 76l8 8"></path>
         </g>
         <g class="ci-loan-bag">
-          <path class="ci-loan-bag-tie" d="M66 33l-6-8 7 3 7-3-4 8"></path>
-          <path class="ci-money" d="M58 34c-10 8-16 19-16 31 0 10 8 17 25 17s25-7 25-17c0-12-6-23-16-31z"></path>
-          <text class="ci-dollar ci-loan-dollar" x="67" y="66" text-anchor="middle">$</text>
-          <path class="ci-loan-shine" d="M54 50c2-5 6-8 11-10"></path>
+          <path class="ci-loan-bag-tie" d="M70 33l-6-8 7 3 7-3-4 8"></path>
+          <path class="ci-money" d="M62 34c-10 8-16 19-16 31 0 10 8 17 25 17s25-7 25-17c0-12-6-23-16-31z"></path>
+          <text class="ci-dollar ci-loan-dollar" x="71" y="66" text-anchor="middle">$</text>
+          <path class="ci-loan-shine" d="M58 50c2-5 6-8 11-10"></path>
         </g>
       </svg>`,
     notebooks: `
