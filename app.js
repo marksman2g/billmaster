@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-17";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-18";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2445,7 +2445,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ["Money", [
         { view: "tracking", iconName: "wallet", label: "Tracking", color: "teal", tone: "money", detail: "Income + spend" },
         { view: "bills", iconName: "receipt", label: "Bills", color: "coral", tone: "bills", detail: "Due + paid" },
-        { view: "subscriptions", iconName: "playcard", label: "Sub Hub", color: "purple", tone: "subs", detail: "Cancel + save" },
+        { view: "subscriptions", iconName: "playcard", label: "Subscriptions", color: "purple", tone: "subs", detail: "Subscription hub" },
         { view: "goals", iconName: "chart", label: "Goals", color: "green", tone: "goals", detail: "Fund progress" },
         { view: "lending", iconName: "loan", label: "Loans", color: "teal", tone: "loans", detail: "Owed + repaid" }
       ]],
@@ -2708,12 +2708,32 @@ function commandIllustration(iconName) {
         <circle class="ci-address-dot" cx="48" cy="41" r="7"></circle>
       </svg>`,
     subscriptions: `
-      <svg class="ci-svg" viewBox="0 0 96 96" role="img">
-        <rect class="ci-paper" x="17" y="16" width="62" height="64" rx="12"></rect>
-        <rect class="ci-accent" x="28" y="29" width="40" height="11" rx="3"></rect>
-        <path class="ci-line" d="M29 51h31M29 63h22"></path>
-        <path class="ci-arrow" d="M66 58c7 0 12-5 12-12M78 46l-6-2M78 46l-2-6"></path>
-        <path class="ci-arrow" d="M30 58c-7 0-12-5-12-12M18 46l6-2M18 46l2-6"></path>
+      <svg class="ci-svg ci-subs-svg" viewBox="0 0 96 96" role="img">
+        <circle class="ci-subs-glow" cx="48" cy="48" r="40"></circle>
+        <g class="ci-subs-orbit">
+          <path d="M23 45c2-16 16-28 33-26 7 1 13 4 18 9"></path>
+          <path d="M73 28l-2-10 10 3"></path>
+          <path d="M73 51c-2 16-16 28-33 26-7-1-13-4-18-9"></path>
+          <path d="M23 68l2 10-10-3"></path>
+        </g>
+        <g class="ci-subs-calendar">
+          <rect class="ci-subs-calendar-body" x="18" y="19" width="44" height="47" rx="9"></rect>
+          <path class="ci-subs-calendar-top" d="M18 29h44"></path>
+          <path class="ci-subs-ring" d="M29 17v10M51 17v10"></path>
+          <rect class="ci-subs-date" x="26" y="39" width="9" height="9" rx="2"></rect>
+          <rect class="ci-subs-date" x="43" y="39" width="9" height="9" rx="2"></rect>
+          <rect class="ci-subs-date ci-subs-date-active" x="26" y="53" width="9" height="9" rx="2"></rect>
+        </g>
+        <g class="ci-subs-card">
+          <rect class="ci-subs-card-body" x="37" y="50" width="43" height="25" rx="7"></rect>
+          <rect class="ci-subs-chip" x="44" y="57" width="9" height="7" rx="2"></rect>
+          <path class="ci-subs-card-line" d="M58 59h15M44 69h28"></path>
+        </g>
+        <g class="ci-subs-dollar">
+          <circle cx="67" cy="34" r="13"></circle>
+          <path d="M67 25v18M61 31c2-3 10-3 12 0M61 37c2 3 10 3 12 0"></path>
+        </g>
+        <path class="ci-subs-check" d="M45 43l5 5 12-14"></path>
       </svg>`,
     reviewInbox: `
       <svg class="ci-svg" viewBox="0 0 96 96" role="img">

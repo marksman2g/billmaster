@@ -1192,6 +1192,89 @@ button.round-icon {
   overflow: visible;
 }
 
+.command-illustration--subscriptions .ci-subs-glow {
+  fill: rgba(111, 94, 255, 0.12);
+  stroke: rgba(31, 74, 130, 0.14);
+  stroke-width: 1.5;
+  animation: ci-subs-glow 3.2s ease-in-out infinite;
+}
+
+.command-illustration--subscriptions .ci-subs-orbit {
+  fill: none;
+  stroke: #1f4a82;
+  stroke-width: 4.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-origin: 48px 48px;
+  animation: ci-subs-orbit-spin 5.2s linear infinite;
+}
+
+.command-illustration--subscriptions .ci-subs-calendar-body {
+  fill: #ffffff;
+  stroke: #101828;
+  stroke-width: 3.2;
+}
+
+.command-illustration--subscriptions .ci-subs-calendar-top,
+.command-illustration--subscriptions .ci-subs-ring,
+.command-illustration--subscriptions .ci-subs-card-line {
+  fill: none;
+  stroke: #101828;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+
+.command-illustration--subscriptions .ci-subs-date {
+  fill: #38bdf8;
+  animation: ci-subs-date-blink 2.6s ease-in-out infinite;
+}
+
+.command-illustration--subscriptions .ci-subs-date-active {
+  fill: #fff36d;
+  animation-delay: .45s;
+}
+
+.command-illustration--subscriptions .ci-subs-card {
+  transform-origin: 58px 63px;
+  animation: ci-subs-card-pop 3.1s ease-in-out infinite;
+}
+
+.command-illustration--subscriptions .ci-subs-card-body {
+  fill: #e8f4ff;
+  stroke: #101828;
+  stroke-width: 3.2;
+}
+
+.command-illustration--subscriptions .ci-subs-chip {
+  fill: #fff36d;
+  stroke: #101828;
+  stroke-width: 2;
+}
+
+.command-illustration--subscriptions .ci-subs-dollar circle {
+  fill: #fff36d;
+  stroke: #101828;
+  stroke-width: 3.2;
+}
+
+.command-illustration--subscriptions .ci-subs-dollar path {
+  fill: none;
+  stroke: #1f4a82;
+  stroke-width: 3;
+  stroke-linecap: round;
+  animation: ci-subs-dollar-pulse 2.4s ease-in-out infinite;
+}
+
+.command-illustration--subscriptions .ci-subs-check {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  animation: ci-subs-check-draw 2.8s ease-in-out infinite;
+}
+
 .command-illustration--ai .ci-ai-gif-frame {
   display: block;
   width: 100%;
@@ -13922,6 +14005,41 @@ canvas {
   line-height: 1.14;
 }
 
+.dashboard-panel--command .action-groups .action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dashboard-panel--command .action-groups .action-tile {
+  min-height: 132px;
+  padding: 10px 7px;
+  gap: 7px;
+  border-radius: 12px;
+}
+
+.dashboard-panel--command .action-groups .action-visual {
+  width: 66px;
+  height: 66px;
+  border-radius: 18px;
+}
+
+.dashboard-panel--command .action-groups .command-illustration {
+  width: 62px;
+  height: 62px;
+}
+
+.dashboard-panel--command .action-groups .action-copy strong {
+  max-width: 96px;
+  font-size: .84rem;
+  line-height: 1.06;
+}
+
+.dashboard-panel--command .action-groups .action-copy small {
+  max-width: 96px;
+  font-size: .64rem;
+  line-height: 1.08;
+}
+
 @media (max-width: 420px) {
   .action-groups .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -13945,6 +14063,73 @@ canvas {
   .action-groups .action-copy strong,
   .action-groups .action-copy small {
     max-width: 120px;
+  }
+}
+
+@keyframes ci-subs-glow {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: .78;
+  }
+
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes ci-subs-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ci-subs-date-blink {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+
+  50% {
+    filter: brightness(1.32) drop-shadow(0 0 6px rgba(255, 243, 109, .72));
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes ci-subs-card-pop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-2px) scale(1.04);
+  }
+}
+
+@keyframes ci-subs-dollar-pulse {
+  0%,
+  100% {
+    stroke: #1f4a82;
+  }
+
+  50% {
+    stroke: #16a34a;
+  }
+}
+
+@keyframes ci-subs-check-draw {
+  0% {
+    stroke-dashoffset: 24;
+    opacity: .35;
+  }
+
+  42%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
   }
 }
 
