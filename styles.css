@@ -673,6 +673,17 @@ video {
   color: #ffffff;
 }
 
+.calendar-quick-add .quick-ask-btn {
+  color: #fff36d;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 243, 109, 0.28), transparent 44%),
+    linear-gradient(135deg, #071229 0%, #102d68 52%, #020617 100%);
+  border: 1px solid rgba(255, 243, 109, 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 14px rgba(31, 74, 130, 0.32);
+}
+
 .calendar-quick-add input {
   min-height: 38px;
   padding: 0 2px;
@@ -7637,7 +7648,7 @@ canvas {
 }
 
 .calendar-top-tools .calendar-quick-add {
-  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  grid-template-columns: 38px minmax(0, 1fr) 38px 38px;
   min-height: 48px;
   margin: 0;
   padding: 5px;
@@ -8641,7 +8652,16 @@ canvas {
 
 .compact-day-task > .time-of-day-badge {
   position: absolute;
+  top: 9px;
+  right: auto;
+  left: 9px;
   z-index: 2;
+  overflow: visible;
+}
+
+.compact-day-task .day-task-main {
+  padding-left: 36px;
+  box-sizing: border-box;
 }
 
 .time-of-day-legend {
@@ -14272,17 +14292,20 @@ canvas {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  color: #d8f7ff;
+  color: #fff36d;
   background:
-    radial-gradient(circle at 22% 45%, rgba(216, 247, 255, 0.2) 0 10%, transparent 12%),
-    linear-gradient(135deg, #02091f 0%, #052d9d 46%, #0a62f0 72%, #001028 100%);
+    radial-gradient(circle at 22% 45%, rgba(255, 243, 109, 0.34) 0 12%, transparent 15%),
+    radial-gradient(circle at 78% 18%, rgba(10, 98, 240, 0.32) 0 18%, transparent 36%),
+    linear-gradient(135deg, #020617 0%, #06153b 38%, #0a62f0 68%, #111827 100%);
   border-color: #111827;
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.52),
-    0 0 10px rgba(138, 221, 255, 0.94);
+    0 0 10px rgba(255, 243, 109, 0.86),
+    0 0 18px rgba(10, 98, 240, 0.58);
   box-shadow:
-    inset 0 0 0 1px rgba(216, 247, 255, 0.2),
-    0 0 18px rgba(52, 137, 255, 0.4);
+    inset 0 0 0 1px rgba(255, 243, 109, 0.22),
+    0 0 18px rgba(52, 137, 255, 0.4),
+    0 0 12px rgba(255, 176, 0, 0.22);
 }
 
 .time-period-chip.night svg,
@@ -14295,12 +14318,13 @@ canvas {
 .time-of-day-badge--night svg {
   position: relative;
   z-index: 4;
-  color: #d8f7ff;
+  color: #fff36d;
   stroke: currentColor;
   filter:
-    brightness(1.42)
-    drop-shadow(0 0 10px rgba(138, 221, 255, 1))
-    drop-shadow(0 0 20px rgba(52, 137, 255, 0.58));
+    brightness(1.85)
+    saturate(1.8)
+    drop-shadow(0 0 10px rgba(255, 243, 109, 0.98))
+    drop-shadow(0 0 18px rgba(52, 137, 255, 0.7));
   animation: billmaster-night-moon-drift 3.8s ease-in-out infinite;
 }
 
@@ -14318,7 +14342,7 @@ canvas {
   pointer-events: none;
   z-index: 3;
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 1.7px, transparent 2.1px),
+    radial-gradient(circle, rgba(255, 243, 109, 0.98) 0 1.7px, transparent 2.1px),
     radial-gradient(circle, rgba(138, 221, 255, 0.92) 0 1.2px, transparent 1.7px),
     radial-gradient(circle, rgba(255, 255, 255, 0.75) 0 1px, transparent 1.5px);
   background-size: 22px 17px, 28px 19px, 18px 23px;
@@ -14343,7 +14367,7 @@ canvas {
   pointer-events: none;
   z-index: 2;
   background:
-    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.72) 0 1px, transparent 2px),
+    radial-gradient(circle at 16% 28%, rgba(255, 243, 109, 0.72) 0 1px, transparent 2px),
     radial-gradient(circle at 72% 22%, rgba(157, 225, 255, 0.62) 0 1px, transparent 2px),
     radial-gradient(circle at 86% 70%, rgba(255, 255, 255, 0.5) 0 1px, transparent 2px);
   opacity: 0.48;
@@ -14360,6 +14384,10 @@ canvas {
 .time-of-day-badge--night > * {
   position: relative;
   z-index: 5;
+}
+
+.compact-day-task > .time-of-day-badge.night {
+  overflow: visible;
 }
 
 @keyframes billmaster-night-moon-drift {

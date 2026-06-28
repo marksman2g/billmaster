@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260627-15";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260627-16";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -497,6 +497,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-subscription",
     "save-subscription-media",
     "quick-add-task",
+    "quick-ask-ai",
     "send-ai",
     "ai-prompt",
     "reset-data"
@@ -4340,6 +4341,7 @@ function quickAction(action) {
       <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
       <input id="quickTaskInput" placeholder="${esc(label)} (Ctrl+T)" />
       <button class="icon-btn primary-btn" data-action="quick-add-task" aria-label="Add calendar task">${icon("check")}</button>
+      <button class="icon-btn quick-ask-btn" data-action="quick-ask-ai" aria-label="Ask BillMaster AI about your app" title="Ask BillMaster AI about your app">${icon("ai")}</button>
     </div>`;
   }
 
@@ -10465,6 +10467,7 @@ function quickAction(action) {
     if (action === "image-fit") return setImageFit(el);
     if (action === "show-task-category-panel") return showTaskCategoryPanel();
     if (action === "quick-add-task") return quickAddTask();
+    if (action === "quick-ask-ai") return askAiFromCalendarQuickAdd();
     if (action === "start-voice-task") return startVoiceTask();
     if (action === "stop-voice-task") return stopVoiceTask();
     if (action === "parse-voice-task") return parseVoiceTaskFromInput();
@@ -10983,6 +10986,23 @@ function quickAction(action) {
     });
     saveData();
     render();
+  }
+
+  function askAiFromCalendarQuickAdd() {
+    const input = document.getElementById("quickTaskInput");
+    const prompt = String(input?.value || "").trim();
+    if (!prompt) {
+      ui.view = "ai";
+      syncHash("ai");
+      render();
+      showToast("Ask BillMaster about tasks, bills, goals, notes, and more.");
+      return;
+    }
+    if (input) input.value = "";
+    ui.view = "ai";
+    syncHash("ai");
+    sendAi(prompt);
+    showToast("BillMaster AI answered from your app data.");
   }
 
   function speechRecognitionCtor() {
