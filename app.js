@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-15";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-16";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -153,6 +153,32 @@ const calendarPaletteSchemes = {
       friday: { bg: "#f5edff", bg2: "#cfb4ff", border: "#8b5cf6", accent: "#6d28d9" },
       saturday: { bg: "#e7f7ff", bg2: "#90d6ff", border: "#0ea5e9", accent: "#0369a1" },
       weekday: { bg: "#f4f7fb", bg2: "#e6edf6", border: "#aebfd3", accent: "#64748b" },
+    },
+  },
+  dark: {
+    label: "Dark",
+    tones: {
+      sunday: { bg: "#b9e8ff", bg2: "#38aeea", border: "#0369a1", accent: "#075985" },
+      monday: { bg: "#b7f0c7", bg2: "#22b95b", border: "#047438", accent: "#064e3b" },
+      tuesday: { bg: "#b8d8ff", bg2: "#3b82f6", border: "#1d4ed8", accent: "#1e3a8a" },
+      wednesday: { bg: "#ffe18a", bg2: "#f59e0b", border: "#a85a05", accent: "#78350f" },
+      thursday: { bg: "#ffd36a", bg2: "#d97706", border: "#92400e", accent: "#713f12" },
+      friday: { bg: "#d9c2ff", bg2: "#8b5cf6", border: "#5b21b6", accent: "#4c1d95" },
+      saturday: { bg: "#9bdcff", bg2: "#0284c7", border: "#075985", accent: "#0c4a6e" },
+      weekday: { bg: "#d6dee8", bg2: "#718096", border: "#334155", accent: "#1f2937" },
+    },
+  },
+  animated: {
+    label: "Animated",
+    tones: {
+      sunday: { bg: "#e2f6ff", bg2: "#5cc8ff", border: "#0ea5e9", accent: "#0284c7" },
+      monday: { bg: "#defce9", bg2: "#56d986", border: "#16a34a", accent: "#15803d" },
+      tuesday: { bg: "#e3efff", bg2: "#72a9ff", border: "#2563eb", accent: "#1d4ed8" },
+      wednesday: { bg: "#fff1b8", bg2: "#ffc93d", border: "#d97706", accent: "#b45309" },
+      thursday: { bg: "#ffe7a3", bg2: "#f5a900", border: "#b66a04", accent: "#92400e" },
+      friday: { bg: "#eadbff", bg2: "#a783ff", border: "#7c3aed", accent: "#6d28d9" },
+      saturday: { bg: "#d9f4ff", bg2: "#48c5f8", border: "#0284c7", accent: "#0369a1" },
+      weekday: { bg: "#f0f7ff", bg2: "#dbeafe", border: "#8bb8ed", accent: "#2563eb" },
     },
   },
 };
@@ -4323,7 +4349,7 @@ function quickAction(action) {
 
   function renderCalendar() {
     const view = ui.calendarView;
-    return `<section class="screen calendar-screen calendar-screen--${esc(view)}">
+    return `<section class="screen calendar-screen calendar-screen--${esc(view)} calendar-palette--${esc(activeCalendarPalette)}">
       ${header("Financial Calendar", `<button class="icon-btn">${icon("search")}</button>${calendarUndoButton("icon-btn undo-icon")}<button class="icon-btn" data-action="open-modal" data-modal="calendarSync" title="Google Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="taskDefaults" title="Task defaults">${icon("settings")}</button><button class="icon-btn">${icon("filter")}</button>`)}
       <div class="calendar-mode-row">
         <div class="calendar-left-tools">
@@ -4372,7 +4398,7 @@ function quickAction(action) {
             return `<span style="background:${vars.accent}"></span>`;
           })
           .join("");
-        return `<button class="calendar-color-chip ${activeCalendarPalette === key ? "is-active" : ""}" data-action="set-calendar-palette" data-palette="${key}" title="Use ${esc(scheme.label)} calendar colors">
+        return `<button class="calendar-color-chip calendar-color-chip--${esc(key)} ${activeCalendarPalette === key ? "is-active" : ""}" data-action="set-calendar-palette" data-palette="${key}" title="Use ${esc(scheme.label)} calendar colors">
           <span class="calendar-color-chip__swatches" aria-hidden="true">${swatches}</span>
           <span>${esc(scheme.label)}</span>
         </button>`;
