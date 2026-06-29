@@ -4963,7 +4963,8 @@ function quickAction(action) {
   }
 
   function habitCompletedOn(habit, iso) {
-    return Boolean(habit && Array.isArray(habit.completions) && habit.completions.includes(iso));
+    if (!habit || !Array.isArray(habit.completions) || !habit.completions.includes(iso)) return false;
+    return !isIsoDateString(iso) || iso >= habitEffectiveStartDate(habit);
   }
 
   function setHabitCompletion(habitId, iso, completed) {
@@ -7993,7 +7994,7 @@ function quickAction(action) {
     const habit = data.habits.find((item) => item.id === habitId);
     if (!habit) return "";
     const defaultDate = habit.freshStartDate || todayIso();
-    return `${modalHeader("Start Fresh", "Pick the date BillMaster should use as the new starting point for this habit's percentages and streaks. Older history stays saved.")}
+    return `${modalHeader("Start Fresh", "Pick the date BillMaster should use as the new starting point for this habit's percentages and streaks. Older history stays saved, and that start date resets clean.")}
       <section class="section-card habit-fresh-modal">
         <div>
           <strong>${esc(habit.title)}</strong>
@@ -14705,12 +14706,14 @@ function quickAction(action) {
       return;
     }
     habit.freshStartDate = selectedDate;
-    habit.completions = Array.isArray(habit.completions) ? habit.completions : [];
-    habit.skippedDates = Array.isArray(habit.skippedDates) ? habit.skippedDates : [];
+    const completions = Array.isArray(habit.completions) ? habit.completions : [];
+    const hadSelectedDateDone = completions.includes(selectedDate);
+    habit.completions = completions.filter((date) => date !== selectedDate);
+    habit.skippedDates = (Array.isArray(habit.skippedDates) ? habit.skippedDates : []).filter((date) => date !== selectedDate);
     ui.modal = null;
     saveData();
     render();
-    showToast(`Fresh start set for ${dateLabel(selectedDate)}.`);
+    showToast(hadSelectedDateDone ? `Fresh start set for ${dateLabel(selectedDate)}. That day was reset.` : `Fresh start set for ${dateLabel(selectedDate)}.`);
   }
 
   function deleteHabit(habitId) {
