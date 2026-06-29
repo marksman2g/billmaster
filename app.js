@@ -5405,9 +5405,11 @@ function quickAction(action) {
       ${taskTimeOfDayBadge(task)}
       <div class="card-row">
         <div class="day-task-main">
-          <button class="icon-btn" data-action="toggle-task-select" data-id="${task.id}" aria-label="Select task">${selected ? icon("check") : icon("more")}</button>
-          <div class="day-task-body">
+          <div class="day-task-title-row">
+            <button class="icon-btn" data-action="toggle-task-select" data-id="${task.id}" aria-label="Select task">${selected ? icon("check") : icon("more")}</button>
             <h2 class="entity-title">${esc(task.title)}</h2>
+          </div>
+          <div class="day-task-body">
             <div class="task-meta">
               <span class="category-pill" style="--category-color:${taskCategoryColor(taskCategory(task))}">${esc(taskCategory(task))}</span>
               ${taskProjectBadge(task)}

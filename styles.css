@@ -9296,16 +9296,27 @@ canvas {
 }
 
 .day-task-main {
-  display: flex;
+  display: grid;
   width: 100%;
   gap: 8px;
   min-width: 0;
 }
 
-.day-task-body {
-  flex: 1 1 auto;
+.day-task-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  padding-right: 48px;
+}
+
+.day-task-title-row .icon-btn {
+  flex: 0 0 auto;
+}
+
+.day-task-body {
+  width: 100%;
+  min-width: 0;
+  padding-right: 0;
 }
 
 .compact-day-task .entity-title {
@@ -9481,6 +9492,10 @@ canvas {
 }
 
 .compact-day-task .day-task-main {
+  box-sizing: border-box;
+}
+
+.compact-day-task .day-task-title-row {
   padding-left: 36px;
   box-sizing: border-box;
 }
@@ -17201,25 +17216,24 @@ canvas {
 }
 
 .compact-day-task .task-quick-controls {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
   margin-top: 8px;
-  gap: 4px;
+  gap: 6px;
 }
 
 .compact-day-task .task-quick-badge-stack {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
+  display: contents;
 }
 
 .compact-day-task .task-quick-controls .danger-text {
   width: 30px;
   height: 30px;
-  margin: -1px 0 0 4px;
-  align-self: flex-start;
+  margin: 0;
+  align-self: center;
 }
 
 /* Today weekday word: always-on, independent of the calendar Animated palette. */
