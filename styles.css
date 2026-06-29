@@ -3698,6 +3698,10 @@ button.round-icon {
   color: var(--navy-2);
 }
 
+.money-neutral {
+  color: var(--text);
+}
+
 .muted {
   color: var(--muted);
 }

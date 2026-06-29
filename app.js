@@ -2085,10 +2085,20 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return sum(items, key) * months;
   }
 
+  function budgetVariance(actual, projected, type) {
+    const actualAmount = Number(actual || 0);
+    const projectedAmount = Number(projected || 0);
+    return type === "income" ? projectedAmount - actualAmount : actualAmount - projectedAmount;
+  }
+
   function varianceClass(actual, projected, type) {
-    const variance = Number(actual) - Number(projected);
-    if (type === "income") return variance >= 0 ? "positive" : "negative";
-    return variance <= 0 ? "positive" : "negative";
+    const variance = budgetVariance(actual, projected, type);
+    if (Math.abs(variance) < 0.005) return "money-neutral";
+    return variance > 0 ? "positive" : "negative";
+  }
+
+  function projectedClass(actual, projected, type) {
+    return varianceClass(actual, projected, type);
   }
 
   function progressPct(current, target) {
@@ -3185,10 +3195,10 @@ function quickAction(action) {
     return [1, 3, 6, 12].map((months) => {
       const actual = monthlyProjection(items, months);
       const projected = monthlyProjection(items, months, "projected");
-      const variance = actual - projected;
+      const variance = budgetVariance(actual, projected, type);
       return `<div class="metrics-grid">
         <div class="metric"><label>${months === 1 ? "Monthly" : `${months} Months`}<br>Actual</label><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(actual)}</strong></div>
-        <div class="metric"><label>Projected</label><strong>${money(projected)}</strong></div>
+        <div class="metric"><label>Projected</label><strong class="${projectedClass(actual, projected, type)}">${money(projected)}</strong></div>
         <div class="metric"><label>Variance</label><strong class="${varianceClass(actual, projected, type)}">${money(variance)}</strong></div>
       </div>`;
     }).join("");
@@ -3199,7 +3209,7 @@ function quickAction(action) {
     return `<button class="data-row" style="text-align:left;background:transparent;border:0;width:100%;" data-action="open-modal" data-modal="transactionDetail" data-id="${tx.id}">
       <span class="round-icon" style="color:var(--${tx.type === "income" ? "green" : "coral"});background:${tx.type === "income" ? "#eafaf1" : "#fff0f0"}">${icon(categoryIcon(tx.category))}</span>
       <div><strong>${esc(tx.name)}</strong><div class="subtle">${esc(tx.category)} - ${esc(tx.frequency)}</div></div>
-      <span style="text-align:right;"><span>Act: <strong class="${cls}">${money(tx.amount)}</strong></span><br><span class="muted">Proj: ${money(tx.projected)}</span></span>
+      <span style="text-align:right;"><span>Act: <strong class="${cls}">${money(tx.amount)}</strong></span><br><span class="${projectedClass(tx.amount, tx.projected, tx.type)}">Proj: ${money(tx.projected)}</span></span>
     </button>`;
   }
 
@@ -3240,8 +3250,8 @@ function quickAction(action) {
     const items = data.transactions.filter((tx) => tx.type === type);
     const actual = monthlyProjection(items, months);
     const projected = monthlyProjection(items, months, "projected");
-    const variance = actual - projected;
-    const ok = type === "income" ? variance >= 0 : variance <= 0;
+    const variance = budgetVariance(actual, projected, type);
+    const ok = variance >= 0;
     return `<article style="margin-bottom:24px;">
       <h2 class="panel-title">${type === "income" ? "Income" : "Expenses"} - ${months} Months</h2>
       <div class="projection-row">
@@ -3249,7 +3259,7 @@ function quickAction(action) {
           <label>${icon("wallet")} Actual</label><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(actual)}</strong>
         </div>
         <div class="amount-cell" style="background:#eff8fb;border:1px solid #c7e7f0;border-radius:8px;padding:12px;">
-          <label>${icon("chart")} Projected</label><strong class="money-blue">${money(projected)}</strong>
+          <label>${icon("chart")} Projected</label><strong class="${projectedClass(actual, projected, type)}">${money(projected)}</strong>
         </div>
         <div class="amount-cell">
           <label>Variance</label><strong class="${ok ? "positive" : "negative"}">${money(variance)}</strong>
@@ -3285,10 +3295,10 @@ function quickAction(action) {
   }
 
   function categoryRow(row, type) {
-    const variance = row.actual - row.projected;
+    const variance = budgetVariance(row.actual, row.projected, type);
     return `<div class="data-row">
       <span class="round-icon" style="color:var(--${type === "income" ? "teal" : "coral"});background:${type === "income" ? "#e8fbfd" : "#fff0f0"}">${icon(categoryIcon(row.name))}</span>
-      <div><strong>${esc(row.name)}</strong><div class="subtle">Projected ${money(row.projected)}</div></div>
+      <div><strong>${esc(row.name)}</strong><div class="${projectedClass(row.actual, row.projected, type)}">Projected ${money(row.projected)}</div></div>
       <div style="text-align:right;"><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(row.actual)}</strong><br><span class="${varianceClass(row.actual, row.projected, type)}">${money(variance)}</span></div>
     </div>`;
   }
@@ -4324,13 +4334,14 @@ function quickAction(action) {
 
   function cancellationRows() {
     const expensive = [...data.subscriptions]
-      .sort((a, b) => (b.amount - b.projected) - (a.amount - a.projected))
+      .sort((a, b) => (Number(b.projected || 0) - Number(b.amount || 0)) - (Number(a.projected || 0) - Number(a.amount || 0)))
       .slice(0, 3);
     const rows = expensive.map((sub) => {
       const activeRecord = data.cancellations.find((item) => item.subscriptionId === sub.id && item.status !== "Completed");
+      const variance = budgetVariance(sub.amount, sub.projected, "expense");
       return `<div class="data-row">
         <span class="round-icon" style="color:var(--accent);background:#efedff;">${icon("playcard")}</span>
-        <div><strong>${esc(sub.name)}</strong><div class="subtle">${activeRecord ? `Cancellation ${activeRecord.status}` : `${money(sub.amount - sub.projected)} variance - ${esc(sub.status)}`}</div></div>
+        <div><strong>${esc(sub.name)}</strong><div class="subtle">${activeRecord ? `Cancellation ${activeRecord.status}` : `<span class="${varianceClass(sub.amount, sub.projected, "expense")}">${money(variance)}</span> variance - ${esc(sub.status)}`}</div></div>
         <button class="${sub.status === "Cancelled" ? "outline-btn" : "danger-btn"}" data-action="cancel-subscription" data-id="${sub.id}">${sub.status === "Cancelled" ? "Cancelled" : "Start Cancel"}</button>
       </div>`;
     }).join("");
@@ -4446,8 +4457,8 @@ function quickAction(action) {
       </div>
       <div class="amount-grid">
         <div class="amount-cell"><label>Actual Amount <button class="text-btn" data-action="open-modal" data-modal="editSubscriptionActual" data-id="${sub.id}">${icon("edit")}</button></label><strong>${money(sub.amount)} <span class="pill dark" style="background:var(--navy-2);">${esc(sub.cycle)}</span></strong></div>
-        <div class="amount-cell"><label>Projected Amount <button class="text-btn" data-action="open-modal" data-modal="editSubscriptionProjected" data-id="${sub.id}">${icon("edit")}</button></label><strong class="muted">${money(sub.projected)}</strong></div>
-        <div class="amount-cell"><label>Variance</label><strong class="${sub.amount - sub.projected > 0 ? "negative" : "positive"}">${money(sub.amount - sub.projected)}</strong></div>
+        <div class="amount-cell"><label>Projected Amount <button class="text-btn" data-action="open-modal" data-modal="editSubscriptionProjected" data-id="${sub.id}">${icon("edit")}</button></label><strong class="${projectedClass(sub.amount, sub.projected, "expense")}">${money(sub.projected)}</strong></div>
+        <div class="amount-cell"><label>Variance</label><strong class="${varianceClass(sub.amount, sub.projected, "expense")}">${money(budgetVariance(sub.amount, sub.projected, "expense"))}</strong></div>
       </div>
       <div class="period-table">
         <div><label>Quarterly</label><strong>${money(q)}</strong><span class="subtle">proj ${money(projectedQ)}</span></div>
@@ -7212,7 +7223,8 @@ function quickAction(action) {
   }
 
   function detailPeriod(label, actual, projected, type) {
-    return `<div class="row"><span>${esc(label)}</span><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(actual)}</strong><span>${money(projected)}</span><span class="${varianceClass(actual, projected, type)}">${money(actual - projected)}</span></div>`;
+    const variance = budgetVariance(actual, projected, type);
+    return `<div class="row"><span>${esc(label)}</span><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(actual)}</strong><span class="${projectedClass(actual, projected, type)}">${money(projected)}</span><span class="${varianceClass(actual, projected, type)}">${money(variance)}</span></div>`;
   }
 
   function modalSubscriptionDetail(subId) {
