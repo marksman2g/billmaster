@@ -512,6 +512,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-contact",
     "save-alpha-feedback",
     "save-profile",
+    "save-block-quick-task",
     "login-profile",
     "delete-profile",
     "save-cloud-config",
@@ -10140,6 +10141,12 @@ function quickAction(action) {
       event.stopPropagation();
     }
     let selection = blockCreateSelection(event, state);
+    const horizontalDelta = Math.abs((event.clientX || state.startX) - state.startX);
+    const firstRect = state.columns[0]?.getBoundingClientRect?.();
+    const columnWidth = Math.max(1, firstRect?.width || 1);
+    if (selection.endIndex > selection.startIndex && horizontalDelta < columnWidth * 0.65) {
+      selection = { ...selection, startIndex: state.startIndex, endIndex: state.startIndex };
+    }
     clearBlockCreatePreview(state);
     state.pointerColumn?.releasePointerCapture?.(state.pointerId);
     blockCreateState = null;
@@ -10275,6 +10282,8 @@ function quickAction(action) {
   }
 
   function createTasksFromBlockSelection(selection) {
+    const start = timeFromBlockMinute(selection.startMinute);
+    const end = timeFromBlockMinute(selection.endMinute);
     if (selection.endIndex > selection.startIndex) {
       const dates = [];
       for (let index = selection.startIndex; index <= selection.endIndex; index += 1) {
@@ -10282,6 +10291,11 @@ function quickAction(action) {
         if (date) dates.push(date);
       }
       if (!dates.length) return;
+      const writeKey = `block-direct:habit:${dates.join(",")}:${start}:${end}`;
+      if (shouldSkipRecentWrite(writeKey, 5000)) {
+        showToast("That habit block was already saved.", "danger");
+        return;
+      }
       const days = dates.map((date) => parseLocalDate(date).getDay());
       data.habits.unshift({
         id: id("habit"),
@@ -10292,8 +10306,8 @@ function quickAction(action) {
         days: Array.from(new Set(days)),
         startDate: dates[0],
         endDate: "",
-        start: timeFromBlockMinute(selection.startMinute),
-        end: timeFromBlockMinute(selection.endMinute),
+        start,
+        end,
         priority: "Medium",
         status: "Active",
         includeHours: true,
@@ -10310,14 +10324,19 @@ function quickAction(action) {
     for (let index = selection.startIndex; index <= selection.endIndex; index += 1) {
       const column = selection.columns[index];
       const date = column.dataset.date;
+      const writeKey = `block-direct:task:${date}:${start}:${end}`;
+      if (shouldSkipRecentWrite(writeKey, 5000)) {
+        showToast("That timed task was already saved.", "danger");
+        continue;
+      }
       created.push({
         id: id("task"),
         title: selection.endIndex > selection.startIndex ? "New habit block" : "New timed task",
         description: "",
         date,
         endDate: blockEndDateFor(date, selection.startMinute, selection.endMinute),
-        start: timeFromBlockMinute(selection.startMinute),
-        end: timeFromBlockMinute(selection.endMinute),
+        start,
+        end,
         priority: "Medium",
         status: "Not Started",
         repeat: "None",
