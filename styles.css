@@ -12679,15 +12679,73 @@ canvas {
 }
 
 .habits-compact .habit-card-head {
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.habits-compact .habit-head-main {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.habits-compact .habit-select-rail {
+  width: 34px;
+  flex: 0 0 34px;
+  gap: 6px;
+}
+
+.habits-compact .habit-select-button,
+.habits-compact .habit-rail-picture {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.habits-compact .habit-main-fields {
+  gap: 5px;
+  min-width: 0;
+}
+
+.habits-compact .habit-title-input {
+  min-height: 26px;
+  font-size: 0.94rem;
+  line-height: 1.15;
+}
+
+.habits-compact .habit-status-select {
+  min-height: 34px;
+  max-width: 86px;
+  padding: 5px 9px;
+  font-size: 0.82rem;
 }
 
 .habits-compact .habit-inline-row {
-  gap: 4px;
+  gap: 5px;
 }
 
 .habits-compact .habit-time-row {
-  gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.habits-compact .habit-inline-row select,
+.habits-compact .habit-time-row input {
+  min-height: 31px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.habits-compact .habit-time-row span {
+  color: #40556f;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .habits-compact .habit-duration-stepper {
@@ -12702,6 +12760,25 @@ canvas {
 
 .habits-compact .habit-stats-row div {
   padding: 7px 8px;
+}
+
+.habits-compact .habit-calendar-preview {
+  gap: 6px;
+  margin: 9px 0;
+}
+
+.habits-compact .habit-calendar-preview > span {
+  min-height: 28px;
+  padding: 5px 8px;
+  color: #243850;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: #b8d3ed;
+  font-size: 0.8rem;
+  font-weight: 860;
+}
+
+.habits-compact .habit-calendar-preview .icon {
+  color: #1d4f82;
 }
 
 .habit-grid.habits-gallery {
