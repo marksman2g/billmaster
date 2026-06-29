@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-17";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-18";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -86,6 +86,7 @@
   const validViews = new Set(["dashboard", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
+  const ADD_TRANSACTION_CATEGORY_VALUE = "__add_transaction_category__";
   const ADD_NOTEBOOK_VALUE = "__add_note_notebook__";
   const ADD_NOTE_SUBJECT_VALUE = "__add_note_subject__";
   const DELETE_NOTE_SUBJECT_VALUE = "__delete_note_subject__";
@@ -184,6 +185,10 @@ const calendarPaletteSchemes = {
 };
 let activeCalendarPalette = getStoredCalendarPalette();
 const defaultCategoryColors = { General: "#8892b0", Habit: "#6c63ff", Finance: "#00bcd4", Project: "#ff9800", Personal: "#4caf50" };
+const defaultTransactionCategories = {
+  expense: ["Utilities", "Food", "Housing", "Transportation", "Subscriptions", "Other"],
+  income: ["Salary", "Freelance", "Side Hustle", "App Income", "Rental Income", "Other"]
+};
 const DEFAULT_TASK_BG = "#ff7a1a";
   const taskBackgrounds = [DEFAULT_TASK_BG, "#000000", "#1a1f36", "#6c63ff", "#00bcd4", "#4caf50", "#f44336", "#ffc107"];
   const taskFonts = ["System", "Rounded", "Serif", "Mono"];
@@ -198,6 +203,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       categoryColors: { ...defaultCategoryColors },
       calendarDayColors: {},
       customTaskCategories: [],
+      customTransactionCategories: [],
       interfaceMode: "power",
       cloudAutoSync: false,
       cloudRemoteUpdatedAt: "",
@@ -1131,6 +1137,10 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     nextData.settings.calendarDayColors = normalizeCalendarDayColors(nextData.settings.calendarDayColors);
     nextData.settings.deletedItems = normalizeDeletedItemsMap(nextData.settings.deletedItems);
     nextData.settings.customTaskCategories = normalizeCustomTaskCategories(nextData.settings.customTaskCategories);
+    nextData.settings.customTransactionCategories = normalizeCustomTransactionCategories([
+      ...(Array.isArray(nextData.settings.customTransactionCategories) ? nextData.settings.customTransactionCategories : []),
+      ...safeArray(nextData.transactions).map((tx) => tx.category)
+    ]);
     nextData.settings.customTaskCategories.forEach((category) => ensureTaskCategory(category, nextData.settings.categoryColors[category], nextData));
     if (!["simple", "power"].includes(nextData.settings.interfaceMode)) nextData.settings.interfaceMode = "power";
     nextData.settings.cloudAutoSync = Boolean(nextData.settings.cloudAutoSync);
@@ -1286,6 +1296,59 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return Array.from(new Set((Array.isArray(categories) ? categories : [])
       .map(normalizeCategoryName)
       .filter((category) => category && !baseTaskCategories.some((existing) => existing.toLowerCase() === category.toLowerCase()))));
+  }
+
+  function normalizeCustomTransactionCategories(categories) {
+    const defaultNames = Object.values(defaultTransactionCategories).flat();
+    return uniqueNames(Array.isArray(categories) ? categories : [])
+      .map(normalizeCategoryName)
+      .filter((category) => category && !defaultNames.some((existing) => existing.toLowerCase() === category.toLowerCase()));
+  }
+
+  function uniqueNames(values) {
+    const names = [];
+    (Array.isArray(values) ? values : []).forEach((value) => {
+      const normalized = normalizeCategoryName(value);
+      if (normalized && !names.some((name) => name.toLowerCase() === normalized.toLowerCase())) names.push(normalized);
+    });
+    return names;
+  }
+
+  function transactionCategoryOptions(type = "expense", selected = "") {
+    const primaryType = type === "income" ? "income" : "expense";
+    const secondaryType = primaryType === "income" ? "expense" : "income";
+    const existing = data.transactions
+      .filter((tx) => tx.category)
+      .map((tx) => tx.category);
+    return [
+      ...uniqueNames(defaultTransactionCategories[primaryType]),
+      ...uniqueNames(data.settings?.customTransactionCategories),
+      ...uniqueNames(existing),
+      ...uniqueNames(defaultTransactionCategories[secondaryType]),
+      normalizeCategoryName(selected),
+      ADD_TRANSACTION_CATEGORY_VALUE
+    ].reduce((options, category) => {
+      if (!category) return options;
+      if (category === ADD_TRANSACTION_CATEGORY_VALUE || !options.some((item) => item.toLowerCase() === category.toLowerCase())) options.push(category);
+      return options;
+    }, []);
+  }
+
+  function transactionCategoryLabel(category) {
+    return category === ADD_TRANSACTION_CATEGORY_VALUE ? "+ Add new category" : category;
+  }
+
+  function ensureTransactionCategory(category) {
+    const normalized = normalizeCategoryName(category);
+    if (!normalized) return "";
+    data.settings = data.settings || {};
+    data.settings.customTransactionCategories = normalizeCustomTransactionCategories(data.settings.customTransactionCategories);
+    const defaults = Object.values(defaultTransactionCategories).flat();
+    if (!defaults.some((item) => item.toLowerCase() === normalized.toLowerCase())
+      && !data.settings.customTransactionCategories.some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+      data.settings.customTransactionCategories.push(normalized);
+    }
+    return normalized;
   }
 
   function customCategoryColor(category) {
@@ -7008,11 +7071,17 @@ function quickAction(action) {
   function modalTransaction(txId) {
     const tx = data.transactions.find((item) => item.id === txId) || { type: ui.trackingTab === "income" ? "income" : "expense", date: "2026-05-06", frequency: "Monthly" };
     const income = tx.type === "income";
+    const categoryOptions = transactionCategoryOptions(tx.type, tx.category || (income ? "Salary" : "Utilities"));
+    const currentCategory = normalizeCategoryName(tx.category || (income ? "Salary" : "Utilities"));
+    const selectedCategory = categoryOptions.find((category) => category.toLowerCase() === currentCategory.toLowerCase()) || currentCategory || (income ? "Salary" : "Utilities");
     return `${modalHeader(tx.id ? `Edit ${income ? "Income" : "Expense"}` : "Add Transaction")}
       <div class="field-grid">
         ${selectField("txType", "Type", ["expense", "income"], tx.type)}
         ${field("txName", "Name", tx.name || "", income ? "Income source" : "Expense name")}
-        ${selectField("txCategory", "Category", income ? ["Salary", "Freelance", "Side Hustle", "App Income", "Rental Income", "Other"] : ["Utilities", "Food", "Housing", "Transportation", "Subscriptions", "Other"], tx.category || (income ? "Salary" : "Utilities"))}
+        ${selectField("txCategory", "Category", categoryOptions, selectedCategory, transactionCategoryLabel)}
+        <section id="txNewCategoryPanel" class="inline-add-panel" ${selectedCategory === ADD_TRANSACTION_CATEGORY_VALUE ? "" : "hidden"}>
+          ${field("txNewCategory", "New Category", "", "Category name")}
+        </section>
         ${field("txAmount", "Actual Amount", tx.amount || "", "0.00", "number")}
         ${field("txProjected", "Projected Amount", tx.projected || "", "0.00", "number")}
         ${field("txDate", "Date", tx.date || "2026-05-06", "", "date")}
@@ -10463,6 +10532,7 @@ function quickAction(action) {
     if (target && target.id === "habitStart") focusPairedEndTime("habitStart", "habitEnd", 30);
     if (target && target.id === "taskAddress") toggleTaskAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.id === "taskCategory") toggleTaskCategoryPanel(target.value === ADD_TASK_CATEGORY_VALUE);
+    if (target && target.id === "txCategory") toggleTransactionCategoryPanel(target.value === ADD_TRANSACTION_CATEGORY_VALUE);
     if (target && target.id === "habitAddress") toggleHabitAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.id === "contactAddress") toggleContactAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
@@ -11117,6 +11187,13 @@ function quickAction(action) {
     if (!panel) return;
     panel.hidden = !show;
     if (show) document.getElementById("taskNewCategory")?.focus();
+  }
+
+  function toggleTransactionCategoryPanel(show) {
+    const panel = document.getElementById("txNewCategoryPanel");
+    if (!panel) return;
+    panel.hidden = !show;
+    if (show) document.getElementById("txNewCategory")?.focus();
   }
 
   function showTaskCategoryPanel() {
@@ -12670,11 +12747,16 @@ function quickAction(action) {
 
   function saveTransaction(txId) {
     const tx = data.transactions.find((item) => item.id === txId);
+    const category = transactionCategoryFromForm();
+    if (!category) {
+      showToast("Enter the new transaction category name first.", "danger");
+      return;
+    }
     const payload = {
       type: value("txType") || "expense",
       name: value("txName") || "Transaction",
-      merchant: value("txCategory") || "Merchant",
-      category: value("txCategory") || "Other",
+      merchant: category || "Merchant",
+      category,
       amount: numberValue("txAmount"),
       projected: numberValue("txProjected") || numberValue("txAmount"),
       date: value("txDate") || "2026-05-06",
@@ -12687,6 +12769,14 @@ function quickAction(action) {
     else data.transactions.unshift({ id: id("tx"), ...payload });
     saveData();
     closeModal();
+  }
+
+  function transactionCategoryFromForm() {
+    const selected = value("txCategory");
+    const typed = normalizeCategoryName(value("txNewCategory"));
+    if (typed) return ensureTransactionCategory(typed);
+    if (selected === ADD_TRANSACTION_CATEGORY_VALUE) return "";
+    return ensureTransactionCategory(selected || "Other");
   }
 
   function saveSubscriptionAmount(subId, mode) {
