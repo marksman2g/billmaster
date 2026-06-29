@@ -13098,13 +13098,13 @@ canvas {
   background:
     repeating-linear-gradient(
       105deg,
-      transparent 0 11px,
-      rgba(29, 111, 217, 0.26) 12px 13px,
-      transparent 14px 28px
+      transparent 0 17px,
+      rgba(24, 91, 182, 0.34) 18px 19px,
+      transparent 20px 42px
     );
-  background-size: 50px 46px;
-  opacity: 0.44;
-  animation: bmWeatherRainFall 1.15s linear infinite;
+  background-size: 72px 64px;
+  opacity: 0.5;
+  animation: bmWeatherRainFall 1.32s linear infinite;
 }
 
 .weather-motion-rain::after {
@@ -13113,8 +13113,8 @@ canvas {
   left: 26px;
   height: 8px;
   border-radius: 999px;
-  background: radial-gradient(ellipse, rgba(29, 111, 217, 0.18), transparent 68%);
-  animation: bmWeatherRainRipple 1.45s ease-in-out infinite;
+  background: radial-gradient(ellipse, rgba(24, 91, 182, 0.2), transparent 68%);
+  animation: bmWeatherRainRipple 1.7s ease-in-out infinite;
 }
 
 .weather-motion-wind::before,
