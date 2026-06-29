@@ -5179,7 +5179,7 @@ function quickAction(action) {
       ["day", "bottom-left", "Day view", "D"],
       ["block", "bottom-right", "Block view", "B"]
     ];
-    return `<div class="date-view-zones has-zone-labels">${zones.map(([view, zone, label, letter]) => `<button class="date-zone ${zone}" data-action="set-calendar-date-view" data-date="${iso}" data-view="${view}" aria-label="${label} for ${dateLabel(iso)}" title="${label}"><span class="date-zone-label" aria-hidden="true">${letter}</span></button>`).join("")}</div>`;
+    return `<div class="date-view-zones has-zone-labels">${zones.map(([view, zone, label, letter]) => `<button class="date-zone ${zone}" data-action="set-calendar-date-view" data-date="${iso}" data-view="${view}" data-letter="${letter}" aria-label="${label} for ${dateLabel(iso)}" title="${label}"><span class="date-zone-label" data-letter="${letter}" aria-hidden="true">${letter}</span></button>`).join("")}</div>`;
   }
 
   function visibleCalendarTasks(tasks) {
