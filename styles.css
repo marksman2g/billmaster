@@ -17239,14 +17239,35 @@ canvas {
 }
 
 /* Day task cards: pull content down-left and make schedule text easier to read. */
+.compact-day-task > .time-of-day-badge {
+  top: 42px;
+  left: 10px;
+}
+
 .compact-day-task .day-task-main {
   gap: 6px;
-  padding-top: 10px;
+  padding-top: 72px;
   padding-left: 22px;
 }
 
+.compact-day-task .day-task-title-row {
+  padding-left: 0;
+}
+
+.compact-day-task .day-task-title-row .task-select-square {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 4;
+}
+
+.compact-day-task .entity-title {
+  font-size: 1.05rem;
+  line-height: 1.12;
+}
+
 .compact-day-task .day-task-body {
-  padding-right: 20px;
+  padding-right: 12px;
 }
 
 .compact-day-task .task-time-preview {
