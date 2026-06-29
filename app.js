@@ -3171,12 +3171,12 @@ function quickAction(action) {
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Income & Expense Tracking", `<button class="icon-btn" data-action="navigate" data-view="lending" title="Money Lending Tracker">${icon("loan")}</button>`)}
-      <div class="segmented">
+      <div class="segmented tracking-segmented">
         <button class="${ui.trackingTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="expenses">Expenses</button>
         <button class="${ui.trackingTab === "income" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="income">Income</button>
       </div>
       ${incomeExpenseOverview("finance-compare-panel--tracking")}
-      <div class="finance-grid">
+      <div class="finance-grid tracking-finance-grid tracking-finance-grid--${type === "income" ? "income" : "expenses"}">
         <section class="section-card">
           <div class="section-title"><h2>${type === "income" ? "All Income Sources" : "All Expenses"}</h2><button class="text-btn" data-action="open-modal" data-modal="addTransaction">${icon("plus")} Add</button></div>
           <div class="list">

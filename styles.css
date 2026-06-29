@@ -3629,11 +3629,34 @@ button.round-icon {
 
 .finance-compare-panel--tracking {
   margin-bottom: 14px;
+  border-color: #cfe0f3;
+  box-shadow: 0 14px 28px rgba(16, 35, 61, 0.08);
+  width: 100%;
+}
+
+.tracking-segmented {
+  margin-bottom: 12px;
+}
+
+.tracking-finance-grid {
+  align-items: stretch;
+}
+
+.tracking-finance-grid > .section-card {
+  border-width: 2px;
+}
+
+.tracking-finance-grid--income > .section-card {
+  border-color: rgba(37, 169, 93, 0.28);
+}
+
+.tracking-finance-grid--expenses > .section-card {
+  border-color: rgba(255, 59, 48, 0.22);
 }
 
 .finance-compare-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.72fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.58fr) minmax(0, 1fr);
   gap: 10px;
   align-items: stretch;
 }
@@ -13177,8 +13200,8 @@ canvas {
   }
 
   .finance-compare-panel--tracking {
-    max-width: 74%;
-    margin-inline: auto;
+    max-width: none;
+    margin-inline: 0;
   }
 
   .span-2 {
