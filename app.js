@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-21";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-22";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -30,6 +30,7 @@
     projectId: null,
     projectSort: "level",
     projectTaskView: "regular",
+    projectDragSelectMode: false,
     notesFilter: "all",
     notesSubjectFilter: "all",
     notesView: "stream",
@@ -423,6 +424,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let taskAlertSchedulerStarted = false;
   let taskAlertAudioContext = null;
   let suppressCardEditUntil = 0;
+  let projectDragSelectState = null;
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockHoldMoveTolerance = 8;
@@ -6039,20 +6041,22 @@ function quickAction(action) {
     const allSelected = visibleIds.length > 0 && selectedIds.length === visibleIds.length;
     const bulkTools = unassigned ? `<div class="project-bulk-toolbar">
       <button class="outline-btn" data-action="select-visible-project-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
+      <button class="${ui.projectDragSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-project-drag-select">${icon("edit")} ${ui.projectDragSelectMode ? "Drag select on" : "Drag select"}</button>
       ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
       <span class="muted">${selectedIds.length}/${tasks.length} selected</span>
     </div>` : "";
     return `<section class="project-card">
       <div class="section-title"><h2>${media ? `<span class="media-thumb project-list-thumb" ${imageStyleAttr(project)}><img src="${esc(media)}" alt=""></span>` : icon("folder")} ${esc(project.name)}</h2><span style="display:flex;align-items:center;gap:8px;">${project.id ? `<button class="icon-btn" data-action="open-project" data-id="${project.id}" aria-label="Open project">${icon("folder")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}" aria-label="Edit project">${icon("edit")}</button>` : ""}<span class="status muted">${tasks.length}</span>${project.id ? `<button class="icon-btn danger-text" data-action="delete-project" data-id="${project.id}" aria-label="Delete project">${icon("trash")}</button>` : ""}</span></div>
-      ${unassigned ? `<p class="subtle project-drag-note">Drag any task card onto a project tile above to assign it.</p>` : ""}
+      ${unassigned ? `<p class="subtle project-drag-note">${ui.projectDragSelectMode ? "Drag a rectangle across task cards to select a row, column, or custom group. Turn Drag select off to drag cards onto project tiles." : "Drag any task card onto a project tile above to assign it."}</p>` : ""}
       ${bulkTools}
-      <div class="${unassigned ? "unassigned-task-grid" : "list"}">${tasks.map((task) => projectTaskCard(task, project, unassigned)).join("") || `<p class="muted">No unassigned tasks.</p>`}</div>
+      <div class="${unassigned ? `unassigned-task-grid ${ui.projectDragSelectMode ? "drag-select-mode" : ""}` : "list"}" ${unassigned ? "data-project-task-select-grid" : ""}>${tasks.map((task) => projectTaskCard(task, project, unassigned)).join("") || `<p class="muted">No unassigned tasks.</p>`}</div>
     </section>`;
   }
 
   function projectTaskCard(task, project, unassigned = false) {
     const selected = ui.selectedTasks.includes(task.id);
-    return `<article class="data-row project-task-mini ${unassigned ? "draggable-task" : ""} ${selected ? "selected" : ""}" data-action="open-modal" data-modal="editTask" data-id="${task.id}" ${unassigned ? `draggable="true" data-project-task-id="${task.id}" title="Open ${esc(task.title)} or drag it onto a project tile"` : ""} role="button" tabindex="0">
+    const canDragAssign = unassigned && !ui.projectDragSelectMode;
+    return `<article class="data-row project-task-mini ${unassigned ? "draggable-task" : ""} ${ui.projectDragSelectMode ? "selectable-task" : ""} ${selected ? "selected" : ""}" data-action="open-modal" data-modal="editTask" data-id="${task.id}" ${unassigned ? `draggable="${canDragAssign ? "true" : "false"}" data-project-task-id="${task.id}" title="${ui.projectDragSelectMode ? `Drag select ${esc(task.title)}` : `Open ${esc(task.title)} or drag it onto a project tile`}"` : ""} role="button" tabindex="0">
       ${unassigned ? `<button class="task-mini-select ${selected ? "active" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(task.title)}">${selected ? icon("check") : ""}</button>` : ""}
       <span class="dot" style="background:${priorityColor(task.priority)}"></span>
       <div class="project-task-mini-body">
@@ -6121,6 +6125,12 @@ function quickAction(action) {
       ? ui.selectedTasks.filter((taskId) => !ids.includes(taskId))
       : Array.from(new Set([...ui.selectedTasks, ...ids]));
     render();
+  }
+
+  function toggleProjectDragSelectMode() {
+    ui.projectDragSelectMode = !ui.projectDragSelectMode;
+    render();
+    showToast(ui.projectDragSelectMode ? "Drag select is on. Draw across task cards to select just what you need." : "Drag select is off. You can drag cards onto project tiles again.");
   }
 
   function visibleTaskListIds() {
@@ -9274,11 +9284,16 @@ function quickAction(action) {
 
   function attachProjectTaskInteractions() {
     if (ui.view !== "projects" || ui.projectId) return;
+    const selectGrid = document.querySelectorAll("[data-project-task-select-grid]")[0];
+    if (selectGrid && ui.projectDragSelectMode && selectGrid.dataset.dragSelectBound !== "true") {
+      selectGrid.dataset.dragSelectBound = "true";
+      selectGrid.addEventListener("pointerdown", (event) => startProjectDragSelect(event, selectGrid));
+    }
     document.querySelectorAll("[data-project-task-id]").forEach((card) => {
       if (card.dataset.dragBound === "true") return;
       card.dataset.dragBound = "true";
       card.addEventListener("dragstart", (event) => {
-        if (event.target.closest("button,input,select,textarea,a")) {
+        if (ui.projectDragSelectMode || event.target.closest("button,input,select,textarea,a")) {
           event.preventDefault();
           return;
         }
@@ -9321,6 +9336,91 @@ function quickAction(action) {
         assignTasksToProject(taskIds, tile.dataset.projectDrop);
       });
     });
+  }
+
+  function startProjectDragSelect(event, grid) {
+    if (!ui.projectDragSelectMode || event.button !== 0) return;
+    if (event.target.closest("button,input,select,textarea,a")) return;
+    if (!event.target.closest("[data-project-task-select-grid]")) return;
+    event.preventDefault();
+    suppressCardEditUntil = Date.now() + 700;
+    const marquee = document.createElement("span");
+    marquee.className = "project-selection-marquee";
+    marquee.setAttribute("aria-hidden", "true");
+    grid.appendChild(marquee);
+    projectDragSelectState = {
+      grid,
+      marquee,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseSelected: new Set(ui.selectedTasks),
+      currentSelected: new Set(ui.selectedTasks),
+      moved: false
+    };
+    grid.classList.add("is-selecting");
+    updateProjectDragSelect(event.clientX, event.clientY);
+    document.addEventListener("pointermove", moveProjectDragSelect, { passive: false });
+    document.addEventListener("pointerup", endProjectDragSelect, { once: true });
+    document.addEventListener("pointercancel", endProjectDragSelect, { once: true });
+  }
+
+  function moveProjectDragSelect(event) {
+    if (!projectDragSelectState) return;
+    event.preventDefault();
+    suppressCardEditUntil = Date.now() + 700;
+    updateProjectDragSelect(event.clientX, event.clientY);
+  }
+
+  function updateProjectDragSelect(clientX, clientY) {
+    const state = projectDragSelectState;
+    if (!state) return;
+    const gridRect = state.grid.getBoundingClientRect();
+    const left = Math.min(state.startX, clientX);
+    const right = Math.max(state.startX, clientX);
+    const top = Math.min(state.startY, clientY);
+    const bottom = Math.max(state.startY, clientY);
+    if (Math.abs(clientX - state.startX) > 4 || Math.abs(clientY - state.startY) > 4) state.moved = true;
+    Object.assign(state.marquee.style, {
+      left: `${left - gridRect.left + state.grid.scrollLeft}px`,
+      top: `${top - gridRect.top + state.grid.scrollTop}px`,
+      width: `${Math.max(1, right - left)}px`,
+      height: `${Math.max(1, bottom - top)}px`
+    });
+    const nextSelected = new Set(state.baseSelected);
+    state.grid.querySelectorAll("[data-project-task-id]").forEach((card) => {
+      const rect = card.getBoundingClientRect();
+      const intersects = rect.right >= left && rect.left <= right && rect.bottom >= top && rect.top <= bottom;
+      if (intersects) nextSelected.add(card.dataset.projectTaskId);
+    });
+    ui.selectedTasks = Array.from(nextSelected);
+    state.currentSelected = nextSelected;
+    state.grid.querySelectorAll("[data-project-task-id]").forEach((card) => {
+      const selected = nextSelected.has(card.dataset.projectTaskId);
+      card.classList.toggle("selected", selected);
+      const button = card.querySelector(".task-mini-select");
+      if (button) {
+        button.classList.toggle("active", selected);
+        button.innerHTML = selected ? icon("check") : "";
+      }
+    });
+  }
+
+  function endProjectDragSelect(event) {
+    if (projectDragSelectState && event?.clientX !== undefined) updateProjectDragSelect(event.clientX, event.clientY);
+    const selectedCount = selectedUnassignedTaskIds().length;
+    cleanupProjectDragSelect();
+    suppressCardEditUntil = Date.now() + 700;
+    render();
+    showToast(selectedCount ? `${selectedCount} unassigned task${selectedCount === 1 ? "" : "s"} selected.` : "No task cards selected.");
+  }
+
+  function cleanupProjectDragSelect() {
+    document.removeEventListener("pointermove", moveProjectDragSelect);
+    document.removeEventListener("pointerup", endProjectDragSelect);
+    document.removeEventListener("pointercancel", endProjectDragSelect);
+    projectDragSelectState?.grid?.classList.remove("is-selecting");
+    projectDragSelectState?.marquee?.remove();
+    projectDragSelectState = null;
   }
 
   function attachNoteNotebookInteractions() {
@@ -10448,6 +10548,11 @@ function quickAction(action) {
     const sheet = event.target.closest("[data-sheet]");
     const actionEl = event.target.closest("[data-action]");
     const copyTargetEl = event.target.closest("[data-copy-target-date]");
+    const projectSelectCard = event.target.closest(".project-task-mini[data-project-task-id]");
+    if (projectSelectCard && actionEl?.dataset.action !== "toggle-task-select" && (ui.projectDragSelectMode || Date.now() < suppressCardEditUntil)) {
+      event.preventDefault();
+      return;
+    }
     if (!actionEl && copyTargetEl && ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length) {
       const targetDate = copyTargetEl.dataset.copyTargetDate;
       if (targetDate && targetDate !== ui.selectedDate) {
@@ -10883,6 +10988,7 @@ function quickAction(action) {
       return render();
     }
     if (action === "toggle-task-select") return toggleTaskSelect(el.dataset.id);
+    if (action === "toggle-project-drag-select") return toggleProjectDragSelectMode();
     if (action === "select-visible-project-tasks") return selectVisibleProjectTasks(el.dataset.projectId || "");
     if (action === "select-visible-tasks") return selectVisibleTasks();
     if (action === "toggle-select-mode") return openTaskActions();

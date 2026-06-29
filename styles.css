@@ -5894,9 +5894,33 @@ button.round-icon {
 }
 
 .unassigned-task-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 10px;
+}
+
+.unassigned-task-grid.drag-select-mode {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.unassigned-task-grid.drag-select-mode .project-task-mini {
+  cursor: crosshair;
+}
+
+.unassigned-task-grid.is-selecting .project-task-mini {
+  pointer-events: none;
+}
+
+.project-selection-marquee {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  background: rgba(33, 150, 243, 0.16);
+  border: 2px solid rgba(33, 150, 243, 0.72);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72) inset;
 }
 
 .unassigned-notes-section {
