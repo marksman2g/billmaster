@@ -10269,10 +10269,43 @@ canvas {
   user-select: none;
 }
 
+.block-select-marquee {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(33, 150, 243, 0.18)),
+    rgba(33, 150, 243, 0.12);
+  border: 2px solid rgba(33, 150, 243, 0.74);
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.62) inset,
+    0 0 18px rgba(33, 150, 243, 0.4);
+  opacity: 0;
+  transform: translateZ(0);
+  transition: opacity 80ms ease;
+}
+
+.block-select-marquee.is-active {
+  opacity: 1;
+}
+
 .event-block.is-selected {
   outline: 3px solid rgba(33, 150, 243, 0.78);
   outline-offset: 2px;
   box-shadow: 0 0 0 5px rgba(33, 150, 243, 0.16), 0 12px 24px rgba(26, 31, 54, 0.2);
+}
+
+.event-block.is-brush-hit {
+  filter: brightness(1.18) saturate(1.16);
+  box-shadow: 0 0 0 7px rgba(33, 150, 243, 0.26), 0 0 22px rgba(33, 150, 243, 0.44), 0 12px 24px rgba(26, 31, 54, 0.2);
+}
+
+.event-block.is-brush-removed {
+  filter: brightness(0.88) saturate(0.92);
+  outline: 3px solid rgba(255, 193, 7, 0.78);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(255, 193, 7, 0.2), 0 12px 24px rgba(26, 31, 54, 0.16);
 }
 
 .event-block.has-start-boundary {
@@ -12976,7 +13009,7 @@ canvas {
 
 .weather-motion-grid {
   border-radius: 0;
-  opacity: 0.42;
+  opacity: 0.34;
 }
 
 .weather-motion-layer::before,
@@ -13002,11 +13035,19 @@ canvas {
 }
 
 .weather-motion-grid.weather-motion-sun::before {
-  top: 14px;
-  right: 14px;
-  width: 26px;
-  height: 26px;
-  opacity: 0.58;
+  inset: -55px -12px 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 78% 7%, rgba(255, 253, 231, 0.86) 0 9px, rgba(255, 212, 59, 0.58) 10px 21px, transparent 22px),
+    repeating-linear-gradient(112deg, transparent 0 28px, rgba(255, 212, 59, 0.18) 29px 31px, transparent 32px 58px),
+    radial-gradient(circle at 36% 18%, rgba(255, 236, 128, 0.22) 0 4px, transparent 5px),
+    radial-gradient(circle at 64% 42%, rgba(255, 236, 128, 0.18) 0 5px, transparent 6px),
+    radial-gradient(circle at 24% 68%, rgba(255, 236, 128, 0.2) 0 4px, transparent 5px);
+  background-size: auto, 48px 72px, 120px 190px, 135px 210px, 150px 240px;
+  opacity: 0.44;
+  animation: bmWeatherSunTrickle 7.5s linear infinite;
 }
 
 .weather-motion-cloud::before {
@@ -13023,18 +13064,33 @@ canvas {
   animation: bmWeatherCloudDrift 3.6s ease-in-out infinite;
 }
 
+.weather-motion-grid.weather-motion-cloud::before {
+  inset: -42px -16px 0;
+  width: auto;
+  height: auto;
+  background:
+    radial-gradient(ellipse at 25% 8%, rgba(255, 255, 255, 0.46) 0 18px, transparent 19px),
+    radial-gradient(ellipse at 68% 25%, rgba(213, 227, 241, 0.34) 0 24px, transparent 25px),
+    radial-gradient(ellipse at 38% 50%, rgba(255, 255, 255, 0.32) 0 17px, transparent 18px),
+    radial-gradient(ellipse at 74% 78%, rgba(201, 218, 233, 0.28) 0 22px, transparent 23px);
+  background-size: 150px 190px, 170px 230px, 145px 210px, 190px 260px;
+  filter: none;
+  opacity: 0.44;
+  animation: bmWeatherCloudTrickle 10s linear infinite;
+}
+
 .weather-motion-rain::before {
   inset: -38px -10px 0;
   background:
     repeating-linear-gradient(
       105deg,
-      transparent 0 8px,
-      rgba(29, 111, 217, 0.38) 9px 11px,
-      transparent 12px 22px
+      transparent 0 11px,
+      rgba(29, 111, 217, 0.26) 12px 13px,
+      transparent 14px 28px
     );
-  background-size: 38px 34px;
-  opacity: 0.58;
-  animation: bmWeatherRainFall 0.9s linear infinite;
+  background-size: 50px 46px;
+  opacity: 0.44;
+  animation: bmWeatherRainFall 1.15s linear infinite;
 }
 
 .weather-motion-rain::after {
@@ -13043,7 +13099,7 @@ canvas {
   left: 26px;
   height: 8px;
   border-radius: 999px;
-  background: radial-gradient(ellipse, rgba(29, 111, 217, 0.28), transparent 68%);
+  background: radial-gradient(ellipse, rgba(29, 111, 217, 0.18), transparent 68%);
   animation: bmWeatherRainRipple 1.45s ease-in-out infinite;
 }
 
@@ -13069,6 +13125,23 @@ canvas {
   animation-delay: 0.32s;
 }
 
+.weather-motion-grid.weather-motion-wind::before,
+.weather-motion-grid.weather-motion-wind::after {
+  inset: -36px 0 0;
+  height: auto;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 46px, rgba(55, 96, 123, 0.15) 47px 49px, transparent 50px 86px),
+    repeating-linear-gradient(160deg, transparent 0 34px, rgba(55, 96, 123, 0.1) 35px 37px, transparent 38px 72px);
+  border-radius: 0;
+  opacity: 0.42;
+  animation: bmWeatherWindTrickle 7s ease-in-out infinite;
+}
+
+.weather-motion-grid.weather-motion-wind::after {
+  opacity: 0.24;
+  animation-delay: 0.7s;
+}
+
 @keyframes bmWeatherSunPulse {
   0%,
   100% {
@@ -13084,6 +13157,16 @@ canvas {
   }
 }
 
+@keyframes bmWeatherSunTrickle {
+  from {
+    transform: translate3d(0, -18px, 0);
+  }
+
+  to {
+    transform: translate3d(-10px, 54px, 0);
+  }
+}
+
 @keyframes bmWeatherCloudDrift {
   0%,
   100% {
@@ -13094,6 +13177,16 @@ canvas {
   50% {
     transform: translateX(5px);
     opacity: 0.88;
+  }
+}
+
+@keyframes bmWeatherCloudTrickle {
+  from {
+    transform: translate3d(-12px, -24px, 0);
+  }
+
+  to {
+    transform: translate3d(14px, 66px, 0);
   }
 }
 
@@ -13130,6 +13223,17 @@ canvas {
   45% {
     transform: translateX(12px);
     opacity: 0.72;
+  }
+}
+
+@keyframes bmWeatherWindTrickle {
+  0%,
+  100% {
+    transform: translate3d(-10px, -18px, 0);
+  }
+
+  50% {
+    transform: translate3d(16px, 42px, 0);
   }
 }
 

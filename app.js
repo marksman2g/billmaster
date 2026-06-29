@@ -9936,9 +9936,10 @@ function quickAction(action) {
     event.preventDefault();
     event.stopPropagation();
     const startedWithSelection = ui.selectedTasks.length > 0;
-    blockSelectBrushState = { pointerId: event.pointerId, ids: new Set(), block, startX: event.clientX, startY: event.clientY, moved: false, holdTimer: null, startedWithSelection };
+    blockSelectBrushState = { pointerId: event.pointerId, ids: new Set(), block, startX: event.clientX, startY: event.clientY, moved: false, holdTimer: null, startedWithSelection, anchorTaskId: taskId, overlay: null };
     block.setPointerCapture?.(event.pointerId);
     brushSelectBlockTask(block, taskId);
+    createBlockSelectMarquee(blockSelectBrushState);
     if (startedWithSelection) scheduleBlockSelectHoldMenu(blockSelectBrushState);
     document.addEventListener("pointermove", moveBlockSelectBrush);
     document.addEventListener("pointerup", endBlockSelectBrush, { once: true });
@@ -9952,36 +9953,101 @@ function quickAction(action) {
     const dy = event.clientY - state.startY;
     state.moved = state.moved || Math.abs(dx) > blockHoldMoveTolerance || Math.abs(dy) > blockHoldMoveTolerance;
     if (state.moved) clearBlockSelectHoldTimer(state);
-    const element = document.elementFromPoint(event.clientX, event.clientY);
-    const block = element?.closest?.(".event-block");
-    if (!block) return;
-    brushSelectBlockTask(block, block.dataset.taskId);
+    updateBlockSelectMarquee(state, event.clientX, event.clientY);
+    const hitRect = blockSelectMarqueeRect(state.startX, state.startY, event.clientX, event.clientY);
+    if (hitRect.width < 8 && hitRect.height < 8) {
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      const block = element?.closest?.(".event-block");
+      if (block) brushSelectBlockTask(block, block.dataset.taskId);
+      return;
+    }
+    document.querySelectorAll(".block-calendar .event-block").forEach((block) => {
+      if (rectsIntersect(hitRect, block.getBoundingClientRect())) {
+        brushSelectBlockTask(block, block.dataset.taskId, { toggle: true });
+      }
+    });
   }
 
   function enterBlockSelectBrush(event) {
     if (!ui.blockSelectMode || !blockSelectBrushState || event.pointerId !== blockSelectBrushState.pointerId) return;
-    brushSelectBlockTask(event.currentTarget, event.currentTarget.dataset.taskId);
+    brushSelectBlockTask(event.currentTarget, event.currentTarget.dataset.taskId, { toggle: blockSelectBrushState.moved });
   }
 
-  function brushSelectBlockTask(block, taskId) {
+  function brushSelectBlockTask(block, taskId, options = {}) {
     if (!taskId || !blockSelectBrushState || blockSelectBrushState.ids.has(taskId)) return;
     blockSelectBrushState.ids.add(taskId);
-    if (!ui.selectedTasks.includes(taskId)) ui.selectedTasks.push(taskId);
-    block.classList.add("is-selected");
+    const selected = ui.selectedTasks.includes(taskId);
+    const shouldDeselect = Boolean(options.toggle && selected && taskId !== blockSelectBrushState.anchorTaskId);
+    block.classList.remove("is-brush-hit", "is-brush-removed");
+    void block.offsetWidth;
+    if (shouldDeselect) {
+      ui.selectedTasks = ui.selectedTasks.filter((id) => id !== taskId);
+      block.classList.remove("is-selected");
+      block.classList.add("is-brush-removed");
+      updateBlockSelectButton(block, false);
+      setTimeout(() => block.classList.remove("is-brush-removed"), 220);
+      return;
+    }
+    if (!selected) ui.selectedTasks.push(taskId);
+    block.classList.add("is-selected", "is-brush-hit");
+    updateBlockSelectButton(block, true);
+    setTimeout(() => block.classList.remove("is-brush-hit"), 220);
+  }
+
+  function updateBlockSelectButton(block, selected) {
     const button = block.querySelector(".block-select-button");
     if (button) {
-      button.classList.add("active");
-      button.innerHTML = icon("check");
-      button.setAttribute("aria-label", "Selected task");
+      button.classList.toggle("active", selected);
+      button.innerHTML = selected ? icon("check") : "";
+      button.setAttribute("aria-label", selected ? "Selected task" : "Select task");
     }
   }
 
   function endBlockSelectBrush() {
     document.removeEventListener("pointermove", moveBlockSelectBrush);
     clearBlockSelectHoldTimer(blockSelectBrushState);
+    removeBlockSelectMarquee(blockSelectBrushState);
     blockSelectBrushState?.block?.releasePointerCapture?.(blockSelectBrushState.pointerId);
     blockSelectBrushState = null;
     render();
+  }
+
+  function createBlockSelectMarquee(state) {
+    if (!state || state.overlay) return;
+    const overlay = document.createElement("div");
+    overlay.className = "block-select-marquee";
+    document.body.appendChild(overlay);
+    state.overlay = overlay;
+    updateBlockSelectMarquee(state, state.startX, state.startY);
+  }
+
+  function updateBlockSelectMarquee(state, clientX, clientY) {
+    if (!state?.overlay) return;
+    const rect = blockSelectMarqueeRect(state.startX, state.startY, clientX, clientY);
+    Object.assign(state.overlay.style, {
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`
+    });
+    state.overlay.classList.toggle("is-active", rect.width >= 8 || rect.height >= 8);
+  }
+
+  function removeBlockSelectMarquee(state) {
+    state?.overlay?.remove();
+    if (state) state.overlay = null;
+  }
+
+  function blockSelectMarqueeRect(startX, startY, endX, endY) {
+    const left = Math.min(startX, endX);
+    const top = Math.min(startY, endY);
+    const width = Math.abs(endX - startX);
+    const height = Math.abs(endY - startY);
+    return { left, top, width, height, right: left + width, bottom: top + height };
+  }
+
+  function rectsIntersect(a, b) {
+    return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
   }
 
   function scheduleBlockSelectHoldMenu(state) {
@@ -9992,6 +10058,7 @@ function quickAction(action) {
       document.removeEventListener("pointermove", moveBlockSelectBrush);
       document.removeEventListener("pointerup", endBlockSelectBrush);
       document.removeEventListener("pointercancel", endBlockSelectBrush);
+      removeBlockSelectMarquee(state);
       state.block.releasePointerCapture?.(state.pointerId);
       blockSelectBrushState = null;
       openModal("taskActions", "");
@@ -10025,9 +10092,12 @@ function quickAction(action) {
         startY: state.startY,
         moved: false,
         holdTimer: null,
-        startedWithSelection: ui.selectedTasks.length > 0
+        startedWithSelection: ui.selectedTasks.length > 0,
+        anchorTaskId: state.taskId,
+        overlay: null
       };
       brushSelectBlockTask(state.block, state.taskId);
+      createBlockSelectMarquee(blockSelectBrushState);
       state.block.setPointerCapture?.(state.pointerId);
       document.addEventListener("pointermove", moveBlockSelectBrush);
       document.addEventListener("pointerup", endBlockSelectBrush, { once: true });
