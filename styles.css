@@ -17535,13 +17535,57 @@ canvas {
 .day-cell.is-today .date-cell-content,
 .week-day.is-today .date-cell-content,
 .week-timetable-day-head.is-today .date-cell-content,
-.block-head-button.is-today .date-cell-content,
+.block-head-button.is-today .date-cell-content {
+  position: relative;
+  z-index: 3;
+}
+
 .day-cell.is-today .date-view-zones,
 .week-day.is-today .date-view-zones,
 .week-timetable-day-head.is-today .date-view-zones,
 .block-head-button.is-today .date-view-zones {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+}
+
+.day-cell.is-today .date-zone-label,
+.week-day.is-today .date-zone-label,
+.week-timetable-day-head.is-today .date-zone-label,
+.block-head-button.is-today .date-zone-label {
+  z-index: 12;
+}
+
+.day-cell.is-today .date-zone.top-left .date-zone-label,
+.week-day.is-today .date-zone.top-left .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.top-left .date-zone-label,
+.block-head-button.is-today .date-zone.top-left .date-zone-label {
+  top: 4px;
+  left: 4px;
+}
+
+.day-cell.is-today .date-zone.top-right .date-zone-label,
+.week-day.is-today .date-zone.top-right .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.top-right .date-zone-label,
+.block-head-button.is-today .date-zone.top-right .date-zone-label {
+  top: 4px;
+  right: 4px !important;
+}
+
+.day-cell.is-today .date-zone.bottom-left .date-zone-label,
+.week-day.is-today .date-zone.bottom-left .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.bottom-left .date-zone-label,
+.block-head-button.is-today .date-zone.bottom-left .date-zone-label {
+  bottom: 4px;
+  left: 4px;
+}
+
+.day-cell.is-today .date-zone.bottom-right .date-zone-label,
+.week-day.is-today .date-zone.bottom-right .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.bottom-right .date-zone-label,
+.block-head-button.is-today .date-zone.bottom-right .date-zone-label {
+  right: 4px;
+  bottom: 4px;
 }
 
 .day-cell.is-today .date-cell-content > strong,
