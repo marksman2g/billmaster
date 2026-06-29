@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260629-12";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260629-13";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -4615,7 +4615,8 @@ function quickAction(action) {
       { condition: "sunny", temp: 76 },
       { condition: "rain", temp: 63, rainStart: "2:00 PM", rainEnd: "5:00 PM" },
       { condition: "cloudy", temp: 69 },
-      { condition: "sunny", temp: 74 }
+      { condition: "sunny", temp: 74 },
+      { condition: "windy", temp: 70 }
     ];
     return { date: iso, ...patterns[Math.abs(seedValue) % patterns.length] };
   }
@@ -4623,6 +4624,7 @@ function quickAction(action) {
   function weatherIconName(weather) {
     const condition = String(weather?.condition || "").toLowerCase();
     if (condition.includes("rain")) return "rain";
+    if (condition.includes("wind") || condition.includes("breeze") || condition.includes("gust")) return "wind";
     if (condition.includes("cloud")) return "cloud";
     return "sun";
   }
@@ -4630,6 +4632,7 @@ function quickAction(action) {
   function weatherConditionLabel(weather) {
     const condition = String(weather?.condition || "sunny").toLowerCase();
     if (condition.includes("rain")) return "Rain";
+    if (condition.includes("wind") || condition.includes("breeze") || condition.includes("gust")) return "Windy";
     if (condition.includes("cloud")) return "Clouds";
     return "Sunny";
   }
@@ -4652,6 +4655,11 @@ function quickAction(action) {
       ? `${dateLabel(iso)}: rain from ${weatherRainWindow(weather).toLowerCase()}`
       : `${dateLabel(iso)}: ${condition.toLowerCase()}, ${weather.temp || "--"} degrees`;
     return `<span class="weather-chip weather-${esc(iconName)} weather-${esc(size)}" title="${esc(title)}" aria-label="${esc(title)}">${icon(iconName)}<span>${esc(text)}</span></span>`;
+  }
+
+  function weatherMotionLayer(iso, extraClass = "") {
+    const type = weatherIconName(weatherForDate(iso));
+    return `<span class="weather-motion-layer weather-motion-${esc(type)} ${extraClass}" aria-hidden="true"></span>`;
   }
 
   function weekRangeLabel(dates) {
@@ -4879,8 +4887,9 @@ function quickAction(action) {
     const tasks = calendarItemsForDay(iso).filter((task) => task.includeHours);
     const bill = data.bills.find((b) => b.dueDate === iso);
     const sub = data.subscriptions.find((s) => s.nextDate === iso);
-    return `<div class="day-cell ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
+    return `<div class="day-cell weather-motion-host ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
       ${dateViewZones(iso)}
+      ${weatherMotionLayer(iso)}
       <div class="date-cell-content">
         ${isToday ? `<div class="subtle">${calendarWeekdayGlowLabel(date.toLocaleDateString("en-US", { weekday: "short" }))}</div>` : ""}
         <strong>${day}</strong>
@@ -4917,8 +4926,9 @@ function quickAction(action) {
   function weekTimetableHeader(iso) {
     const isSelected = iso === ui.selectedDate;
     const isToday = iso === todayIso();
-    return `<div class="week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateLabel(iso)}">
+    return `<div class="week-timetable-head week-timetable-day-head weather-motion-host ${calendarToneClass(iso)} ${isSelected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateLabel(iso)}">
       ${dateViewZones(iso)}
+      ${weatherMotionLayer(iso)}
       ${calendarDateCardContent(iso)}
     </div>`;
   }
@@ -4927,7 +4937,8 @@ function quickAction(action) {
     const startMinute = 7 * 60;
     const endMinute = 20 * 60;
     const items = tasksForDay(iso).filter((task) => task.start && task.end);
-    return `<div class="week-timetable-day ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}" ${calendarWeekdayAttr(iso)}>
+    return `<div class="week-timetable-day weather-motion-host ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}" ${calendarWeekdayAttr(iso)}>
+      ${weatherMotionLayer(iso, "weather-motion-grid")}
       ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
       ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
     </div>`;
@@ -5000,8 +5011,9 @@ function quickAction(action) {
     const isToday = iso === todayIso();
     const isCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && ui.dayCopyTargetDate === iso && iso !== ui.selectedDate;
     const canPickCopyTarget = ui.view === "calendar" && ui.calendarView === "day" && ui.selectedTasks.length && iso !== ui.selectedDate;
-    return `<div class="week-day ${calendarToneClass(iso)} ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} data-copy-target-date="${iso}">
+    return `<div class="week-day weather-motion-host ${calendarToneClass(iso)} ${iso === ui.selectedDate ? "active" : ""} ${isToday ? "is-today" : ""} ${isCopyTarget ? "copy-target" : ""}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} data-copy-target-date="${iso}">
       ${dateViewZones(iso)}
+      ${weatherMotionLayer(iso)}
       ${calendarDateCardContent(iso)}
       ${canPickCopyTarget ? `<button class="copy-here-chip" data-action="select-day-copy-target" data-date="${iso}">${isCopyTarget ? `${icon("check")} Target` : "Copy here"}</button>` : ""}
     </div>`;
@@ -5254,8 +5266,9 @@ function quickAction(action) {
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
     const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">AM/PM</div>${weekdays.map((iso) => {
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
+      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
         ${dateViewZones(iso)}
+        ${weatherMotionLayer(iso)}
         ${calendarDateCardContent(iso)}
       </div>`;
     }).join("")}<div class="block-head time-head week-timetable-head week-timetable-time-head">24h</div>`;
@@ -5264,7 +5277,7 @@ function quickAction(action) {
     const cols = weekdays.map((iso) => {
       const dayTasks = tasks.filter((task) => task.date === iso);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-col ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
+      return `<div class="block-col weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${weatherMotionLayer(iso, "weather-motion-grid")}${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
