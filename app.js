@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-22";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260629-1";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2702,7 +2702,10 @@ function commandIllustration(iconName) {
             <circle class="ci-loan-splash ci-loan-splash-4" cx="55" cy="63" r="2.8"></circle>
             <circle class="ci-loan-splash ci-loan-splash-5" cx="14" cy="57" r="2.5"></circle>
             <circle class="ci-loan-splash ci-loan-splash-6" cx="39" cy="53" r="3.1"></circle>
-            <path class="ci-loan-splash ci-loan-splash-streak" d="M14 58c12-7 29-7 44 1"></path>
+            <circle class="ci-loan-splash ci-loan-splash-7" cx="34" cy="43" r="4.2"></circle>
+            <circle class="ci-loan-splash ci-loan-splash-8" cx="47" cy="73" r="3.2"></circle>
+            <path class="ci-loan-splash ci-loan-splash-impact" d="M12 46c10-9 30-11 48-5 8 3 14 8 17 15-15-4-28-2-40 4-11 5-20 5-27 0 5-4 8-8 2-14z"></path>
+            <path class="ci-loan-splash ci-loan-splash-streak" d="M12 58c13-9 34-10 51 1"></path>
             <path class="ci-loan-splash ci-loan-splash-drip" d="M45 48c-2 8-1 16 3 23"></path>
           </g>
           <text class="ci-title ci-title-loan" x="31" y="36" text-anchor="middle">Loan</text>
@@ -2713,6 +2716,12 @@ function commandIllustration(iconName) {
           <path d="M84 44l10-5"></path>
           <path d="M53 50l-12-3"></path>
           <path d="M82 76l8 8"></path>
+        </g>
+        <g class="ci-loan-bag-fragments">
+          <path class="ci-loan-fragment ci-loan-fragment-1" d="M61 47l-9-5 4 10z"></path>
+          <path class="ci-loan-fragment ci-loan-fragment-2" d="M79 43l10-5-2 11z"></path>
+          <path class="ci-loan-fragment ci-loan-fragment-3" d="M69 73l-6 10 12-3z"></path>
+          <path class="ci-loan-fragment ci-loan-fragment-4" d="M82 62l10 8-12 2z"></path>
         </g>
         <g class="ci-loan-bag">
           <path class="ci-loan-bag-tie" d="M70 33l-6-8 7 3 7-3-4 8"></path>
