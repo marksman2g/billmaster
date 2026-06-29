@@ -4055,7 +4055,8 @@ button.round-icon {
   border-color: var(--blue);
 }
 
-.task-control-bar {
+.task-control-bar,
+.habit-control-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4078,7 +4079,8 @@ button.round-icon {
   border-left: 1px solid var(--line);
 }
 
-.task-control-bar button {
+.task-control-bar button,
+.habit-control-bar button {
   flex: 0 0 auto;
   min-height: 32px;
   padding: 0 10px;
@@ -4091,7 +4093,8 @@ button.round-icon {
   white-space: nowrap;
 }
 
-.task-control-bar button.active {
+.task-control-bar button.active,
+.habit-control-bar button.active {
   color: #fff;
   background: var(--blue);
   border-color: var(--blue);
@@ -11847,8 +11850,68 @@ canvas {
   font-weight: 850;
 }
 
+.habit-dashboard-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: #f8fbff;
+  border: 1px solid #d8e8fb;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(26, 31, 54, 0.06);
+}
+
 .habit-stat-grid {
-  margin-bottom: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.habit-metric {
+  display: grid;
+  min-height: 70px;
+  align-content: center;
+  gap: 2px;
+  padding: 10px 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fff, #f2f8ff);
+  border: 1px solid #dbe9f8;
+  border-left: 4px solid var(--blue);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(33, 86, 143, 0.05);
+}
+
+.habit-metric.week { border-left-color: var(--green); }
+.habit-metric.month { border-left-color: var(--amber); }
+.habit-metric.streak { border-left-color: var(--accent); }
+
+.habit-metric label {
+  color: #61738a;
+  font-size: 0.68rem;
+  font-weight: 880;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.habit-metric strong {
+  margin-top: 0;
+  color: var(--navy);
+  font-size: clamp(1.05rem, 2vw, 1.28rem);
+  line-height: 1;
+}
+
+.habit-metric .subtle {
+  overflow: hidden;
+  color: #7c8da1;
+  font-size: 0.72rem;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.habit-control-bar {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid #e1edf9;
 }
 
 .template-panel {
@@ -12665,6 +12728,7 @@ canvas {
 
   .filter-row,
   .category-filter-row,
+  .habit-control-bar,
   .time-period-filters {
     overflow-x: auto;
     padding-bottom: 2px;
@@ -12673,6 +12737,7 @@ canvas {
 
   .filter-row button,
   .category-filter-row button,
+  .habit-control-bar button,
   .time-period-chip {
     flex: 0 0 auto;
   }
@@ -13235,6 +13300,15 @@ canvas {
 
   .habit-hero {
     grid-template-columns: 1fr;
+  }
+
+  .habit-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .habit-metric {
+    min-height: 64px;
+    padding: 9px 10px;
   }
 
   .habit-card-head,

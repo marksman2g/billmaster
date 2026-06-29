@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-19";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-20";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -3008,18 +3008,22 @@ function quickAction(action) {
         </div>
         <div class="habit-ring" style="--value:${progressPct(completedToday, Math.max(1, todaysHabits.length))}%"><span>${progressPct(completedToday, Math.max(1, todaysHabits.length))}%</span></div>
       </section>
-      <div class="metrics-grid habit-stat-grid">
-        <div class="metric"><label>Active</label><strong>${activeHabits.length}</strong><span class="subtle">tracked habits</span></div>
-        <div class="metric"><label>This Week</label><strong>${weekStats.completed}/${weekStats.scheduled}</strong><span class="subtle">${weekStats.rate}% completion</span></div>
-        <div class="metric"><label>This Month</label><strong>${monthStats.completed}/${monthStats.scheduled}</strong><span class="subtle">${monthStats.rate}% completion</span></div>
-        <div class="metric"><label>Top Streak</label><strong>${data.habits.reduce((best, habit) => Math.max(best, habitCurrentStreak(habit, today)), 0)}</strong><span class="subtle">days</span></div>
-      </div>
-      <div class="filter-row">
-        ${["all", "today", "completed", "paused"].map((filter) => `<button class="${ui.habitFilter === filter ? "active" : ""}" data-action="set-tab" data-key="habitFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
-      </div>
-      <div class="filter-row habit-view-row">
-        ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.habitView === view ? "active" : ""}" data-action="set-tab" data-key="habitView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
-      </div>
+      <section class="habit-dashboard-panel" aria-label="Habit summary and controls">
+        <div class="metrics-grid habit-stat-grid">
+          <div class="metric habit-metric active"><label>Active</label><strong>${activeHabits.length}</strong><span class="subtle">tracked habits</span></div>
+          <div class="metric habit-metric week"><label>This Week</label><strong>${weekStats.completed}/${weekStats.scheduled}</strong><span class="subtle">${weekStats.rate}% completion</span></div>
+          <div class="metric habit-metric month"><label>This Month</label><strong>${monthStats.completed}/${monthStats.scheduled}</strong><span class="subtle">${monthStats.rate}% completion</span></div>
+          <div class="metric habit-metric streak"><label>Top Streak</label><strong>${data.habits.reduce((best, habit) => Math.max(best, habitCurrentStreak(habit, today)), 0)}</strong><span class="subtle">days</span></div>
+        </div>
+        <div class="habit-control-bar" aria-label="Habit filters and layout">
+          <div class="task-control-group">
+            ${["all", "today", "completed", "paused"].map((filter) => `<button class="${ui.habitFilter === filter ? "active" : ""}" data-action="set-tab" data-key="habitFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
+          </div>
+          <div class="task-control-group">
+            ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.habitView === view ? "active" : ""}" data-action="set-tab" data-key="habitView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+          </div>
+        </div>
+      </section>
       <div class="habit-action-bar">
         <span>${selectedCount ? `${selectedCount} selected` : "Select habits for bulk actions"}</span>
         <button class="outline-btn" data-action="select-visible-habits">${selectedVisible === filtered.length && filtered.length ? "Deselect visible" : "Select visible"}</button>
