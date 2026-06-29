@@ -23,6 +23,7 @@
     dashboardPanel: "today",
     selectedDate: todayIso(),
     subscriptionFilter: "all",
+    billHubTab: "bills",
     billQuery: "",
     billInboxFilter: "pending",
     taskFilter: "all",
@@ -2113,14 +2114,14 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ["dashboard", "home", "Today"],
       ["tracking", "wallet", "Money"],
       ["analytics", "chart", "Analytics"],
-      ["bills", "receipt", "Bills"],
-      ["subscriptions", "playcard", "Subscription"]
+      ["bills", "receipt", "Bills"]
     ];
   }
 
   function activeRoot() {
     if (ui.view === "lending") return "tracking";
     if (ui.view === "inbox") return "bills";
+    if (ui.view === "subscriptions") return "bills";
     if (["calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "sync", "ai"].includes(ui.view)) return "dashboard";
     return ui.view;
   }
@@ -2306,7 +2307,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       case "bills": return renderBills();
       case "inbox": return renderBillInbox();
       case "sync": return renderSyncCenter();
-      case "subscriptions": return renderSubscriptions();
+      case "subscriptions":
+        ui.billHubTab = "subscriptions";
+        return renderBills("subscriptions");
       case "calendar": return renderCalendar();
       case "tasks": return renderTasks();
       case "habits": return renderHabits();
@@ -2417,15 +2420,14 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           <section class="section-card">
             <div class="monitor-header">
               <span class="round-icon">${icon("chart")}</span>
-              <div><h2 class="panel-title">Monitored Items</h2><div class="subtle">Subscriptions - Loans - Bills - Goals</div></div>
+              <div><h2 class="panel-title">Monitored Items</h2><div class="subtle">Bills + Subscriptions - Loans - Goals</div></div>
             </div>
             <div class="monitor-list">
               ${data.loans.filter((loan) => loanRemaining(loan) > 0).slice(0, 3).map((loan) => monitorLoanRow(loan)).join("") || `<p class="muted">No open lending items need attention.</p>`}
             </div>
             <div class="filter-row">
-              <button data-action="navigate-root" data-view="subscriptions">${icon("playcard")} Subscription</button>
+              <button data-action="navigate-root" data-view="bills">${icon("receipt")} Bills + Subscriptions</button>
               <button data-action="navigate" data-view="lending">${icon("loan")} Loans</button>
-              <button data-action="navigate-root" data-view="bills">${icon("receipt")} Bills</button>
               <button data-action="navigate" data-view="goals">${icon("folder")} Goals</button>
             </div>
           </section>
@@ -2553,8 +2555,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ]],
       ["Money", [
         { view: "tracking", iconName: "wallet", label: "Tracking", color: "teal", tone: "money", detail: "Income + spend" },
-        { view: "bills", iconName: "receipt", label: "Bills", color: "coral", tone: "bills", detail: "Due + paid" },
-        { view: "subscriptions", iconName: "playcard", label: "Subscription", color: "purple", tone: "subs", detail: "Recurring charges" },
+        { view: "bills", iconName: "receipt", label: "Bills", color: "coral", tone: "bills", detail: "Bills + subscriptions" },
         { view: "goals", iconName: "chart", label: "Goals", color: "green", tone: "goals", detail: "Fund progress" },
         { view: "lending", iconName: "loan", label: "Loans", color: "teal", tone: "loans", detail: "Owed + repaid" }
       ]],
@@ -3426,17 +3427,34 @@ function quickAction(action) {
     </div>`;
   }
 
-  function renderBills() {
+  function renderBills(tabOverride = "") {
+    const activeTab = tabOverride || ui.billHubTab || "bills";
     const q = ui.billQuery.toLowerCase();
     const bills = data.bills.filter((bill) => [bill.name, bill.payee, bill.category].join(" ").toLowerCase().includes(q)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const monthlyBills = data.bills.reduce((total, bill) => total + Number(bill.amount || 0), 0);
+    const monthlySubscriptions = data.subscriptions.reduce((total, sub) => total + monthlySubAmount(sub), 0);
     return `<section class="screen">
-      ${header("Bill Management", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="navigate" data-view="calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="addBill">${icon("plus")}</button>`)}
-      <div class="toolbar">
-        <label class="search-field">${icon("search")}<input id="billSearch" value="${esc(ui.billQuery)}" data-action="bill-search" placeholder="Search bills..." /></label>
-        <button class="icon-btn primary-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>
-        <button class="icon-btn secondary-filter" data-action="navigate" data-view="inbox" title="Detected bills">${icon("chart")}</button>
+      ${header("Bills", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="navigate" data-view="calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription" title="Add subscription">${icon("playcard")}</button><button class="icon-btn" data-action="open-modal" data-modal="addBill" title="Add bill">${icon("plus")}</button>`)}
+      <section class="section-card hub-note">
+        <span class="round-icon">${icon("receipt")}</span>
+        <div><strong>Bills umbrella</strong><p>Regular bills and subscriptions live together here. Subscription tools stay intact as a smart bill type.</p></div>
+        <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
+      </section>
+      <div class="metrics-grid" style="margin-bottom:12px;">
+        <div class="metric"><label>Regular Bills</label><strong>${data.bills.length}</strong><span class="subtle">${money(monthlyBills)} tracked</span></div>
+        <div class="metric"><label>Subscriptions</label><strong>${data.subscriptions.length}</strong><span class="subtle">${money(monthlySubscriptions)} monthly</span></div>
       </div>
-      ${bills.length ? `<div class="bill-grid">${bills.map((bill) => billCard(bill)).join("")}</div>` : emptyState("receipt", "No Bills Found", "Add your first bill to get started with organized payments.", "Add Your First Bill", "addBill")}
+      <div class="filter-row bill-hub-tabs">
+        ${["bills", "subscriptions"].map((tab) => `<button class="${activeTab === tab ? "active" : ""}" data-action="set-tab" data-key="billHubTab" data-value="${tab}">${tab === "bills" ? `${icon("receipt")} Bills` : `${icon("playcard")} Subscriptions`}</button>`).join("")}
+      </div>
+      ${activeTab === "subscriptions" ? subscriptionHubContent() : `
+        <div class="toolbar">
+          <label class="search-field">${icon("search")}<input id="billSearch" value="${esc(ui.billQuery)}" data-action="bill-search" placeholder="Search bills..." /></label>
+          <button class="icon-btn primary-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>
+          <button class="icon-btn secondary-filter" data-action="navigate" data-view="inbox" title="Detected bills">${icon("chart")}</button>
+        </div>
+        ${bills.length ? `<div class="bill-grid">${bills.map((bill) => billCard(bill)).join("")}</div>` : emptyState("receipt", "No Bills Found", "Add your first bill to get started with organized payments.", "Add Your First Bill", "addBill")}
+      `}
     </section>`;
   }
 
@@ -3468,7 +3486,7 @@ function quickAction(action) {
       </div>
       <div class="inbox-grid">${filtered.length ? filtered.map((item) => billInboxCard(item)).join("") : `<section class="section-card"><p class="muted">No inbox items in this filter.</p></section>`}</div>
       <section class="section-card">
-        <div class="section-title"><h2>Cancellation Center</h2><button class="text-btn" data-action="navigate-root" data-view="subscriptions">Subscription</button></div>
+        <div class="section-title"><h2>Cancellation Center</h2><button class="text-btn" data-action="navigate" data-view="subscriptions">Subscriptions</button></div>
         ${cancellationRows()}
       </section>
     </section>`;
@@ -4502,14 +4520,17 @@ function quickAction(action) {
   }
 
   function renderSubscriptions() {
+    return renderBills("subscriptions");
+  }
+
+  function subscriptionHubContent() {
     const filtered = data.subscriptions.filter((sub) => ui.subscriptionFilter === "all" || sub.status.toLowerCase().replaceAll(" ", "-") === ui.subscriptionFilter);
     const monthly = data.subscriptions.reduce((total, sub) => total + monthlySubAmount(sub), 0);
     const projectedMonthly = data.subscriptions.reduce((total, sub) => total + monthlySubProjected(sub), 0);
     const sixMonths = monthly * 6;
     const projectedSixMonths = projectedMonthly * 6;
     const yearly = monthly * 12;
-    return `<section class="screen">
-      ${header("Subscription", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="open-modal" data-modal="subscriptionTransactions">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="importStatement">${icon("note")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription">${icon("plus")}</button>`)}
+    return `
       <section class="section-card balance-panel subscription-summary" style="margin-bottom:16px;">
         <h2 class="panel-title" style="color:#fff;">Total Subscription Cost</h2>
         <div class="metrics-grid subscription-summary-grid">
@@ -4523,14 +4544,14 @@ function quickAction(action) {
       </section>
       <section class="section-card hub-note">
         <span class="round-icon">${icon("playcard")}</span>
-        <div><strong>One subscription home</strong><p>Detected recurring charges, imported statements, cancellation workflows, and manual subscriptions all land here after Review Inbox approval.</p></div>
+        <div><strong>Subscriptions are inside Bills</strong><p>Detected recurring charges, imported statements, cancellation workflows, and manual subscriptions all stay here as a smart bill type.</p></div>
         <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
       </section>
       <div class="filter-row">
         ${["all", "active", "trial", "expiring-soon", "cancelled"].map((filter) => `<button class="${ui.subscriptionFilter === filter ? "active" : ""}" data-action="set-tab" data-key="subscriptionFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
       </div>
       <div class="subscription-grid">${filtered.map((sub) => subscriptionCard(sub)).join("")}</div>
-    </section>`;
+    `;
   }
 
   function filterLabel(filter) {
@@ -11531,6 +11552,12 @@ function quickAction(action) {
 
   function navigate(view, root = false) {
     if (!view) return;
+    if (view === "subscriptions") {
+      ui.billHubTab = "subscriptions";
+      view = "bills";
+    } else if (view === "bills" && root) {
+      ui.billHubTab = "bills";
+    }
     if (!root && ui.view !== view) ui.backStack.push(ui.view);
     if (root) ui.backStack = [];
     ui.view = view;
