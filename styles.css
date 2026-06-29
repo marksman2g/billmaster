@@ -9836,7 +9836,6 @@ canvas {
 }
 
 .calendar-palette--animated .date-cell-content,
-.calendar-palette--animated .date-view-zones,
 .calendar-palette--animated .week-grid-line,
 .calendar-palette--animated .event-block {
   position: relative;
@@ -9848,7 +9847,18 @@ canvas {
 }
 
 .calendar-palette--animated .date-view-zones {
-  z-index: 4;
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+}
+
+.calendar-palette--animated .date-zone {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-palette--animated .date-zone-label {
+  z-index: 7;
 }
 
 .calendar-palette--animated .day-cell,
