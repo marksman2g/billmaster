@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260629-2";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260629-3";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -19,6 +19,7 @@
     analyticsTab: "expenses",
     chartType: "pie",
     calendarView: "day",
+    calendarColorsOpen: false,
     dashboardPanel: "today",
     selectedDate: todayIso(),
     subscriptionFilter: "all",
@@ -4480,8 +4481,11 @@ function quickAction(action) {
   function calendarTopTools(view) {
     return `<div class="calendar-top-tools">
       <div class="calendar-top-tools__panel">
-        ${calendarQuickAddBar(view)}
-        ${calendarColorSchemePicker()}
+        <div class="calendar-top-primary">
+          ${calendarQuickAddBar(view)}
+          <button class="outline-btn calendar-color-toggle ${ui.calendarColorsOpen ? "active" : ""}" data-action="toggle-calendar-colors" aria-expanded="${ui.calendarColorsOpen ? "true" : "false"}" title="${ui.calendarColorsOpen ? "Hide calendar colors" : "Show calendar colors"}">${icon("settings")} Colors</button>
+        </div>
+        ${ui.calendarColorsOpen ? calendarColorSchemePicker() : ""}
       </div>
     </div>`;
   }
@@ -10898,6 +10902,10 @@ function quickAction(action) {
     if (action === "toggle-nav-section") return toggleNavSection(el.dataset.section);
     if (action === "toggle-interface-mode") return toggleInterfaceMode();
     if (action === "toggle-task-category") return toggleTaskCategory(el.dataset.category);
+    if (action === "toggle-calendar-colors") {
+      ui.calendarColorsOpen = !ui.calendarColorsOpen;
+      return render();
+    }
     if (action === "set-calendar-palette") return setCalendarPalette(el.dataset.palette);
     if (action === "reset-calendar-day-colors") return resetCalendarDayColors();
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);

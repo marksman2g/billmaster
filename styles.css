@@ -7997,6 +7997,13 @@ canvas {
   min-width: 0;
 }
 
+.calendar-top-primary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
 .calendar-top-tools .calendar-quick-add {
   grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
   box-sizing: border-box;
@@ -8019,6 +8026,33 @@ canvas {
   width: auto;
   min-height: 32px;
   font-size: 0.82rem;
+}
+
+.calendar-color-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 0 10px;
+  color: #1f4a82;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(31, 74, 130, 0.28);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 880;
+  white-space: nowrap;
+}
+
+.calendar-color-toggle.active {
+  color: #fff;
+  background: #1f4a82;
+  border-color: #1f4a82;
+}
+
+.calendar-color-toggle .icon {
+  width: 15px;
+  height: 15px;
 }
 
 .calendar-screen .calendar-color-picker {
@@ -8190,6 +8224,15 @@ canvas {
   .calendar-top-tools__panel {
     justify-self: stretch;
     width: 100%;
+  }
+
+  .calendar-top-primary {
+    grid-template-columns: 1fr auto;
+  }
+
+  .calendar-color-toggle {
+    min-height: 38px;
+    padding-inline: 8px;
   }
 
   .calendar-screen .calendar-color-picker {
