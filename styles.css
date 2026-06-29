@@ -16503,3 +16503,57 @@ canvas {
     0 0 18px rgba(96, 165, 250, 0.3),
     inset 0 0 16px rgba(255, 214, 10, 0.1);
 }
+
+/* Day task cards: pull content down-left and make schedule text easier to read. */
+.compact-day-task .day-task-main {
+  gap: 6px;
+  padding-top: 10px;
+  padding-left: 22px;
+}
+
+.compact-day-task .day-task-body {
+  padding-right: 20px;
+}
+
+.compact-day-task .task-time-preview {
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 0.82rem;
+}
+
+.compact-day-task .task-time-preview > button,
+.compact-day-task .task-time-preview > span {
+  min-height: 28px;
+  padding: 4px 8px;
+  color: #263a52;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: #bdd7f2;
+  font-weight: 820;
+}
+
+.compact-day-task .task-time-preview .task-time-label {
+  color: #263a52;
+  font-weight: 840;
+}
+
+.compact-day-task .task-quick-controls {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: auto;
+  margin-top: 8px;
+  gap: 4px;
+}
+
+.compact-day-task .task-quick-badge-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.compact-day-task .task-quick-controls .danger-text {
+  width: 30px;
+  height: 30px;
+  margin: -1px 0 0 4px;
+  align-self: flex-start;
+}
