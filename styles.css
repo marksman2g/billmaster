@@ -16565,9 +16565,11 @@ canvas {
   .week-timetable-day-head.is-today,
   .block-head-button.is-today
 ) .calendar-weekday-name {
-  color: #061c38 !important;
-  animation: bmTodayWeekdayWordPulse 1.9s ease-in-out infinite !important;
-  filter: drop-shadow(0 0 0 rgba(255, 212, 59, 0));
+  color: #2a1a00 !important;
+  font-size: 0.9rem !important;
+  line-height: 1.05;
+  animation: bmTodayWeekdayWordPulse 1.55s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 4px rgba(255, 212, 59, 0.38));
   transform-origin: center;
 }
 
@@ -16577,8 +16579,12 @@ canvas {
   .week-timetable-day-head.is-today,
   .block-head-button.is-today
 ) .calendar-weekday-name span {
-  color: inherit !important;
-  animation: none !important;
+  color: transparent !important;
+  background: linear-gradient(90deg, #071f3f 0 25%, #b77900 38%, #fff2a8 50%, #c48600 62%, #071f3f 78% 100%);
+  background-size: 230% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: bmTodayWeekdayGoldSweep 1.55s ease-in-out infinite !important;
   transform: none !important;
 }
 
@@ -16592,10 +16598,91 @@ canvas {
   }
 
   48% {
-    transform: translateY(-1px) scale(1.16);
+    transform: translateY(-3px) scale(1.24);
     text-shadow:
-      0 0 4px rgba(255, 255, 255, 1),
-      0 0 11px rgba(255, 212, 59, 0.95),
-      0 0 18px rgba(33, 150, 243, 0.48);
+      0 0 5px rgba(255, 255, 255, 1),
+      0 0 14px rgba(255, 212, 59, 1),
+      0 0 24px rgba(255, 176, 0, 0.72),
+      0 0 22px rgba(33, 150, 243, 0.34);
   }
+}
+
+@keyframes bmTodayWeekdayGoldSweep {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  48% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Date card scale pass: bigger month squares and clearer view-zone letters. */
+.month-grid {
+  gap: 8px;
+}
+
+.month-grid .day-cell {
+  min-height: 92px;
+  padding: 8px 6px;
+  border-radius: 9px;
+}
+
+.month-grid .date-cell-content {
+  min-height: 76px;
+  align-content: center;
+}
+
+.week-timetable-grid {
+  grid-template-rows: 98px auto;
+}
+
+.week-timetable-head,
+.block-head {
+  min-height: 98px;
+}
+
+.block-head {
+  height: 98px;
+}
+
+.week-timetable-day-head .date-cell-content,
+.block-head-button .date-cell-content {
+  min-height: 86px;
+}
+
+.date-cell-content > strong {
+  font-size: 1.08rem;
+}
+
+.date-zone-label {
+  width: 22px;
+  height: 22px;
+  color: #081f3d;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(16, 35, 61, 0.26);
+  border-radius: 6px;
+  box-shadow: 0 5px 12px rgba(16, 35, 61, 0.16);
+  font-size: 0.76rem;
+}
+
+.date-zone.top-left .date-zone-label {
+  top: 4px;
+  left: 4px;
+}
+
+.date-zone.top-right .date-zone-label {
+  top: 4px;
+  right: 4px;
+}
+
+.date-zone.bottom-left .date-zone-label {
+  bottom: 4px;
+  left: 4px;
+}
+
+.date-zone.bottom-right .date-zone-label {
+  right: 4px;
+  bottom: 4px;
 }

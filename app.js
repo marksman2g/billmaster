@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260629-8";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260629-11";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -4882,6 +4882,7 @@ function quickAction(action) {
     return `<div class="day-cell ${calendarToneClass(iso)} ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} style="${calendarDateColorStyle(iso)}${inMonth ? "" : "opacity:.42;"}">
       ${dateViewZones(iso)}
       <div class="date-cell-content">
+        ${isToday ? `<div class="subtle">${calendarWeekdayGlowLabel(date.toLocaleDateString("en-US", { weekday: "short" }))}</div>` : ""}
         <strong>${day}</strong>
         ${weatherChip(iso, "mini")}
         <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${bill ? `<span class="dot coral"></span>` : ""}${sub ? `<span class="dot purple"></span>` : ""}</div>
@@ -5147,14 +5148,13 @@ function quickAction(action) {
   }
 
   function dateViewZones(iso) {
-    const showSundayLabels = parseLocalDate(iso).getDay() === 0;
     const zones = [
       ["month", "top-left", "Month view", "M"],
       ["week", "top-right", "Week view", "W"],
       ["day", "bottom-left", "Day view", "D"],
       ["block", "bottom-right", "Block view", "B"]
     ];
-    return `<div class="date-view-zones ${showSundayLabels ? "has-zone-labels" : ""}">${zones.map(([view, zone, label, letter]) => `<button class="date-zone ${zone}" data-action="set-calendar-date-view" data-date="${iso}" data-view="${view}" aria-label="${label} for ${dateLabel(iso)}" title="${label}">${showSundayLabels ? `<span class="date-zone-label" aria-hidden="true">${letter}</span>` : ""}</button>`).join("")}</div>`;
+    return `<div class="date-view-zones has-zone-labels">${zones.map(([view, zone, label, letter]) => `<button class="date-zone ${zone}" data-action="set-calendar-date-view" data-date="${iso}" data-view="${view}" aria-label="${label} for ${dateLabel(iso)}" title="${label}"><span class="date-zone-label" aria-hidden="true">${letter}</span></button>`).join("")}</div>`;
   }
 
   function visibleCalendarTasks(tasks) {
