@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-20";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-21";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -422,6 +422,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let voiceStopRequested = false;
   let taskAlertSchedulerStarted = false;
   let taskAlertAudioContext = null;
+  let suppressCardEditUntil = 0;
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockHoldMoveTolerance = 8;
@@ -461,6 +462,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-address",
     "save-task",
     "save-habit",
+    "save-habit-fresh-start",
     "save-habit-template-slot",
     "toggle-habit-completion",
     "copy-habit",
@@ -1724,6 +1726,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       if (!["Active", "Paused", "Archived"].includes(habit.status)) habit.status = "Active";
       habit.includeHours = habit.includeHours !== false;
       habit.targetCount = Math.max(1, Math.round(Number(habit.targetCount || 1)));
+      habit.freshStartDate = isIsoDateString(habit.freshStartDate) ? habit.freshStartDate : "";
+      if (habit.freshStartDate && habit.endDate && habit.freshStartDate > habit.endDate) habit.freshStartDate = "";
       habit.addressId = habit.addressId || null;
       habit.color = isHexColor(habit.color) ? habit.color : defaultCategoryColors.Habit;
       const fallbackDay = parseLocalDate(habit.startDate).getDay();
@@ -3023,6 +3027,17 @@ function quickAction(action) {
             ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.habitView === view ? "active" : ""}" data-action="set-tab" data-key="habitView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
           </div>
         </div>
+        <div class="habit-ai-bar">
+          <span class="habit-ai-icon">${icon("ai")}</span>
+          <div>
+            <strong>Habit AI</strong>
+            <span>Ask about your habits, or add one by voice.</span>
+          </div>
+          <div class="habit-ai-actions">
+            <button class="outline-btn" data-action="open-modal" data-modal="voiceHabit">${icon("mic")} Add by Voice</button>
+            <button class="primary-btn" data-action="navigate" data-view="ai">${icon("ai")} Ask AI</button>
+          </div>
+        </div>
       </section>
       <div class="habit-action-bar">
         <span>${selectedCount ? `${selectedCount} selected` : "Select habits for bulk actions"}</span>
@@ -3045,6 +3060,8 @@ function quickAction(action) {
     const color = habit.color || taskCategoryColor("Habit");
     const selected = ui.selectedHabits.includes(habit.id);
     const durationMinutes = Math.max(0, minutes(habit.end) - minutes(habit.start));
+    const countingSince = habitEffectiveStartDate(habit);
+    const hasFreshStart = Boolean(habit.freshStartDate);
     return `<article class="habit-card habit-card-${esc(ui.habitView)} ${media ? "has-media" : ""} ${selected ? "selected" : ""}" style="--habit-color:${esc(color)};" data-habit-id="${habit.id}" draggable="true">
       ${media ? `<div class="habit-card-watermark" ${imageStyleAttr(habit)}><img src="${esc(media)}" alt=""></div>` : ""}
       <button class="habit-card-cover ${media ? "has-image" : "empty"}" data-action="open-modal" data-modal="editHabit" data-id="${habit.id}" aria-label="${media ? "Edit habit picture" : "Add habit picture"}" ${imageStyleAttr(habit)}>
@@ -3087,17 +3104,20 @@ function quickAction(action) {
       ${habitHeatmap(habit, today)}
       <div class="task-time-preview habit-calendar-preview">
         <span>${icon("calendar")} Starts ${dateLabel(habit.startDate)}</span>
+        <span>${icon("check")} Counting since ${dateLabel(countingSince)}</span>
         <span>${icon("bell")} ${habit.includeHours ? `${durationLabel(minutes(habit.end) - minutes(habit.start))} counted` : "Not counted in hours"}</span>
       </div>
+      <div class="habit-fresh-row">
+        <span>${hasFreshStart ? `Fresh start active from ${dateLabel(habit.freshStartDate)}` : "Need a reset? Start this habit fresh from a new date."}</span>
+        <button class="outline-btn" data-action="open-modal" data-modal="habitFreshStart" data-id="${habit.id}">${icon("back")} Start Fresh</button>
+      </div>
       <div class="sheet-actions habit-card-actions">
-        <button class="${completed ? "outline-btn" : "success-btn"}" data-action="toggle-habit-completion" data-id="${habit.id}" data-date="${today}">${icon("check")} ${completed ? "Undo Today" : "Complete Today"}</button>
-        <button class="outline-btn" data-action="copy-habit" data-id="${habit.id}">${icon("note")} Copy</button>
-        <button class="outline-btn" data-action="open-modal" data-modal="editHabit" data-id="${habit.id}">${icon("edit")} Edit</button>
-        <div class="habit-calendar-jumps">
-          <button class="outline-btn" data-action="open-habit-calendar" data-id="${habit.id}" data-view="day">${icon("calendar")} Day</button>
-          <button class="outline-btn" data-action="open-habit-calendar" data-id="${habit.id}" data-view="block">${icon("chart")} Block</button>
-        </div>
-        <button class="danger-btn" data-action="delete-habit" data-id="${habit.id}">${icon("trash")} Delete</button>
+        <button class="${completed ? "outline-btn" : "success-btn"} habit-action-btn" data-action="toggle-habit-completion" data-id="${habit.id}" data-date="${today}">${icon("check")} ${completed ? "Undo Today" : "Complete Today"}</button>
+        <button class="outline-btn habit-action-btn" data-action="copy-habit" data-id="${habit.id}">${icon("note")} Copy</button>
+        <button class="outline-btn habit-action-btn" data-action="open-modal" data-modal="editHabit" data-id="${habit.id}">${icon("edit")} Edit</button>
+        <button class="danger-btn habit-action-btn" data-action="delete-habit" data-id="${habit.id}">${icon("trash")} Delete</button>
+        <button class="outline-btn habit-action-btn" data-action="open-habit-calendar" data-id="${habit.id}" data-view="day">${icon("calendar")} Day</button>
+        <button class="outline-btn habit-action-btn" data-action="open-habit-calendar" data-id="${habit.id}" data-view="block">${icon("chart")} Block</button>
       </div>
     </article>`;
   }
@@ -4519,6 +4539,10 @@ function quickAction(action) {
     return `${year}-${month}-${day}`;
   }
 
+  function isIsoDateString(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  }
+
   function addDaysIso(iso, days) {
     const date = parseLocalDate(iso);
     date.setDate(date.getDate() + days);
@@ -4737,10 +4761,15 @@ function quickAction(action) {
     return parsed ? data.habits.find((habit) => habit.id === parsed.habitId) : null;
   }
 
+  function habitEffectiveStartDate(habit) {
+    const startDate = isIsoDateString(habit?.startDate) ? habit.startDate : todayIso();
+    return isIsoDateString(habit?.freshStartDate) && habit.freshStartDate > startDate ? habit.freshStartDate : startDate;
+  }
+
   function habitScheduledOn(habit, iso) {
     if (!habit || habit.status === "Archived") return false;
     if (habit.status === "Paused") return false;
-    if (iso < habit.startDate) return false;
+    if (iso < habitEffectiveStartDate(habit)) return false;
     if (habit.endDate && iso > habit.endDate) return false;
     if (Array.isArray(habit.skippedDates) && habit.skippedDates.includes(iso)) return false;
     const weekday = parseLocalDate(iso).getDay();
@@ -6994,6 +7023,7 @@ function quickAction(action) {
     if (type === "editTask") content = modalTask(modalId);
     if (type === "blockQuickCreate") content = modalBlockQuickCreate();
     if (type === "editHabit") content = modalHabit(modalId);
+    if (type === "habitFreshStart") content = modalHabitFreshStart(modalId);
     if (type === "saveHabitTemplate") content = modalSaveHabitTemplate(modalId);
     if (type === "voiceTask") content = modalVoiceTask();
     if (type === "voiceHabit") content = modalVoiceHabit();
@@ -7749,6 +7779,24 @@ function quickAction(action) {
       <div class="sheet-actions" style="grid-template-columns:${habit.id ? "1fr 1fr" : "1fr"};">
         ${habit.id ? `<button class="danger-btn" data-action="delete-habit" data-id="${habit.id}">${icon("trash")} Delete</button>` : ""}
         <button class="secondary-btn" data-action="save-habit" data-id="${habit.id || ""}">${habit.id ? "Save Habit" : "Create Habit"}</button>
+      </div>`;
+  }
+
+  function modalHabitFreshStart(habitId) {
+    const habit = data.habits.find((item) => item.id === habitId);
+    if (!habit) return "";
+    const defaultDate = habit.freshStartDate || todayIso();
+    return `${modalHeader("Start Fresh", "Pick the date BillMaster should use as the new starting point for this habit's percentages and streaks. Older history stays saved.")}
+      <section class="section-card habit-fresh-modal">
+        <div>
+          <strong>${esc(habit.title)}</strong>
+          <span>Currently counting since ${dateLabel(habitEffectiveStartDate(habit))}</span>
+        </div>
+        ${field("habitFreshStartDate", "Fresh Start Date", defaultDate, "", "date")}
+      </section>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="secondary-btn" data-action="save-habit-fresh-start" data-id="${habit.id}">${icon("check")} Start Fresh</button>
       </div>`;
   }
 
@@ -10389,6 +10437,13 @@ function quickAction(action) {
 
   document.addEventListener("touchend", handleDateZoneTouch, { passive: false });
 
+  document.addEventListener("pointerdown", (event) => {
+    const active = document.activeElement;
+    if (active?.matches?.("select") && !event.target.closest?.("select")) {
+      suppressCardEditUntil = Date.now() + 350;
+    }
+  }, true);
+
   document.addEventListener("click", (event) => {
     const sheet = event.target.closest("[data-sheet]");
     const actionEl = event.target.closest("[data-action]");
@@ -10404,14 +10459,16 @@ function quickAction(action) {
       }
     }
     if (!actionEl) {
+      if (ui.taskPicker) {
+        ui.taskPicker = null;
+        render();
+        suppressCardEditUntil = Date.now() + 350;
+        return;
+      }
+      if (Date.now() < suppressCardEditUntil) return;
       const habitCardEl = event.target.closest(".habit-card[data-habit-id]");
       if (habitCardEl && !event.target.closest("button,input,select,textarea,a")) {
         ui.modal = { type: "editHabit", id: habitCardEl.dataset.habitId };
-        render();
-        return;
-      }
-      if (ui.taskPicker) {
-        ui.taskPicker = null;
         render();
       }
       return;
@@ -10784,6 +10841,7 @@ function quickAction(action) {
     if (action === "save-task") return saveTask(el.dataset.id);
     if (action === "save-block-quick-task") return saveBlockQuickTask();
     if (action === "save-habit") return saveHabit(el.dataset.id);
+    if (action === "save-habit-fresh-start") return saveHabitFreshStart(el.dataset.id);
     if (action === "edit-habit-instance") return editHabitInstance(el.dataset.id);
     if (action === "delete-habit") return deleteHabit(el.dataset.id);
     if (action === "delete-habit-series") return deleteHabitSeries(el.dataset.id);
@@ -13982,6 +14040,7 @@ function quickAction(action) {
     copy.title = `${habit.title || "Habit"} copy`;
     copy.completions = [];
     copy.skippedDates = [];
+    copy.freshStartDate = "";
     return copy;
   }
 
@@ -14126,6 +14185,7 @@ function quickAction(action) {
       imageY: imagePanValue("habit", "y"),
       imageFit: imageFitValue("habit"),
       imageOpacity: imageOpacityValue("habit"),
+      freshStartDate: habit?.freshStartDate || "",
       completions: habit?.completions || [],
       skippedDates: habit?.skippedDates || []
     };
@@ -14140,6 +14200,23 @@ function quickAction(action) {
     ui.modal = { type: "saveHabitTemplate", id: savedHabit.id };
     render();
     showToast(saved ? (newAddressId ? "Habit saved with new address." : habit ? "Habit updated." : "Habit created.") : ui.lastSaveError, saved ? "success" : "danger");
+  }
+
+  function saveHabitFreshStart(habitId) {
+    const habit = data.habits.find((item) => item.id === habitId);
+    if (!habit) return;
+    const selectedDate = value("habitFreshStartDate") || todayIso();
+    if (!isIsoDateString(selectedDate)) {
+      showToast("Choose a valid fresh start date.", "danger");
+      return;
+    }
+    habit.freshStartDate = selectedDate;
+    habit.completions = Array.isArray(habit.completions) ? habit.completions : [];
+    habit.skippedDates = Array.isArray(habit.skippedDates) ? habit.skippedDates : [];
+    ui.modal = null;
+    saveData();
+    render();
+    showToast(`Fresh start set for ${dateLabel(selectedDate)}.`);
   }
 
   function deleteHabit(habitId) {
