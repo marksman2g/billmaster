@@ -18084,23 +18084,71 @@ function quickAction(action) {
     const startIso = range.startIso;
     const endIso = range.endIso;
     let items = aiCalendarItems(startIso, endIso);
+    const timeWindow = aiCalendarTimeWindow(prompt);
+    if (timeWindow) items = items.filter((item) => aiCalendarItemMatchesTimeWindow(item, timeWindow));
     const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
       items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
-      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see a doctor or appointment item.`;
+      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see a doctor or appointment item.`;
     } else if (topic) {
       items = items.filter((item) => aiCalendarItemMatchesTopic(item, topic));
-      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see anything matching "${topic}" on your calendar.`;
+      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see anything matching "${topic}" on your calendar.`;
     }
-    if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso)}, I don't see any saved calendar items.`;
-    return aiCalendarSummary(items, startIso, endIso);
+    if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see any saved calendar items.`;
+    return aiCalendarSummary(items, startIso, endIso, timeWindow);
   }
 
   function aiCalendarTopic(prompt) {
     const lower = aiNorm(prompt);
-    const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill".split(" "));
+    const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill after before later than past until till by around between am pm clock o noon midnight morning afternoon evening tonight day days".split(" "));
     const words = lower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !generic.has(word));
     return words.slice(0, 3).join(" ");
+  }
+
+  function aiCalendarTimeWindow(prompt) {
+    const text = String(prompt || "").toLowerCase()
+      .replace(/\bnoon\b/g, "12:00 pm")
+      .replace(/\bmidnight\b/g, "12:00 am");
+    const timePart = "(\\d{1,2})(?::(\\d{2}))?\\s*(?:([ap])\\.?\\s*m\\.?)?";
+    const betweenMatch = text.match(new RegExp(`\\b(?:between|from)\\s+${timePart}\\s+(?:and|to|-)\\s+${timePart}`, "i"));
+    if (betweenMatch) {
+      return {
+        afterMinute: aiClockMinutes(betweenMatch[1], betweenMatch[2], betweenMatch[3], prompt),
+        beforeMinute: aiClockMinutes(betweenMatch[4], betweenMatch[5], betweenMatch[6] || betweenMatch[3], prompt)
+      };
+    }
+    const afterMatch = text.match(new RegExp(`\\b(?:after|later than|past)\\s+${timePart}`, "i"));
+    if (afterMatch) return { afterMinute: aiClockMinutes(afterMatch[1], afterMatch[2], afterMatch[3], prompt) };
+    const beforeMatch = text.match(new RegExp(`\\b(?:before|until|till|by)\\s+${timePart}`, "i"));
+    if (beforeMatch) return { beforeMinute: aiClockMinutes(beforeMatch[1], beforeMatch[2], beforeMatch[3], prompt) };
+    const aroundMatch = text.match(new RegExp(`\\b(?:at|around)\\s+${timePart}`, "i"));
+    if (aroundMatch) {
+      const center = aiClockMinutes(aroundMatch[1], aroundMatch[2], aroundMatch[3], prompt);
+      return { afterMinute: Math.max(0, center - 30), beforeMinute: Math.min(24 * 60, center + 30) };
+    }
+    return null;
+  }
+
+  function aiClockMinutes(hourValue, minuteValue, meridian, prompt = "") {
+    let hour = Number(hourValue || 0);
+    const minute = clamp(Number(minuteValue || 0), 0, 59);
+    const marker = String(meridian || "").toLowerCase();
+    if (marker === "p" && hour < 12) hour += 12;
+    if (marker === "a" && hour === 12) hour = 0;
+    if (!marker && hour >= 1 && hour <= 7 && /\b(after|later than|past|evening|tonight|night)\b/i.test(String(prompt || ""))) hour += 12;
+    hour = clamp(hour, 0, 23);
+    return hour * 60 + minute;
+  }
+
+  function aiCalendarItemMatchesTimeWindow(item, timeWindow) {
+    if (!timeWindow) return true;
+    if (!item.time) return false;
+    const start = minutes(item.time);
+    let end = item.end ? minutes(item.end) : start;
+    if (item.end && end < start) end += 24 * 60;
+    if (timeWindow.afterMinute !== undefined && end <= timeWindow.afterMinute) return false;
+    if (timeWindow.beforeMinute !== undefined && start >= timeWindow.beforeMinute) return false;
+    return true;
   }
 
   function aiCalendarRange(lower) {
@@ -18126,7 +18174,7 @@ function quickAction(action) {
     return topic.split(/\s+/).every((word) => haystack.includes(word) || haystack.includes(word.replace(/s$/, "")));
   }
 
-  function aiCalendarSummary(items, startIso, endIso) {
+  function aiCalendarSummary(items, startIso, endIso, timeWindow = null) {
     const groups = new Map();
     items.forEach((item) => {
       const key = [item.type, aiNorm(item.title), item.time || "", item.end || "", aiNorm(item.detail)].join("|");
@@ -18141,7 +18189,7 @@ function quickAction(action) {
     const countLabel = aiCountLabel(summaries.length);
     const thingLabel = summaries.length === 1 ? "thing" : "things";
     const extra = summaries.length > shown.length ? ` I also see ${summaries.length - shown.length} more.` : "";
-    return `${aiCalendarRangeIntro(startIso, endIso)}, I see ${countLabel} ${thingLabel}: ${aiJoinList(shown)}.${extra}`;
+    return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I see ${countLabel} ${thingLabel}: ${aiJoinList(shown)}.${extra}`;
   }
 
   function aiCalendarGroupSummary(group, startIso, endIso) {
@@ -18155,16 +18203,34 @@ function quickAction(action) {
       : `${prefix}${group.title}${time}${startIso === endIso ? "" : ` on ${dateLabel(sortedDates[0])}`}${detail}`;
   }
 
-  function aiCalendarRangeIntro(startIso, endIso) {
+  function aiCalendarRangeIntro(startIso, endIso, timeWindow = null) {
     const today = todayIso();
+    const timeText = aiCalendarTimeWindowText(timeWindow);
     if (startIso === endIso) {
-      if (startIso === today) return "For today";
-      if (startIso === addDaysIso(today, 1)) return "For tomorrow";
-      return `For ${dateLabel(startIso)}`;
+      if (startIso === today) return `For today${timeText}`;
+      if (startIso === addDaysIso(today, 1)) return `For tomorrow${timeText}`;
+      return `For ${dateLabel(startIso)}${timeText}`;
     }
     const weekStart = startOfWeekIso(ui.selectedDate || today);
-    if (startIso === weekStart && endIso === addDaysIso(weekStart, 6)) return "For this week";
-    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}`;
+    if (startIso === weekStart && endIso === addDaysIso(weekStart, 6)) return `For this week${timeText}`;
+    return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}${timeText}`;
+  }
+
+  function aiCalendarTimeWindowText(timeWindow) {
+    if (!timeWindow) return "";
+    const after = timeWindow.afterMinute;
+    const before = timeWindow.beforeMinute;
+    if (after !== undefined && before !== undefined) return ` between ${aiMinuteLabel(after)} and ${aiMinuteLabel(before)}`;
+    if (after !== undefined) return ` after ${aiMinuteLabel(after)}`;
+    if (before !== undefined) return ` before ${aiMinuteLabel(before)}`;
+    return "";
+  }
+
+  function aiMinuteLabel(totalMinutes) {
+    const normalized = ((Number(totalMinutes || 0) % (24 * 60)) + 24 * 60) % (24 * 60);
+    const hour = Math.floor(normalized / 60);
+    const minute = normalized % 60;
+    return timeLabel(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
   }
 
   function aiCountLabel(count) {
