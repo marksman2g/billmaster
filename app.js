@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260628-18";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260628-19";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -5620,22 +5620,26 @@ function quickAction(action) {
         <div class="progress teal" style="--value:${pct}%"><span></span></div>
         <div class="balance-meta"><span>${pct}% complete</span><span>${data.tasks.length - done} remaining</span></div>
       </section>
-      <div class="filter-row">
-        ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
-      </div>
-      <div class="filter-row task-view-row">
-        ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
-      </div>
-      <div class="filter-row task-sort-row">
-        <span class="sort-label">Sort tasks by</span>
-        ${[
-          ["newest", "Newest"],
-          ["date", "Start date"],
-          ["priority", "Priority"],
-          ["status", "Status"],
-          ["project", "Project"],
-          ["title", "Title"]
-        ].map(([value, label]) => `<button class="${(ui.taskSort || "newest") === value ? "active" : ""}" data-action="set-tab" data-key="taskSort" data-value="${value}">${esc(label)}</button>`).join("")}
+      <div class="task-control-bar" aria-label="Task filters and sorting">
+        <div class="task-control-group">
+          ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
+        </div>
+        <div class="task-control-group">
+          ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+        </div>
+        <div class="task-control-group task-sort-group">
+          <label class="sort-select-label" for="taskSortSelect">Sort</label>
+          <select id="taskSortSelect" class="task-sort-select" aria-label="Sort tasks">
+            ${[
+              ["newest", "Newest"],
+              ["date", "Start date"],
+              ["priority", "Priority"],
+              ["status", "Status"],
+              ["project", "Project"],
+              ["title", "Title"]
+            ].map(([value, label]) => `<option value="${esc(value)}" ${(ui.taskSort || "newest") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
+          </select>
+        </div>
       </div>
       <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input placeholder="Search tasks..." /></label>
       <div class="project-bulk-toolbar task-list-bulk-toolbar">
@@ -10526,6 +10530,11 @@ function quickAction(action) {
     const target = event.target;
     if (target && target.dataset.calendarDayColor !== undefined) {
       setCalendarDayColor(target.dataset.calendarDayColor, target.value, { quiet: true });
+      return;
+    }
+    if (target && target.id === "taskSortSelect") {
+      ui.taskSort = target.value || "newest";
+      render();
       return;
     }
     if (target && target.id === "taskStart") focusPairedEndTime("taskStart", "taskEnd", 60);
