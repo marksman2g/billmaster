@@ -16444,6 +16444,20 @@ canvas {
   row-gap: 6px;
 }
 
+@media (min-width: 901px) {
+  .day-toolbar button {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 0.78rem;
+    line-height: 1.05;
+  }
+
+  .day-toolbar button svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
 .day-toolbar .time-of-day-legend {
   display: inline-flex;
   flex: 0 1 auto;
