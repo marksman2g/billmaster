@@ -428,6 +428,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let projectDragSelectState = null;
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
+  const blockSelectHoldDelay = 520;
   const blockHoldMoveTolerance = 8;
   const singleSubmitActions = new Set([
     "save-bill",
@@ -4542,6 +4543,10 @@ function quickAction(action) {
     return ["month", "week", "week2", "day", "block"];
   }
 
+  function visibleCalendarViewOptions() {
+    return ["month", "week", "day", "block"];
+  }
+
   function isCalendarView(view) {
     return calendarViewOptions().includes(view);
   }
@@ -4593,13 +4598,13 @@ function quickAction(action) {
   }
 
   function renderCalendar() {
-    const view = ui.calendarView;
+    const view = ui.calendarView === "week2" ? "block" : ui.calendarView;
     return `<section class="screen calendar-screen calendar-screen--${esc(view)} calendar-palette--${esc(activeCalendarPalette)}">
       ${header("Financial Calendar", `<button class="icon-btn">${icon("search")}</button>${calendarUndoButton("icon-btn undo-icon")}<button class="icon-btn" data-action="open-modal" data-modal="calendarSync" title="Google Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="taskDefaults" title="Task defaults">${icon("settings")}</button><button class="icon-btn">${icon("filter")}</button>`)}
       <div class="calendar-mode-row">
         <div class="calendar-left-tools">
           <div class="mini-tabs">
-            ${calendarViewOptions().map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+            ${visibleCalendarViewOptions().map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
           </div>
           ${calendarCategoryBar()}
         </div>
@@ -10004,13 +10009,31 @@ function quickAction(action) {
     state.holdTimer = setTimeout(() => {
       if (blockDragState !== state || state.moved) return;
       state.holdOpened = true;
+      clearBlockHoldTimer(state);
       document.removeEventListener("pointermove", moveBlockDrag);
+      document.removeEventListener("pointerup", endBlockDrag);
+      document.removeEventListener("pointercancel", cancelBlockDrag);
       state.block.classList.remove("is-dragging");
       state.block.style.transform = "";
-      state.block.releasePointerCapture?.(state.pointerId);
+      ui.blockSelectMode = true;
       blockDragState = null;
-      openModal("blockTaskMenu", state.taskId);
-    }, blockHoldDelay);
+      blockSelectBrushState = {
+        pointerId: state.pointerId,
+        ids: new Set(),
+        block: state.block,
+        startX: state.startX,
+        startY: state.startY,
+        moved: false,
+        holdTimer: null,
+        startedWithSelection: ui.selectedTasks.length > 0
+      };
+      brushSelectBlockTask(state.block, state.taskId);
+      state.block.setPointerCapture?.(state.pointerId);
+      document.addEventListener("pointermove", moveBlockSelectBrush);
+      document.addEventListener("pointerup", endBlockSelectBrush, { once: true });
+      document.addEventListener("pointercancel", endBlockSelectBrush, { once: true });
+      showToast("Selection brush on. Drag across tasks, then choose Select tasks.");
+    }, blockSelectHoldDelay);
   }
 
   function clearBlockHoldTimer(state) {
