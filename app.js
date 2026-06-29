@@ -14705,6 +14705,7 @@ function quickAction(action) {
       showToast("Choose a valid fresh start date.", "danger");
       return;
     }
+    habit.startDate = selectedDate;
     habit.freshStartDate = selectedDate;
     const completions = Array.isArray(habit.completions) ? habit.completions : [];
     const hadSelectedDateDone = completions.includes(selectedDate);
@@ -14713,7 +14714,7 @@ function quickAction(action) {
     ui.modal = null;
     saveData();
     render();
-    showToast(hadSelectedDateDone ? `Fresh start set for ${dateLabel(selectedDate)}. That day was reset.` : `Fresh start set for ${dateLabel(selectedDate)}.`);
+    showToast(hadSelectedDateDone ? `Start date moved to ${dateLabel(selectedDate)}. That day was reset.` : `Start date moved to ${dateLabel(selectedDate)}.`);
   }
 
   function deleteHabit(habitId) {
