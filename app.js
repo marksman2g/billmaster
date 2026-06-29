@@ -8,7 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
-  const FRIEND_ALPHA_CACHE_VERSION = "20260629-13";
+  const FRIEND_ALPHA_CACHE_VERSION = "20260629-14";
   const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -2210,7 +2210,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function syncGestureLocks() {
-    const blockDrawActive = Boolean(currentProfileId && ui.view === "calendar" && ui.calendarView === "block" && ui.blockDrawMode);
+    const blockDrawActive = Boolean(currentProfileId && ui.view === "calendar" && isBlockLikeCalendarView() && ui.blockDrawMode);
     document.body?.classList?.toggle("block-draw-active", blockDrawActive);
     if (!blockDrawActive) clearBlockTapCreateDraft();
   }
@@ -4401,7 +4401,20 @@ function quickAction(action) {
 
   function filterLabel(filter) {
     if (filter === "partial") return "Money Owed";
+    if (filter === "week2") return "Week 2";
     return filter.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  }
+
+  function calendarViewOptions() {
+    return ["month", "week", "week2", "day", "block"];
+  }
+
+  function isCalendarView(view) {
+    return calendarViewOptions().includes(view);
+  }
+
+  function isBlockLikeCalendarView(view = ui.calendarView) {
+    return view === "block" || view === "week2";
   }
 
   function monthlySubAmount(sub) {
@@ -4453,7 +4466,7 @@ function quickAction(action) {
       <div class="calendar-mode-row">
         <div class="calendar-left-tools">
           <div class="mini-tabs">
-            ${["month", "week", "day", "block"].map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
+            ${calendarViewOptions().map((item) => `<button class="${view === item ? "active" : ""}" data-action="set-tab" data-key="calendarView" data-value="${item}">${filterLabel(item)}</button>`).join("")}
           </div>
           ${calendarCategoryBar()}
         </div>
@@ -4468,7 +4481,7 @@ function quickAction(action) {
         </div>
         <button class="icon-btn" data-action="calendar-nav" data-direction="1" aria-label="Next ${view}" style="transform:rotate(180deg);">${icon("back")}</button>
       </div>
-      ${view === "month" ? calendarMonth() : view === "week" ? calendarWeek() : view === "block" ? calendarBlock() : calendarDay()}
+      ${view === "month" ? calendarMonth() : view === "week" ? calendarWeek() : view === "week2" ? calendarWeek2() : view === "block" ? calendarBlock() : calendarDay()}
     </section>`;
   }
 
@@ -4528,7 +4541,7 @@ function quickAction(action) {
   }
 
   function calendarQuickAddBar(view) {
-    const label = view === "block" ? "Quick add block task..." : `Quick add ${filterLabel(view)} task...`;
+    const label = isBlockLikeCalendarView(view) ? `Quick add ${filterLabel(view)} block task...` : `Quick add ${filterLabel(view)} task...`;
     return `<div class="quick-add calendar-quick-add">
       <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
       <input id="quickTaskInput" placeholder="${esc(label)} (Ctrl+T)" />
@@ -4597,7 +4610,7 @@ function quickAction(action) {
   function calendarTitleWeatherDate(view) {
     const today = todayIso();
     if (view === "month") return ui.selectedDate.slice(0, 7) === today.slice(0, 7) ? today : ui.selectedDate;
-    if (view === "week" || view === "block") {
+    if (view === "week" || isBlockLikeCalendarView(view)) {
       const dates = weekDates();
       return dates.includes(today) ? today : ui.selectedDate;
     }
@@ -5256,7 +5269,13 @@ function quickAction(action) {
     return `style="--media-zoom:${imageZoom(task?.imageZoom || 1)};--media-x:${imagePan(task?.imageX || 0)}%;--media-y:${imagePan(task?.imageY || 0)}%;--media-fit:${imageFit(task?.imageFit || "cover")};--day-picture-opacity:${imageOpacity(opacity)};"`;
   }
 
-  function calendarBlock() {
+  function calendarWeek2() {
+    return calendarBlock({ variant: "week2" });
+  }
+
+  function calendarBlock(options = {}) {
+    const variant = options.variant || "block";
+    const week2 = variant === "week2";
     const weekdays = weekDates();
     const tasks = calendarItemsForRange(weekdays[0], weekdays[6]).filter((task) => task.start && task.end);
     const countedTasks = tasks.filter((task) => task.includeHours);
@@ -5264,14 +5283,14 @@ function quickAction(action) {
     const range = blockFocusRange();
     const style = blockRangeStyle(range);
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
-    const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">AM/PM</div>${weekdays.map((iso) => {
+    const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">${week2 ? "Time" : "AM/PM"}</div>${weekdays.map((iso) => {
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
       return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
         ${dateViewZones(iso)}
         ${weatherMotionLayer(iso)}
         ${calendarDateCardContent(iso)}
       </div>`;
-    }).join("")}<div class="block-head time-head week-timetable-head week-timetable-time-head">24h</div>`;
+    }).join("")}<div class="block-head time-head time-head-right week-timetable-head week-timetable-time-head">24h</div>`;
     const leftLabels = blockHourLabels(range, "left");
     const rightLabels = blockHourLabels(range, "right");
     const cols = weekdays.map((iso) => {
@@ -5282,9 +5301,12 @@ function quickAction(action) {
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
     const blockSelectTools = `<div class="block-select-tools"><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}</div>`;
-    return `<div class="calendar-summary block-toolbar">${icon("bell")} <span class="calendar-summary-label">Week total:</span><strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space."}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
+    const helperText = week2
+      ? "Week 2 keeps the clean week grid while preserving block drag, draw, select, repeat, and timed-task controls."
+      : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space.";
+    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText}</span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
-      <div class="block-scroll ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
+      <div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
 
   function blockEvent(task, dayTasks = []) {
@@ -7395,7 +7417,7 @@ function quickAction(action) {
 
   function modalCalendarDatePicker(initialDate) {
     const startingDate = initialDate || ui.selectedDate;
-    return `${modalHeader("Go To Date", ui.calendarView === "block" || ui.calendarView === "week" ? "Pick any date to jump to that week." : "Pick any date to open.")}
+    return `${modalHeader("Go To Date", isBlockLikeCalendarView() || ui.calendarView === "week" ? "Pick any date to jump to that week." : "Pick any date to open.")}
       <div class="field-grid">
         ${field("calendarJumpDate", "Date", startingDate, "", "date")}
       </div>
@@ -10543,7 +10565,7 @@ function quickAction(action) {
   }
 
   function guardBlockDrawTouch(event) {
-    if (!ui.blockDrawMode || ui.view !== "calendar" || ui.calendarView !== "block") return;
+    if (!ui.blockDrawMode || ui.view !== "calendar" || !isBlockLikeCalendarView()) return;
     const target = event.target;
     if (!target?.closest?.(".block-calendar")) return;
     if (target.closest(".event-block")) return;
@@ -11207,7 +11229,7 @@ function quickAction(action) {
   }
 
   function goCalendarToday(view = ui.calendarView) {
-    const targetView = ["month", "week", "day", "block"].includes(view) ? view : "day";
+    const targetView = isCalendarView(view) ? view : "day";
     ui.selectedDate = todayIso();
     ui.calendarView = targetView;
     ui.selectedTasks = [];
@@ -11229,7 +11251,7 @@ function quickAction(action) {
   }
 
   function setCalendarDateView(date, view) {
-    if (!["month", "week", "day", "block"].includes(view)) return;
+    if (!isCalendarView(view)) return;
     ui.selectedDate = date || ui.selectedDate;
     ui.calendarView = view;
     ui.selectedTasks = [];
@@ -14050,7 +14072,7 @@ function quickAction(action) {
       updatedAt: new Date().toISOString()
     });
     ui.selectedDate = date;
-    ui.calendarView = "block";
+    ui.calendarView = isBlockLikeCalendarView() ? ui.calendarView : "block";
     ui.blockQuickCreateDraft = null;
     ui.blockDrawMode = false;
     closeModal();
@@ -14399,7 +14421,7 @@ function quickAction(action) {
     if (!habit) return;
     const targetDate = habitCalendarDate(habit);
     ui.selectedDate = targetDate;
-    ui.calendarView = view === "block" ? "block" : "day";
+    ui.calendarView = isBlockLikeCalendarView(view) ? view : "day";
     ui.selectedTasks = [habitInstanceId(habit.id, targetDate)];
     ui.modal = null;
     if (ui.view !== "calendar") ui.backStack.push(ui.view);
