@@ -17234,6 +17234,10 @@ canvas {
     inset 0 0 16px rgba(255, 214, 10, 0.1);
 }
 
+.calendar-screen--day .week-strip {
+  margin: 8px 0 10px;
+}
+
 /* Day task cards: pull content down-left and make schedule text easier to read. */
 .compact-day-task .day-task-main {
   gap: 6px;
