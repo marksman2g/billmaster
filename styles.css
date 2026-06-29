@@ -3622,6 +3622,125 @@ button.round-icon {
   gap: 10px;
 }
 
+.finance-compare-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.finance-compare-panel--tracking {
+  margin-bottom: 14px;
+}
+
+.finance-compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.72fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.finance-compare-card,
+.finance-net-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.finance-compare-card--income,
+.amount-cell--income {
+  background: #eafaf1;
+  border-color: #c9ecd7;
+}
+
+.finance-compare-card--expense,
+.amount-cell--expense {
+  background: #fff0f0;
+  border-color: #ffd2d2;
+}
+
+.finance-compare-card label,
+.finance-net-card label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 780;
+}
+
+.finance-compare-card strong,
+.finance-net-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.25rem;
+}
+
+.finance-compare-card span,
+.finance-net-card span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.finance-net-card {
+  text-align: center;
+  background: linear-gradient(135deg, #f8fbff, #ffffff);
+}
+
+.finance-net-card.is-profit {
+  border-color: #a9e6bf;
+}
+
+.finance-net-card.is-loss {
+  border-color: #ffc4c4;
+}
+
+.finance-compare-bars {
+  display: grid;
+  gap: 8px;
+}
+
+.finance-compare-bar {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.finance-compare-bar > div {
+  height: 10px;
+  overflow: hidden;
+  background: #eaf0f7;
+  border-radius: 999px;
+}
+
+.finance-compare-bar i {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+}
+
+.finance-compare-bar .income-fill {
+  background: #25a95d;
+}
+
+.finance-compare-bar .expense-fill {
+  background: var(--red);
+}
+
+.finance-compare-bars--compact {
+  margin-top: 8px;
+}
+
+.compare-period-card {
+  margin-bottom: 24px;
+}
+
 .subscription-summary {
   padding: 16px 18px;
 }
@@ -4076,6 +4195,10 @@ button.round-icon {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 3px;
+}
+
+.segmented.segmented--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .segmented button,
@@ -13053,6 +13176,11 @@ canvas {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .finance-compare-panel--tracking {
+    max-width: 74%;
+    margin-inline: auto;
+  }
+
   .span-2 {
     grid-column: span 2;
   }
@@ -13246,6 +13374,18 @@ canvas {
   .goal-grid,
   .loan-grid,
   .contacts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-compare-panel--tracking {
+    max-width: none;
+  }
+
+  .finance-compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented.segmented--three {
     grid-template-columns: 1fr;
   }
 

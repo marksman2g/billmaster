@@ -3175,6 +3175,7 @@ function quickAction(action) {
         <button class="${ui.trackingTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="expenses">Expenses</button>
         <button class="${ui.trackingTab === "income" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="income">Income</button>
       </div>
+      ${incomeExpenseOverview("finance-compare-panel--tracking")}
       <div class="finance-grid">
         <section class="section-card">
           <div class="section-title"><h2>${type === "income" ? "All Income Sources" : "All Expenses"}</h2><button class="text-btn" data-action="open-modal" data-modal="addTransaction">${icon("plus")} Add</button></div>
@@ -3204,6 +3205,56 @@ function quickAction(action) {
     }).join("");
   }
 
+  function incomeExpenseTotals(months = 1) {
+    const incomeItems = reportableTransactions("income");
+    const expenseItems = reportableTransactions("expense");
+    const incomeActual = monthlyProjection(incomeItems, months);
+    const expenseActual = monthlyProjection(expenseItems, months);
+    const incomeProjected = monthlyProjection(incomeItems, months, "projected");
+    const expenseProjected = monthlyProjection(expenseItems, months, "projected");
+    return {
+      incomeActual,
+      expenseActual,
+      incomeProjected,
+      expenseProjected,
+      netActual: incomeActual - expenseActual,
+      netProjected: incomeProjected - expenseProjected,
+      maxActual: Math.max(incomeActual, expenseActual, 1)
+    };
+  }
+
+  function incomeExpenseOverview(extraClass = "") {
+    const totals = incomeExpenseTotals();
+    const profit = totals.netActual >= 0;
+    const incomePct = Math.max(3, Math.round((totals.incomeActual / totals.maxActual) * 100));
+    const expensePct = Math.max(3, Math.round((totals.expenseActual / totals.maxActual) * 100));
+    const lead = Math.abs(totals.netActual);
+    return `<section class="section-card finance-compare-panel ${extraClass}">
+      <div class="section-title"><h2>Income vs Expenses</h2><span class="status ${profit ? "success" : "danger"}">${profit ? "Profit" : "Loss"}</span></div>
+      <div class="finance-compare-grid">
+        <div class="finance-compare-card finance-compare-card--income">
+          <label>Total Income</label>
+          <strong class="money-income">${money(totals.incomeActual)}</strong>
+          <span>Projected ${money(totals.incomeProjected)}</span>
+        </div>
+        <div class="finance-net-card ${profit ? "is-profit" : "is-loss"}">
+          <label>${profit ? "Income is higher" : "Expenses are higher"}</label>
+          <strong class="${profit ? "positive" : "negative"}">${money(lead)}</strong>
+          <span>Net ${money(totals.netActual)}</span>
+        </div>
+        <div class="finance-compare-card finance-compare-card--expense">
+          <label>Total Expenses</label>
+          <strong class="money-expense">${money(totals.expenseActual)}</strong>
+          <span>Projected ${money(totals.expenseProjected)}</span>
+        </div>
+      </div>
+      <div class="finance-compare-bars" aria-label="Income and expenses comparison">
+        <div class="finance-compare-bar"><span>Income</span><div><i class="income-fill" style="width:${incomePct}%"></i></div><strong>${money(totals.incomeActual)}</strong></div>
+        <div class="finance-compare-bar"><span>Expenses</span><div><i class="expense-fill" style="width:${expensePct}%"></i></div><strong>${money(totals.expenseActual)}</strong></div>
+      </div>
+    </section>`;
+  }
+
   function transactionRow(tx) {
     const cls = tx.type === "income" ? "positive" : "negative";
     return `<button class="data-row" style="text-align:left;background:transparent;border:0;width:100%;" data-action="open-modal" data-modal="transactionDetail" data-id="${tx.id}">
@@ -3214,14 +3265,16 @@ function quickAction(action) {
   }
 
   function renderAnalytics() {
+    if (ui.analyticsTab === "compare") return renderIncomeExpenseAnalytics();
     const type = ui.analyticsTab === "income" ? "income" : "expense";
     const items = reportableTransactions(type);
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Budget Analytics")}
-      <div class="segmented">
+      <div class="segmented segmented--three">
         <button class="${ui.analyticsTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="expenses">Expenses</button>
         <button class="${ui.analyticsTab === "income" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="income">Income</button>
+        <button class="${ui.analyticsTab === "compare" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="compare">Income vs Expenses</button>
       </div>
       <div class="analytics-grid">
         <section class="section-card">
@@ -3244,6 +3297,74 @@ function quickAction(action) {
         </section>
       </div>
     </section>`;
+  }
+
+  function renderIncomeExpenseAnalytics() {
+    const incomeRows = categoryBreakdown(reportableTransactions("income"));
+    const expenseRows = categoryBreakdown(reportableTransactions("expense"));
+    return `<section class="screen">
+      ${header("Budget Analytics")}
+      <div class="segmented segmented--three">
+        <button class="${ui.analyticsTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="expenses">Expenses</button>
+        <button class="${ui.analyticsTab === "income" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="income">Income</button>
+        <button class="${ui.analyticsTab === "compare" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="compare">Income vs Expenses</button>
+      </div>
+      <div class="analytics-grid">
+        ${incomeExpenseOverview("span-2 finance-compare-panel--analytics")}
+        <section class="section-card">
+          ${[1, 3, 6, 12].map((months) => incomeExpensePeriodCard(months)).join("")}
+        </section>
+        <section class="section-card chart-card">
+          <div class="section-title"><h2>Income vs Expenses</h2></div>
+          <div class="filter-row">
+            <button class="${ui.chartType === "pie" ? "active" : ""}" data-action="set-tab" data-key="chartType" data-value="pie">${icon("check")} Pie</button>
+            <button class="${ui.chartType === "bar" ? "active" : ""}" data-action="set-tab" data-key="chartType" data-value="bar">${icon("chart")} Bar</button>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="analyticsChart" width="420" height="300" data-type="compare" data-chart="${ui.chartType}"></canvas>
+            <div class="legend">${comparisonLegendRows()}</div>
+          </div>
+        </section>
+        <section class="section-card">
+          <div class="section-title"><h2>Income Categories</h2></div>
+          ${incomeRows.length ? incomeRows.map((row) => categoryRow(row, "income")).join("") : `<p class="muted">No income categories yet.</p>`}
+        </section>
+        <section class="section-card">
+          <div class="section-title"><h2>Expense Categories</h2></div>
+          ${expenseRows.length ? expenseRows.map((row) => categoryRow(row, "expense")).join("") : `<p class="muted">No expense categories yet.</p>`}
+        </section>
+      </div>
+    </section>`;
+  }
+
+  function incomeExpensePeriodCard(months) {
+    const totals = incomeExpenseTotals(months);
+    const profit = totals.netActual >= 0;
+    const label = months === 1 ? "Monthly" : `${months} Months`;
+    const max = Math.max(totals.incomeActual, totals.expenseActual, 1);
+    const incomePct = Math.max(3, Math.round((totals.incomeActual / max) * 100));
+    const expensePct = Math.max(3, Math.round((totals.expenseActual / max) * 100));
+    return `<article class="compare-period-card">
+      <h2 class="panel-title">${label} Income vs Expenses</h2>
+      <div class="projection-row">
+        <div class="amount-cell amount-cell--income"><label>${icon("wallet")} Income</label><strong class="money-income">${money(totals.incomeActual)}</strong></div>
+        <div class="amount-cell amount-cell--expense"><label>${icon("receipt")} Expenses</label><strong class="money-expense">${money(totals.expenseActual)}</strong></div>
+        <div class="amount-cell"><label>Net</label><strong class="${profit ? "positive" : "negative"}">${money(totals.netActual)}</strong></div>
+      </div>
+      <div class="finance-compare-bars finance-compare-bars--compact">
+        <div class="finance-compare-bar"><span>Income</span><div><i class="income-fill" style="width:${incomePct}%"></i></div></div>
+        <div class="finance-compare-bar"><span>Expenses</span><div><i class="expense-fill" style="width:${expensePct}%"></i></div></div>
+      </div>
+    </article>`;
+  }
+
+  function comparisonLegendRows() {
+    const totals = incomeExpenseTotals();
+    const total = totals.incomeActual + totals.expenseActual;
+    const incomePct = total ? Math.round((totals.incomeActual / total) * 100) : 0;
+    const expensePct = total ? Math.round((totals.expenseActual / total) * 100) : 0;
+    return `<div class="legend-row"><span class="dot green"></span><span>Income</span><strong>${incomePct}%</strong></div>
+      <div class="legend-row"><span class="dot red"></span><span>Expenses</span><strong>${expensePct}%</strong></div>`;
   }
 
   function projectionCard(type, months) {
@@ -10538,6 +10659,7 @@ function quickAction(action) {
     const ctx = canvas.getContext("2d");
     const type = canvas.dataset.type;
     const chart = canvas.dataset.chart;
+    if (type === "compare") return drawIncomeExpenseChart(ctx, canvas, chart);
     const rows = categoryBreakdown(reportableTransactions(type));
     const colors = ["#00bcd4", "#4caf50", "#2196f3", "#ff6b6b", "#ffc107", "#6c63ff"];
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -10566,6 +10688,51 @@ function quickAction(action) {
       ctx.arc(210, 138, 110, start, start + angle);
       ctx.closePath();
       ctx.fillStyle = colors[index % colors.length];
+      ctx.fill();
+      start += angle;
+    });
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(210, 138, 48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  function drawIncomeExpenseChart(ctx, canvas, chart) {
+    const totals = incomeExpenseTotals();
+    const rows = [
+      { name: "Income", actual: totals.incomeActual, color: "#25a95d" },
+      { name: "Expenses", actual: totals.expenseActual, color: "#ff3b30" }
+    ];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (chart === "bar") {
+      const max = Math.max(...rows.map((row) => row.actual), 1);
+      rows.forEach((row, index) => {
+        const h = (row.actual / max) * 200;
+        const barW = 92;
+        const x = 105 + index * 130;
+        const y = 245 - h;
+        ctx.fillStyle = row.color;
+        ctx.fillRect(x, y, barW, h);
+        ctx.fillStyle = "#10233d";
+        ctx.font = "700 13px sans-serif";
+        ctx.fillText(row.name, x, 272);
+        ctx.fillStyle = "#617386";
+        ctx.font = "12px sans-serif";
+        ctx.fillText(money(row.actual), x, Math.max(22, y - 8));
+      });
+      return;
+    }
+    const total = rows.reduce((sumValue, row) => sumValue + row.actual, 0);
+    if (!total) return;
+    let start = -Math.PI / 2;
+    rows.forEach((row) => {
+      const angle = (row.actual / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(210, 138);
+      ctx.arc(210, 138, 110, start, start + angle);
+      ctx.closePath();
+      ctx.fillStyle = row.color;
       ctx.fill();
       start += angle;
     });
