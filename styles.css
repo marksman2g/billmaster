@@ -5986,18 +5986,18 @@ button.round-icon {
 
 .note-notebook-drop-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
   gap: 8px;
 }
 
 .note-notebook-drop-tile {
   position: relative;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  min-height: 54px;
-  padding: 7px;
+  min-height: 64px;
+  padding: 8px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -6021,21 +6021,21 @@ button.round-icon {
 }
 
 .organizer-drop-strip .note-notebook-drop-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 136px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 166px), 1fr));
   gap: 7px;
 }
 
 .organizer-drop-tile {
-  grid-template-columns: 34px minmax(0, 1fr);
-  min-height: 46px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-height: 56px;
   padding: 6px;
   gap: 7px;
   box-shadow: 0 6px 14px rgba(26, 31, 54, 0.05);
 }
 
 .organizer-drop-tile .note-notebook-cover {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 7px;
 }
 
@@ -6044,11 +6044,11 @@ button.round-icon {
 }
 
 .organizer-drop-tile .note-notebook-drop-copy strong {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
 }
 
 .organizer-drop-tile .note-notebook-drop-copy span {
-  font-size: 0.63rem;
+  font-size: 0.67rem;
 }
 
 .organizer-drop-tile .notebook-drop-hint {
@@ -6080,17 +6080,17 @@ button.round-icon {
 
 .note-project-drop-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 8px;
 }
 
 .note-project-drop-tile {
   position: relative;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr);
   gap: 9px;
   align-items: center;
-  min-height: 56px;
+  min-height: 70px;
   padding: 8px;
   color: var(--text);
   background: #fff;
@@ -6104,19 +6104,29 @@ button.round-icon {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.note-project-drop-tile strong {
+  display: -webkit-box;
+  min-height: 1.2em;
+  max-height: 2.4em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.2;
 }
 
 .note-project-drop-tile span {
   color: var(--muted);
   font-size: 0.74rem;
+  line-height: 1.2;
 }
 
 .note-project-drop-cover {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   overflow: hidden;
   color: #fff;
   background: var(--navy);
@@ -6135,11 +6145,10 @@ button.round-icon {
 }
 
 .note-project-drop-tile .project-drop-hint {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 6px;
+  position: static;
+  grid-column: 1 / -1;
   min-height: 24px;
+  margin-top: 2px;
   background: rgba(238, 246, 255, 0.96);
 }
 
@@ -6167,8 +6176,8 @@ button.round-icon {
 .note-notebook-cover {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   color: #fff;
   background: var(--accent);
@@ -6195,17 +6204,23 @@ button.round-icon {
 .note-notebook-drop-copy span {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .note-notebook-drop-copy strong {
+  display: -webkit-box;
+  max-height: 2.35em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 0.82rem;
+  line-height: 1.15;
+  white-space: normal;
 }
 
 .note-notebook-drop-copy span {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 750;
+  white-space: nowrap;
 }
 
 .project-task-mini {
