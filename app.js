@@ -5794,7 +5794,7 @@ function quickAction(action) {
 
   function blockTaskColor(task) {
     if (task?.isHabit && task.color) return task.color;
-    return taskCategoryColor(taskCategory(task));
+    return task?.bgColor || task?.color || taskCategoryColor(taskCategory(task));
   }
 
   function defaultTaskBgColor() {
@@ -7685,6 +7685,7 @@ function quickAction(action) {
         ${field("blockQuickDate", "Date", date, "", "date")}
         <div class="field-row">${field("blockQuickStart", "Start Time", start, "", "time")}${field("blockQuickEnd", "End Time", end, "", "time")}</div>
         ${selectField("blockQuickCategory", "Category", taskCategories, draft.category || "General", taskCategoryLabel)}
+        ${swatchChoiceField("blockQuickBgColor", "Event Background", taskBackgrounds, draft.bgColor || defaultTaskBgColor())}
         ${choiceField("blockQuickPriority", "Priority", taskPriorityOptions, draft.priority || "Medium", priorityColor)}
         ${choiceField("blockQuickStatus", "Status", taskStatusOptions, draft.status || "Not Started", statusHandleColor)}
         <label class="section-card block-quick-hours" style="box-shadow:none;background:#f0f7ff;display:flex;align-items:center;justify-content:space-between;gap:12px;">
@@ -14232,6 +14233,7 @@ function quickAction(action) {
       priority: "Medium",
       status: "Not Started",
       category: "General",
+      bgColor: defaultTaskBgColor(),
       includeHours: true
     };
     ui.selectedDate = date;
@@ -14267,7 +14269,7 @@ function quickAction(action) {
       status: value("blockQuickStatus") || "Not Started",
       repeat: "None",
       category,
-      bgColor: defaultTaskBgColor(),
+      bgColor: value("blockQuickBgColor") || defaultTaskBgColor(),
       fontFamily: "System",
       includeHours: document.getElementById("blockQuickIncludeHours")?.checked !== false,
       projectId: null,
