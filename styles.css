@@ -16436,3 +16436,56 @@ canvas {
     filter: saturate(1.25) brightness(1.24);
   }
 }
+
+/* Keep the day toolbar chips visible when the action row gets crowded. */
+.calendar-summary.day-toolbar {
+  flex-wrap: wrap;
+  overflow: visible;
+  row-gap: 6px;
+}
+
+.day-toolbar .time-of-day-legend {
+  display: inline-flex;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: min(100%, 320px);
+  gap: 7px;
+  overflow: visible;
+}
+
+.day-toolbar .time-period-chip {
+  min-width: max-content;
+  min-height: 31px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.day-toolbar .time-period-chip svg {
+  flex: 0 0 auto;
+}
+
+.day-toolbar .time-period-chip.afternoon {
+  color: #fff7a8;
+  background:
+    radial-gradient(circle at 34% 34%, rgba(255, 255, 208, 0.98) 0 13%, transparent 14%),
+    radial-gradient(circle at 48% 48%, rgba(255, 220, 49, 0.54) 0 36%, transparent 37%),
+    linear-gradient(135deg, #a96c00 0%, #5a3600 55%, #1b1102 100%);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 40, 0.24),
+    0 0 16px rgba(255, 214, 10, 0.48),
+    inset 0 0 18px rgba(255, 221, 87, 0.24);
+}
+
+.day-toolbar .time-period-chip.night {
+  color: #e8f7ff;
+  background:
+    radial-gradient(circle at 24% 42%, rgba(255, 214, 10, 0.85) 0 9%, transparent 10%),
+    radial-gradient(circle at 70% 24%, rgba(255, 246, 176, 0.64) 0 3%, transparent 4%),
+    linear-gradient(135deg, #020617 0%, #08318f 48%, #0a6cff 74%, #06122f 100%);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 40, 0.24),
+    0 0 14px rgba(255, 214, 10, 0.24),
+    0 0 18px rgba(96, 165, 250, 0.3),
+    inset 0 0 16px rgba(255, 214, 10, 0.1);
+}
