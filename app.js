@@ -3009,7 +3009,7 @@ function quickAction(action) {
   function renderHabits() {
     const today = todayIso();
     const activeHabits = data.habits.filter((habit) => habit.status === "Active");
-    const todaysHabits = data.habits.filter((habit) => habitScheduledOn(habit, today));
+    const todaysHabits = activeHabits.filter((habit) => habitTrackableOn(habit, today));
     const completedToday = todaysHabits.filter((habit) => habitCompletedOn(habit, today)).length;
     const weekStart = startOfWeekIso(today);
     const weekEnd = addDaysIso(weekStart, 6);
@@ -3018,7 +3018,7 @@ function quickAction(action) {
     const monthEnd = monthEndIso(today);
     const monthStats = habitsCompletionSummary(data.habits, monthStart, monthEnd);
     const filtered = data.habits.filter((habit) => {
-      if (ui.habitFilter === "today") return habitScheduledOn(habit, today);
+      if (ui.habitFilter === "today") return habitTrackableOn(habit, today);
       if (ui.habitFilter === "completed") return habitCompletedOn(habit, today);
       if (ui.habitFilter === "paused") return habit.status !== "Active";
       return true;
@@ -4946,6 +4946,14 @@ function quickAction(action) {
     if (habit.schedule === "Weekdays") return weekday >= 1 && weekday <= 5;
     if (habit.schedule === "Weekly") return (habit.days || []).includes(weekday);
     if (habit.schedule === "Monthly") return parseLocalDate(iso).getDate() === parseLocalDate(habit.startDate).getDate();
+    return true;
+  }
+
+  function habitTrackableOn(habit, iso) {
+    if (!habit || habit.status !== "Active") return false;
+    if (iso < habitEffectiveStartDate(habit)) return false;
+    if (habit.endDate && iso > habit.endDate) return false;
+    if (Array.isArray(habit.skippedDates) && habit.skippedDates.includes(iso)) return false;
     return true;
   }
 
@@ -14397,7 +14405,7 @@ function quickAction(action) {
   function filteredHabitsForCurrentView() {
     const today = todayIso();
     return data.habits.filter((habit) => {
-      if (ui.habitFilter === "today") return habitScheduledOn(habit, today);
+      if (ui.habitFilter === "today") return habitTrackableOn(habit, today);
       if (ui.habitFilter === "completed") return habitCompletedOn(habit, today);
       if (ui.habitFilter === "paused") return habit.status !== "Active";
       return true;
