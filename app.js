@@ -5403,10 +5403,10 @@ function quickAction(action) {
     return `<article class="task-card day-task-card compact-day-task ${taskImage ? "has-task-picture" : ""} ${task.status === "Completed" ? "complete" : ""}" data-task-id="${task.id}" style="${selected ? "background:#eaf4ff;border-color:#8dc8ff;" : ""}">
       ${taskImage ? `<span class="day-task-picture" ${dayTaskPictureStyle(task)}><img src="${esc(taskImage)}" alt=""></span>` : ""}
       ${taskTimeOfDayBadge(task)}
+      <button class="icon-btn task-select-square ${selected ? "selected" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} task" aria-pressed="${selected ? "true" : "false"}">${selected ? icon("check") : ""}</button>
       <div class="card-row">
         <div class="day-task-main">
           <div class="day-task-title-row">
-            <button class="icon-btn task-select-square ${selected ? "selected" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} task" aria-pressed="${selected ? "true" : "false"}">${selected ? icon("check") : ""}</button>
             <h2 class="entity-title">${esc(task.title)}</h2>
           </div>
           <div class="day-task-body">

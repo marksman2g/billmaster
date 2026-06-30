@@ -9320,7 +9320,8 @@ canvas {
   flex: 0 0 auto;
 }
 
-.day-task-title-row .task-select-square {
+.day-task-title-row .task-select-square,
+.compact-day-task > .task-select-square {
   width: 26px;
   height: 26px;
   min-height: 26px;
@@ -9332,14 +9333,16 @@ canvas {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
 }
 
-.day-task-title-row .task-select-square.selected {
+.day-task-title-row .task-select-square.selected,
+.compact-day-task > .task-select-square.selected {
   color: #fff;
   background: var(--blue);
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.16);
 }
 
-.day-task-title-row .task-select-square svg {
+.day-task-title-row .task-select-square svg,
+.compact-day-task > .task-select-square svg {
   width: 15px;
   height: 15px;
 }
@@ -17368,7 +17371,7 @@ canvas {
   padding-left: 0;
 }
 
-.compact-day-task .day-task-title-row .task-select-square {
+.compact-day-task > .task-select-square {
   position: absolute;
   top: 12px;
   right: 14px;
