@@ -353,6 +353,12 @@ video {
 
 .dashboard-panel {
   min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard-panel > .section-card {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .command-center-card {
@@ -3860,9 +3866,13 @@ button.round-icon {
   grid-auto-flow: column;
   grid-auto-columns: minmax(220px, 72%);
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   padding: 3px 0 10px;
   scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
 }
 
 .account-card,
@@ -13579,7 +13589,7 @@ canvas {
   }
 
   .dashboard-swipe {
-    grid-template-columns: minmax(260px, 0.82fr) minmax(320px, 1.05fr) minmax(300px, 0.92fr);
+    grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.05fr) minmax(260px, 0.92fr);
   }
 
   .dashboard-panel--command {
