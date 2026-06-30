@@ -3879,6 +3879,54 @@ button.round-icon {
   border-left: 4px solid var(--teal);
 }
 
+.account-sync-modal-panel {
+  margin-bottom: 14px;
+}
+
+.account-connection-list {
+  gap: 8px;
+}
+
+.account-connection-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.account-connection-row strong,
+.account-connection-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-connection-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-weight: 760;
+}
+
+.account-sync-safety-card {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  background: #fffaf0;
+  border-color: #ffe2a8;
+}
+
+.account-sync-safety-card strong {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--navy-2);
+}
+
 .clickable-card {
   cursor: pointer;
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;

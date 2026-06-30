@@ -8826,9 +8826,61 @@ function quickAction(action) {
   }
 
   function modalAccountConnections() {
-    return `${modalHeader("Account Connections")}
-      <div class="list">${data.accounts.map((acct) => `<article class="data-row" style="border:1px solid var(--line);border-radius:8px;padding:12px;"><span class="round-icon">${icon("wallet")}</span><div><strong>${esc(acct.name)}</strong><div class="subtle">${esc(acct.type)} ****${esc(acct.last4)}</div></div><span class="status success">Connected</span></article>`).join("")}</div>
-      <div class="sheet-actions"><button class="primary-btn">${icon("plus")} Link New Account</button></div>`;
+    const sync = safeArray(data.syncConnections).find((item) => item.id === "sync_1") || {};
+    const sandboxAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid Sandbox" || account.plaidSandbox);
+    const sandboxTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid Sandbox" || tx.plaidSandbox);
+    const inboxCount = billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
+    const connected = Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
+    const lastImport = data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    const accountRows = safeArray(data.accounts).map((acct) => {
+      const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
+      const status = sandbox ? "Sandbox linked" : "Local account";
+      return `<article class="account-connection-row">
+        <span class="round-icon" style="color:${sandbox ? "var(--teal)" : "var(--navy)"};background:${sandbox ? "#e7fbff" : "#eef6ff"};">${icon(sandbox ? "cloud" : "wallet")}</span>
+        <div>
+          <strong>${esc(acct.name)}</strong>
+          <small>${esc(acct.type)} ****${esc(acct.last4 || "----")} &middot; ${money(acct.balance || 0)}</small>
+        </div>
+        <span class="status ${sandbox ? "success" : "info"}">${esc(status)}</span>
+      </article>`;
+    }).join("");
+    return `${modalHeader("Account Connections", "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
+      <section class="section-card plaid-foundation-panel account-sync-modal-panel" style="box-shadow:none;">
+        <div class="plaid-foundation-copy">
+          <span class="round-icon plaid-icon">${icon("wallet")}</span>
+          <div>
+            <div class="section-title compact-title">
+              <h2>Bank/Card Sync Foundation</h2>
+              <span class="status ${connected ? "success" : "warn"}">${connected ? "Sandbox ready" : "Ready to test"}</span>
+            </div>
+            <p class="muted">No real bank passwords belong in BillMaster. Phase 1 uses sandbox-style token accounts, imports transactions, and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent.</p>
+          </div>
+        </div>
+        <div class="plaid-stage-grid">
+          <span><strong>${sandboxAccounts.length}</strong><small>sandbox accounts</small></span>
+          <span><strong>${sandboxTransactions.length}</strong><small>transactions imported</small></span>
+          <span><strong>${inboxCount}</strong><small>review candidates</small></span>
+          <span><strong>${esc(lastImport)}</strong><small>last import</small></span>
+        </div>
+        <div class="plaid-flow">
+          ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
+          ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}
+          ${plaidFlowStep("3", "Backend", "Add Supabase Edge Function for real token exchange.")}
+          ${plaidFlowStep("4", "Production", "Move to real Plaid only after privacy and reconnect tests.")}
+        </div>
+        <div class="sheet-actions plaid-actions">
+          <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>
+          <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
+          <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
+          <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy Plan</button>
+        </div>
+      </section>
+      <h3 class="section-kicker">Linked Accounts</h3>
+      <div class="list account-connection-list">${accountRows || `<p class="muted">No accounts yet. Run the sandbox import to create safe test accounts.</p>`}</div>
+      <section class="section-card account-sync-safety-card" style="box-shadow:none;">
+        <strong>${icon("alert")} What full access means for Phase 1</strong>
+        <p class="muted">Helpful access means app/backend access and Plaid sandbox/developer keys. It does not mean sharing bank usernames, passwords, or card logins in this app.</p>
+      </section>`;
   }
 
   function modalAccountDetail(accountId) {
