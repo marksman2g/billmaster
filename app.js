@@ -4401,19 +4401,35 @@ function quickAction(action) {
       ${match ? `<div class="match-banner">${icon("alert")} Possible match: <strong>${esc(match.label)}</strong><button class="text-btn" data-action="link-inbox-item" data-id="${item.id}">Link</button></div>` : ""}
       <p class="muted">${esc(item.notes || "Ready for review.")}</p>
       <div class="sheet-actions inbox-actions">
-        ${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add to Hub</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
+        ${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
         <button class="danger-btn" data-action="dismiss-inbox-item" data-id="${item.id}">${icon("trash")}</button>
       </div>
     </article>`;
   }
 
+  function inboxNameCandidates(item) {
+    return [item?.title, item?.name, item?.merchant, item?.payee]
+      .map(normalizedName)
+      .filter(Boolean);
+  }
+
+  function subscriptionMatchesInboxItem(sub, item) {
+    const itemNames = inboxNameCandidates(item);
+    const subNames = [sub?.name, sub?.merchant, sub?.provider].map(normalizedName).filter(Boolean);
+    return itemNames.some((name) => subNames.includes(name));
+  }
+
+  function billMatchesInboxItem(bill, item) {
+    const itemNames = inboxNameCandidates(item);
+    const billNames = [bill?.name, bill?.payee].map(normalizedName).filter(Boolean);
+    return itemNames.some((name) => billNames.includes(name));
+  }
+
   function inboxMatch(item) {
     if (!item) return null;
-    const itemName = normalizedName(item.title);
-    const merchant = normalizedName(item.merchant);
-    const sub = data.subscriptions.find((candidate) => normalizedName(candidate.name) === itemName || normalizedName(candidate.name) === merchant);
+    const sub = data.subscriptions.find((candidate) => subscriptionMatchesInboxItem(candidate, item));
     if (sub) return { type: "subscription", id: sub.id, label: `${sub.name} subscription` };
-    const bill = data.bills.find((candidate) => normalizedName(candidate.name) === itemName || normalizedName(candidate.payee) === merchant);
+    const bill = data.bills.find((candidate) => billMatchesInboxItem(candidate, item));
     if (bill) return { type: "bill", id: bill.id, label: `${bill.name} bill` };
     return null;
   }
@@ -4455,10 +4471,8 @@ function quickAction(action) {
   }
 
   function recurringCandidateIsUseful(tx) {
-    const key = normalizedName(tx.name);
-    const merchant = normalizedName(tx.merchant);
-    const alreadySubscription = data.subscriptions.some((sub) => normalizedName(sub.name) === key || normalizedName(sub.name) === merchant);
-    const alreadyBill = data.bills.some((bill) => normalizedName(bill.name) === key || normalizedName(bill.payee) === merchant);
+    const alreadySubscription = data.subscriptions.some((sub) => subscriptionMatchesInboxItem(sub, tx));
+    const alreadyBill = data.bills.some((bill) => billMatchesInboxItem(bill, tx));
     return !(alreadySubscription || alreadyBill);
   }
 
@@ -17807,7 +17821,7 @@ function quickAction(action) {
   function addInboxAsSubscription(itemId) {
     const item = findBillInboxItem(itemId);
     if (!item) return;
-    if (data.subscriptions.some((sub) => normalizedName(sub.name) === normalizedName(item.title))) {
+    if (data.subscriptions.some((sub) => subscriptionMatchesInboxItem(sub, item))) {
       markInboxItem(itemId, "approved");
       saveData();
       render();
