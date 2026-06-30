@@ -11638,6 +11638,7 @@ function quickAction(action) {
 
   function navigate(view, root = false) {
     if (!view) return;
+    ui.modal = null;
     if (view === "subscriptions") {
       ui.billHubTab = "subscriptions";
       view = "bills";
