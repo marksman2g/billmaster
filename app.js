@@ -11079,6 +11079,10 @@ function quickAction(action) {
       ui.habitVoiceParsedHabit = null;
       ui.habitVoiceError = "";
     }
+    if (target && target.dataset.action === "habit-inline" && target.type === "time") {
+      saveHabitInline(target, { render: false, toast: false, requireTimeValue: true });
+      return;
+    }
     if (target && target.dataset.action === "image-url") {
       const hidden = document.getElementById(target.dataset.target);
       const preview = document.getElementById(target.dataset.preview);
@@ -11117,7 +11121,10 @@ function quickAction(action) {
     if (target && target.id === "txCategory") toggleTransactionCategoryPanel(target.value === ADD_TRANSACTION_CATEGORY_VALUE);
     if (target && target.id === "habitAddress") toggleHabitAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
     if (target && target.id === "contactAddress") toggleContactAddressPanel(target.value === ADD_TASK_ADDRESS_VALUE);
-    if (target && target.dataset.action === "habit-inline") saveHabitInline(target);
+    if (target && target.dataset.action === "habit-inline") {
+      if (target.type === "time") saveHabitInline(target, { render: false, toast: false, requireTimeValue: true });
+      else saveHabitInline(target);
+    }
     if (target && target.dataset.action === "image-upload") handleImageUpload(target);
     if (target && target.classList?.contains("contactGroupChoice")) {
       target.closest(".contact-group-pick")?.classList.toggle("active", target.checked);
@@ -14624,23 +14631,48 @@ function quickAction(action) {
     showToast(`End time set to ${timeLabel(habit.end)}.`);
   }
 
-  function saveHabitInline(target) {
+  function saveHabitInline(target, options = {}) {
+    const shouldRender = options.render !== false;
+    const shouldToast = options.toast !== false;
     const habit = data.habits.find((item) => item.id === target.dataset.id);
     const fieldName = target.dataset.field;
     if (!habit || !fieldName) return;
     const nextValue = target.value;
-    if (fieldName === "title") habit.title = nextValue.trim() || "Habit";
-    else if (fieldName === "description") habit.description = nextValue.trim();
-    else if (fieldName === "type" && habitTypeOptions.includes(nextValue)) habit.type = nextValue;
-    else if (fieldName === "schedule" && habitScheduleOptions.includes(nextValue)) habit.schedule = nextValue;
-    else if (fieldName === "status" && ["Active", "Paused"].includes(nextValue)) habit.status = nextValue;
+    let changed = false;
+    if (fieldName === "title") {
+      const value = nextValue.trim() || "Habit";
+      changed = habit.title !== value;
+      habit.title = value;
+    }
+    else if (fieldName === "description") {
+      const value = nextValue.trim();
+      changed = (habit.description || "") !== value;
+      habit.description = value;
+    }
+    else if (fieldName === "type" && habitTypeOptions.includes(nextValue)) {
+      changed = habit.type !== nextValue;
+      habit.type = nextValue;
+    }
+    else if (fieldName === "schedule" && habitScheduleOptions.includes(nextValue)) {
+      changed = habit.schedule !== nextValue;
+      habit.schedule = nextValue;
+    }
+    else if (fieldName === "status" && ["Active", "Paused"].includes(nextValue)) {
+      changed = habit.status !== nextValue;
+      habit.status = nextValue;
+    }
     else if (fieldName === "start" || fieldName === "end") {
+      if (options.requireTimeValue && !nextValue) return;
+      const beforeStart = habit.start;
+      const beforeEnd = habit.end;
       habit[fieldName] = nextValue || (fieldName === "start" ? "08:00" : "08:30");
       if (minutes(habit.end) <= minutes(habit.start)) habit.end = timeFromMinutes(Math.min(minutes(habit.start) + 30, 23 * 60 + 59));
+      changed = beforeStart !== habit.start || beforeEnd !== habit.end;
     }
+    if (!changed) return;
     saveData();
-    render();
-    showToast("Habit updated.");
+    if (shouldRender) render();
+    if (shouldToast) showToast("Habit updated.");
   }
 
   function applyHabitTemplate(slot) {
