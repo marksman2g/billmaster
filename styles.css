@@ -17353,9 +17353,9 @@ canvas {
 
 /* Day task cards: pull content down-left and make schedule text easier to read. */
 .compact-day-task > .time-of-day-badge {
-  top: 10px;
-  right: 10px;
-  left: auto;
+  top: 12px;
+  right: auto;
+  left: 28px;
 }
 
 .compact-day-task .day-task-main {
@@ -17370,8 +17370,9 @@ canvas {
 
 .compact-day-task .day-task-title-row .task-select-square {
   position: absolute;
-  top: 10px;
-  left: 14px;
+  top: 12px;
+  right: 14px;
+  left: auto;
   z-index: 4;
 }
 
