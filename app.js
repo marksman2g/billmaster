@@ -540,6 +540,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "simulate-import",
     "run-smart-sync",
     "sync-connection",
+    "copy-plaid-backend-setup",
     "add-inbox-bill",
     "add-inbox-subscription",
     "cancel-inbox-subscription",
@@ -8902,6 +8903,7 @@ function quickAction(action) {
           <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : "disabled"}>${icon("refresh")} Sync Transactions</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
           <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
+          <button class="outline-btn" data-action="copy-plaid-backend-setup">${icon("note")} Copy Backend Setup</button>
           <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy Plan</button>
         </div>
       </section>
@@ -11641,6 +11643,7 @@ function quickAction(action) {
     if (action === "start-plaid-link") return startPlaidLink();
     if (action === "sync-plaid-transactions") return syncPlaidTransactions();
     if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
+    if (action === "copy-plaid-backend-setup") return copyPlaidBackendSetup();
     if (action === "copy-plaid-production-plan") return copyPlaidProductionPlan();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
@@ -18009,6 +18012,61 @@ function quickAction(action) {
       });
     });
     return { accounts: accountCount, transactions: transactionCount };
+  }
+
+  function plaidBackendSetupText() {
+    return `BillMaster Plaid Backend Setup
+
+Important:
+- Do not paste bank usernames, passwords, card numbers, or Plaid secrets into BillMaster.
+- Start with Plaid Sandbox.
+- This machine did not have the Supabase CLI installed when checked, so use npx supabase.
+
+1. Open Supabase SQL Editor and run:
+   supabase/schema.sql
+
+2. From the BillMaster repo folder, sign in and link your Supabase project:
+   npx supabase login
+   npx supabase link --project-ref YOUR_SUPABASE_PROJECT_REF
+
+3. Set Plaid sandbox secrets in Supabase Edge Functions:
+   npx supabase secrets set PLAID_CLIENT_ID="YOUR_PLAID_CLIENT_ID"
+   npx supabase secrets set PLAID_SECRET="YOUR_PLAID_SANDBOX_SECRET"
+   npx supabase secrets set PLAID_ENV="sandbox"
+   npx supabase secrets set PLAID_PRODUCTS="transactions"
+   npx supabase secrets set PLAID_COUNTRY_CODES="US"
+   npx supabase secrets set PLAID_CLIENT_NAME="BillMaster"
+
+4. Deploy the Edge Function:
+   npx supabase functions deploy plaid-sync
+
+5. Back in BillMaster:
+   Accounts > Manage > Check Backend
+   When ready: Open Plaid Link
+   Then: Sync Transactions
+
+Expected safe state:
+- Plaid access tokens stay in billmaster_plaid_tokens.
+- Browser can only read billmaster_plaid_connections metadata.
+- Imported charges still land in Review Inbox before becoming bills/subscriptions.`;
+  }
+
+  async function copyPlaidBackendSetup() {
+    const text = plaidBackendSetupText();
+    let copied = true;
+    try {
+      await copyText(text);
+    } catch (error) {
+      copied = false;
+    }
+    ui.modal = {
+      type: "copyFallback",
+      title: "Plaid Backend Setup",
+      text,
+      helper: copied ? "Setup steps were copied if this browser allows it. They are also shown here for review." : "Clipboard access was blocked. Select these setup steps, then copy them manually."
+    };
+    render();
+    showToast(copied ? "Plaid backend setup steps copied and shown." : "Select and copy the backend setup steps.", copied ? "success" : "danger");
   }
 
   function copyPlaidProductionPlan() {
