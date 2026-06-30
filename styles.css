@@ -17372,11 +17372,13 @@ canvas {
 }
 
 .compact-day-task > .task-select-square {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  left: auto;
+  position: absolute !important;
+  top: 12px !important;
+  right: 14px !important;
+  left: auto !important;
   z-index: 4;
+  margin: 0 !important;
+  transform: none !important;
 }
 
 .compact-day-task .entity-title {
