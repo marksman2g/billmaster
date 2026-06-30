@@ -17656,6 +17656,7 @@ canvas {
     0 0 0 4px rgba(246, 194, 69, 0.42),
     0 0 20px rgba(255, 211, 77, 0.28),
     inset 0 0 0 1px rgba(255, 247, 209, 0.92) !important;
+  animation: bmTodayBoxAttention 1.35s ease-in-out infinite;
 }
 
 .day-cell.is-today::before,
@@ -17674,8 +17675,9 @@ canvas {
       from 0deg,
       rgba(255, 255, 255, 0) 0deg,
       rgba(255, 255, 255, 0.96) 36deg,
-      #ffd43b 70deg,
-      rgba(56, 189, 248, 0.72) 112deg,
+      #ffe45c 70deg,
+      rgba(56, 189, 248, 0.86) 112deg,
+      #ffffff 144deg,
       rgba(255, 255, 255, 0) 162deg,
       rgba(255, 255, 255, 0) 360deg
     );
@@ -17683,7 +17685,27 @@ canvas {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: bmTodayBoxLightOrbit 1.75s linear infinite;
+  animation:
+    bmTodayBoxLightOrbit 1.25s linear infinite,
+    bmTodayBoxEdgeBlink 1.05s ease-in-out infinite;
+}
+
+.day-cell.is-today::after,
+.week-day.is-today::after,
+.week-timetable-day-head.is-today::after,
+.block-head-button.is-today::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 2;
+  pointer-events: none;
+  border: 2px solid rgba(255, 218, 73, 0.68);
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 12px rgba(255, 231, 135, 0.52),
+    0 0 16px rgba(255, 202, 40, 0.5);
+  opacity: 0.68;
+  animation: bmTodayInnerBlink 1.15s ease-in-out infinite;
 }
 
 .day-cell.is-today .date-cell-content,
@@ -17708,6 +17730,28 @@ canvas {
 .week-timetable-day-head.is-today .date-zone-label,
 .block-head-button.is-today .date-zone-label {
   z-index: 12;
+  animation: bmTodayCornerPulse 1.25s ease-in-out infinite;
+}
+
+.day-cell.is-today .date-zone.top-right .date-zone-label,
+.week-day.is-today .date-zone.top-right .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.top-right .date-zone-label,
+.block-head-button.is-today .date-zone.top-right .date-zone-label {
+  animation-delay: 0.12s;
+}
+
+.day-cell.is-today .date-zone.bottom-left .date-zone-label,
+.week-day.is-today .date-zone.bottom-left .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.bottom-left .date-zone-label,
+.block-head-button.is-today .date-zone.bottom-left .date-zone-label {
+  animation-delay: 0.24s;
+}
+
+.day-cell.is-today .date-zone.bottom-right .date-zone-label,
+.week-day.is-today .date-zone.bottom-right .date-zone-label,
+.week-timetable-day-head.is-today .date-zone.bottom-right .date-zone-label,
+.block-head-button.is-today .date-zone.bottom-right .date-zone-label {
+  animation-delay: 0.36s;
 }
 
 .day-cell.is-today .date-zone.top-left .date-zone-label,
@@ -17758,9 +17802,83 @@ canvas {
   animation: bmTodayDateBounce 1.75s ease-in-out infinite;
 }
 
+@keyframes bmTodayBoxAttention {
+  0%,
+  100% {
+    border-color: rgba(221, 157, 22, 0.92);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.98),
+      0 0 0 4px rgba(246, 194, 69, 0.42),
+      0 0 18px rgba(255, 211, 77, 0.28),
+      inset 0 0 0 1px rgba(255, 247, 209, 0.9);
+    filter: brightness(1);
+  }
+
+  45%,
+  62% {
+    border-color: rgba(255, 184, 0, 1);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 1),
+      0 0 0 5px rgba(255, 213, 79, 0.72),
+      0 0 26px rgba(255, 193, 7, 0.72),
+      0 0 42px rgba(56, 189, 248, 0.22),
+      inset 0 0 0 2px rgba(255, 245, 196, 1);
+    filter: brightness(1.08) saturate(1.08);
+  }
+}
+
 @keyframes bmTodayBoxLightOrbit {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes bmTodayBoxEdgeBlink {
+  0%,
+  100% {
+    opacity: 0.7;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter:
+      brightness(1.85)
+      drop-shadow(0 0 8px rgba(255, 218, 73, 0.92));
+  }
+}
+
+@keyframes bmTodayInnerBlink {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.985);
+  }
+
+  50% {
+    opacity: 0.98;
+    transform: scale(1);
+  }
+}
+
+@keyframes bmTodayCornerPulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.94);
+    box-shadow:
+      0 4px 10px rgba(16, 35, 61, 0.18),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+    background: rgba(255, 255, 255, 1);
+    box-shadow:
+      0 0 0 2px rgba(255, 217, 61, 0.72),
+      0 0 14px rgba(255, 202, 40, 0.62),
+      inset 0 0 0 1px rgba(255, 255, 255, 1);
   }
 }
 
