@@ -12997,7 +12997,7 @@ canvas {
 
 .habits-compact .habit-time-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(108px, 1fr) auto minmax(108px, 1fr);
   gap: 5px;
   align-items: center;
   margin-top: 5px;
@@ -13006,8 +13006,11 @@ canvas {
 .habits-compact .habit-inline-row select,
 .habits-compact .habit-time-row input {
   min-height: 31px;
-  padding: 4px 8px;
-  font-size: 0.8rem;
+  min-width: 108px;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .habits-compact .habit-time-row span {
