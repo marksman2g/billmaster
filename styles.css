@@ -9508,9 +9508,9 @@ canvas {
 
 .compact-day-task > .time-of-day-badge {
   position: absolute;
-  top: 9px;
-  right: auto;
-  left: 9px;
+  top: 10px;
+  right: 10px;
+  left: auto;
   z-index: 2;
   overflow: visible;
 }
@@ -9520,7 +9520,7 @@ canvas {
 }
 
 .compact-day-task .day-task-title-row {
-  padding-left: 36px;
+  padding-right: 42px;
   box-sizing: border-box;
 }
 
