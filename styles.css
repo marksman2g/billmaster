@@ -15948,6 +15948,9 @@ canvas {
 
 .time-period-chip.late-night,
 .time-of-day-badge.late-night {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   color: #dbeafe;
   background: repeating-linear-gradient(
     135deg,
@@ -15963,9 +15966,107 @@ canvas {
 
 .time-period-chip.late-night svg,
 .time-of-day-badge.late-night svg {
-  color: #bfdbfe;
-  stroke: currentColor;
-  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.58));
+  position: relative;
+  z-index: 3;
+  color: #38bdf8;
+  fill: currentColor;
+  stroke: #dbeafe;
+  stroke-width: 2.15;
+  transform-origin: center;
+  filter:
+    brightness(1.24)
+    drop-shadow(0 0 6px rgba(56, 189, 248, 0.74))
+    drop-shadow(0 0 12px rgba(37, 99, 235, 0.58));
+  animation: late-night-moon-pulse 2.6s ease-in-out infinite;
+}
+
+.time-period-chip.late-night::before,
+.time-of-day-badge.late-night::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 50%;
+  z-index: 2;
+  width: 25px;
+  height: 25px;
+  margin-top: -12.5px;
+  pointer-events: none;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.98) 0 1.5px, transparent 2.2px),
+    radial-gradient(circle at 91% 34%, rgba(191, 219, 254, 0.95) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 79% 84%, rgba(255, 255, 255, 0.88) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 20% 82%, rgba(125, 211, 252, 0.92) 0 1.3px, transparent 2px),
+    radial-gradient(circle at 9% 31%, rgba(255, 255, 255, 0.82) 0 1px, transparent 1.7px);
+  filter:
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.82))
+    drop-shadow(0 0 9px rgba(56, 189, 248, 0.62));
+  animation: late-night-star-orbit 3.1s linear infinite;
+}
+
+.time-period-chip.late-night::after,
+.time-of-day-badge.late-night::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  z-index: 1;
+  width: 17px;
+  height: 17px;
+  margin-top: -8.5px;
+  pointer-events: none;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.5), rgba(37, 99, 235, 0.22) 54%, transparent 70%);
+  animation: late-night-moon-halo-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes late-night-moon-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    filter:
+      brightness(1.1)
+      drop-shadow(0 0 5px rgba(56, 189, 248, 0.58))
+      drop-shadow(0 0 10px rgba(37, 99, 235, 0.42));
+  }
+
+  50% {
+    transform: scale(1.22);
+    filter:
+      brightness(1.78)
+      drop-shadow(0 0 8px rgba(191, 219, 254, 0.94))
+      drop-shadow(0 0 18px rgba(56, 189, 248, 0.92));
+  }
+}
+
+@keyframes late-night-star-orbit {
+  from {
+    transform: rotate(0deg) scale(0.95);
+    opacity: 0.72;
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    opacity: 1;
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.95);
+    opacity: 0.72;
+  }
+}
+
+@keyframes late-night-moon-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 0.78;
+    transform: scale(1.38);
+  }
 }
 
 @keyframes afternoon-sun-pulse {
