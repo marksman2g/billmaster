@@ -3122,9 +3122,9 @@ function quickAction(action) {
       </div>
       <textarea class="habit-description-inline" rows="2" data-action="habit-inline" data-id="${habit.id}" data-field="description" placeholder="Notes for this habit">${esc(habit.description || "")}</textarea>
       <div class="habit-duration-stepper" aria-label="Quick end time controls">
-        <button class="outline-btn" data-action="adjust-habit-end" data-id="${habit.id}" data-delta="-15">- 15m</button>
-        <span>End ${timeLabel(habit.end)} &middot; ${durationLabel(durationMinutes)}</span>
-        <button class="outline-btn" data-action="adjust-habit-end" data-id="${habit.id}" data-delta="15">${icon("plus")} 15m</button>
+        <button class="outline-btn" data-action="adjust-habit-end" data-id="${habit.id}" data-delta="-15">- 15M</button>
+        <span>End ${timeLabel(habit.end)} &middot; <strong class="duration-value">${durationLabel(durationMinutes)}</strong></span>
+        <button class="outline-btn" data-action="adjust-habit-end" data-id="${habit.id}" data-delta="15">${icon("plus")} 15M</button>
       </div>
       <div class="habit-stats-row">
         <div><label>Streak</label><strong>${streak}</strong><span>days</span></div>
@@ -3135,7 +3135,7 @@ function quickAction(action) {
       <div class="task-time-preview habit-calendar-preview">
         <span>${icon("calendar")} Starts ${dateLabel(habit.startDate)}</span>
         <span>${icon("check")} Counting since ${dateLabel(countingSince)}</span>
-        <span>${icon("bell")} ${habit.includeHours ? `${durationLabel(minutes(habit.end) - minutes(habit.start))} counted` : "Not counted in hours"}</span>
+        <span>${icon("clock")} ${habit.includeHours ? `<strong class="duration-value">${durationLabel(minutes(habit.end) - minutes(habit.start))}</strong> counted` : "Not counted in hours"}</span>
       </div>
       <div class="habit-fresh-row">
         <span>${hasFreshStart ? `Fresh start active from ${dateLabel(habit.freshStartDate)}` : "Need a reset? Start this habit fresh from a new date."}</span>
@@ -5075,7 +5075,7 @@ function quickAction(action) {
       ${weekdays.map((d, index) => `<div class="weekday cal-day--${calendarToneForWeekday(index)}" style="${calendarToneStyleByIndex(index)}">${d}</div>`).join("")}
       ${days.map((iso) => monthDayCell(iso, month, year)).join("")}
     </div>
-    <div class="calendar-summary">${icon("calendar")} <strong>Month Total: ${hoursForMonth()}h</strong><span class="muted">Bills</span><span class="muted">Tasks</span><span class="muted">Subscriptions</span></div>`;
+    <div class="calendar-summary">${icon("calendar")} <strong>Month Total: <span class="duration-total">${durationHoursLabel(hoursForMonth())}</span></strong><span class="muted">Bills</span><span class="muted">Tasks</span><span class="muted">Subscriptions</span></div>`;
   }
 
   function monthDayCell(iso, activeMonth, activeYear) {
@@ -5095,7 +5095,7 @@ function quickAction(action) {
         <strong>${day}</strong>
         ${weatherChip(iso, "mini")}
         <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${bill ? `<span class="dot coral"></span>` : ""}${sub ? `<span class="dot purple"></span>` : ""}</div>
-        ${tasks.length ? `<span class="hour-chip">${round1(totalTaskHours(tasks))}h</span>` : ""}
+        ${tasks.length ? `<span class="hour-chip">${durationHoursLabel(totalTaskHours(tasks))}</span>` : ""}
       </div>
     </div>`;
   }
@@ -5112,7 +5112,7 @@ function quickAction(action) {
           ${timetableDates.map((iso, index) => weekTimetableColumn(iso, index)).join("")}
         </div>
       </div>
-      <div class="calendar-summary">${icon("bell")} Week Total: <strong>${round1(totalTaskHours(weekTasks))}h</strong></div>`;
+      <div class="calendar-summary">${icon("bell")} Week Total: <strong class="duration-total">${durationHoursLabel(totalTaskHours(weekTasks))}</strong></div>`;
   }
 
   function weekTimetableDates() {
@@ -5181,7 +5181,7 @@ function quickAction(action) {
         ? ` - copy target ${dayCopyTargetLabel}`
         : " - tap a date above to pick copy target"
       : "";
-    return `<div class="calendar-summary day-toolbar">${icon("bell")} <span class="calendar-summary-label">Today's Task Hours:</span><strong>${round1(totalTaskHours(dayTasks))}h</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}${selectedHint}</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button>${copyTargetButton}<button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}${dayTimeOfDayLegend("day-toolbar-periods")}</div>
+    return `<div class="calendar-summary day-toolbar">${icon("bell")} <span class="calendar-summary-label">Today's Task Hours:</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(dayTasks))}</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}${selectedHint}</span><button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button>${copyTargetButton}<button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}${dayTimeOfDayLegend("day-toolbar-periods")}</div>
       <div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit.${ui.daySwapMode ? " Drag one task onto another to swap times." : " Turn Swap mode on before dragging tasks on touch screens."}</p>
       <div class="list day-task-grid ${ui.daySwapMode ? "day-swap-mode" : ""}">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
@@ -5349,7 +5349,7 @@ function quickAction(action) {
       <strong>${d.getDate()}</strong>
       ${weatherChip(iso, "mini")}
       <div class="event-dots">${tasks.length ? `<span class="dot blue"></span>` : ""}${data.bills.some((b) => b.dueDate === iso) ? `<span class="dot coral"></span>` : ""}</div>
-      ${dayHours ? `<span class="hour-chip">${dayHours}h</span>` : ""}
+      ${dayHours ? `<span class="hour-chip">${durationHoursLabel(dayHours)}</span>` : ""}
     </div>`;
   }
 
@@ -5479,7 +5479,7 @@ function quickAction(action) {
         ${weatherMotionLayer(iso)}
         ${calendarDateCardContent(iso)}
       </div>`;
-    }).join("")}<div class="block-head time-head time-head-right week-timetable-head week-timetable-time-head">24h</div>`;
+    }).join("")}<div class="block-head time-head time-head-right week-timetable-head week-timetable-time-head">24H</div>`;
     const leftLabels = blockHourLabels(range, "left");
     const rightLabels = blockHourLabels(range, "right");
     const cols = weekdays.map((iso) => {
@@ -5494,7 +5494,7 @@ function quickAction(action) {
     const helperText = week2
       ? "Week 2 keeps the clean week grid while preserving block drag, draw, select, repeat, and timed-task controls."
       : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space.";
-    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong>${round1(totalTaskHours(countedTasks))}h</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText}</span>${selectedActionButton}<span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
+    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText}</span>${selectedActionButton}<span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
       <div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
   }
@@ -5687,9 +5687,9 @@ function quickAction(action) {
   }
 
   function durationText(task) {
-    if (!task.start || !task.end) return `${icon("bell")} Set duration`;
+    if (!task.start || !task.end) return `${icon("clock")} Set duration`;
     const diff = taskDurationMinutes(task);
-    return `${icon("bell")} ${durationLabel(diff)}`;
+    return `${icon("clock")} <span class="duration-value">${durationLabel(diff)}</span>`;
   }
 
   function taskDurationMinutes(task) {
@@ -5706,8 +5706,12 @@ function quickAction(action) {
 
   function durationLabel(totalMinutes) {
     const minutesValue = Math.max(0, Number(totalMinutes || 0));
-    if (minutesValue >= 60) return `${round1(minutesValue / 60)}h`;
-    return `${minutesValue}m`;
+    if (minutesValue >= 60) return `${round1(minutesValue / 60)}H`;
+    return `${minutesValue}M`;
+  }
+
+  function durationHoursLabel(totalHours) {
+    return durationLabel(Math.round(Number(totalHours || 0) * 60));
   }
 
   function priorityColor(priority) {
@@ -7721,7 +7725,7 @@ function quickAction(action) {
     let endMinute = minutes(end);
     if (endMinute <= startMinute) endMinute += 24 * 60;
     const spanMinutes = Math.max(15, endMinute - startMinute);
-    const spanLabel = spanMinutes >= 60 ? `${round1(spanMinutes / 60)}h` : `${spanMinutes}m`;
+    const spanLabel = durationLabel(spanMinutes);
     return `${modalHeader("Create Task", "Your dragged time is ready. Add the title, check details, save.")}
       <section class="quick-create-summary" aria-label="Selected task time">
         <div>
