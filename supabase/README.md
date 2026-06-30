@@ -9,6 +9,7 @@ This folder is the first practical move toward cross-device sync.
 - Pull the same workspace from another device after signing in.
 - Private Row Level Security so each user can only read and write their own workspace row.
 - A private `billmaster-media` storage bucket for the next picture-upload step.
+- A Plaid Edge Function scaffold for safe bank/card linking, token exchange, and transaction sync.
 
 ## Setup
 
@@ -27,6 +28,39 @@ After that, open BillMaster on another device, use the same setup values, sign i
 After the first successful push or pull, BillMaster enables auto sync on that device so later saved changes push to Supabase automatically.
 
 If the setup test says the Data API grants are missing, run `supabase/schema.sql` again. It is safe to rerun because the table, bucket, and policies are written with `if not exists` / `drop policy if exists`.
+
+## Plaid Bank/Card Sync Phase
+
+The next sync step lives in `supabase/functions/plaid-sync/index.ts`. It keeps Plaid secrets off the browser and exposes these POST actions:
+
+- `health`
+- `create_link_token`
+- `exchange_public_token`
+- `sync_transactions`
+
+Run `supabase/schema.sql` first. It creates:
+
+- `billmaster_plaid_connections`: user-visible metadata for linked Plaid items.
+- `billmaster_plaid_tokens`: service-role-only access tokens and sync cursors. Browser clients do not get grants or RLS policies for this table.
+
+Set these Supabase function secrets before deploying:
+
+```powershell
+supabase secrets set PLAID_CLIENT_ID="your_client_id"
+supabase secrets set PLAID_SECRET="your_sandbox_or_development_secret"
+supabase secrets set PLAID_ENV="sandbox"
+supabase secrets set PLAID_PRODUCTS="transactions"
+supabase secrets set PLAID_COUNTRY_CODES="US"
+supabase secrets set PLAID_CLIENT_NAME="BillMaster"
+```
+
+Then deploy:
+
+```powershell
+supabase functions deploy plaid-sync
+```
+
+The browser should call the function with the signed-in Supabase user's `Authorization: Bearer <access_token>` header. Do not paste bank usernames, passwords, card numbers, or Plaid secrets into BillMaster.
 
 ## Why One Workspace Table First
 

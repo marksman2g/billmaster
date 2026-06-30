@@ -4375,7 +4375,7 @@ function quickAction(action) {
     const needsReview = items.filter((item) => item.status === "pending").length;
     return `<section class="section-card sync-panel">
       <div class="sync-step good"><span>${icon("check")}</span><div><strong>${linkedAccounts} payment accounts</strong><p>Prototype accounts are connected locally. Production would use Plaid/MX/Finicity-style tokenized links.</p></div></div>
-      <div class="sync-step ${needsReview ? "warn" : "good"}"><span>${icon(needsReview ? "alert" : "check")}</span><div><strong>${needsReview} items need review</strong><p>Detected charges are held here so duplicates do not flood Bills or Subscriptions.</p></div></div>
+      <div class="sync-step ${needsReview ? "warn" : "good"}"><span>${icon(needsReview ? "alert" : "check")}</span><div><strong>${needsReview} items need review</strong><p>Detected charges are held here so duplicates do not flood Bills + Subscriptions.</p></div></div>
       <div class="sync-step"><span>${icon("wallet")}</span><div><strong>Payment rail staged</strong><p>Local Pay marks bills paid now. Real bill pay needs a biller/payment partner before money can move.</p></div></div>
     </section>`;
   }
@@ -8879,8 +8879,8 @@ function quickAction(action) {
         <div class="plaid-flow">
           ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
           ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}
-          ${plaidFlowStep("3", "Backend", "Add Supabase Edge Function for real token exchange.")}
-          ${plaidFlowStep("4", "Production", "Move to real Plaid only after privacy and reconnect tests.")}
+          ${plaidFlowStep("3", "Backend", "Deploy plaid-sync Edge Function and set secrets.")}
+          ${plaidFlowStep("4", "Production", "Move to real Plaid after privacy and reconnect tests.")}
         </div>
         <div class="sheet-actions plaid-actions">
           <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>
@@ -17704,7 +17704,7 @@ function quickAction(action) {
 
     const inboxItems = [
       { id: "plaid_inbox_verizon", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Verizon Wireless", merchant: "Verizon", category: "Utilities", amount: 85, projected: 80, dueDate: addDaysIso(today, 18), confidence: 94, notes: "Plaid sandbox found this as a recurring phone bill. Review before adding to Bill Management." },
-      { id: "plaid_inbox_netflix", type: "subscription", status: "pending", source: "Plaid Sandbox", title: "Netflix", merchant: "Netflix", category: "Entertainment", amount: 15.99, projected: 15.99, dueDate: addDaysIso(today, 25), confidence: 96, notes: "Plaid sandbox found this as a recurring subscription. Review before adding to Subscription." },
+      { id: "plaid_inbox_netflix", type: "subscription", status: "pending", source: "Plaid Sandbox", title: "Netflix", merchant: "Netflix", category: "Entertainment", amount: 15.99, projected: 15.99, dueDate: addDaysIso(today, 25), confidence: 96, notes: "Plaid sandbox found this as a recurring subscription. Review before adding to Bills." },
       { id: "plaid_inbox_electric", type: "bill", status: "pending", source: "Plaid Sandbox", title: "Electric Bill", merchant: "City Power & Light", category: "Utilities", amount: 127.5, projected: 130, dueDate: addDaysIso(today, 12), confidence: 91, notes: "Plaid sandbox found a repeat utility pattern with amount and next due date." }
     ];
     inboxItems.forEach((item) => upsertById(data.billInbox, item));
@@ -17735,14 +17735,15 @@ function quickAction(action) {
     copyText(`BillMaster Plaid Production Plan
 
 1. Create a Plaid developer account and start in Sandbox.
-2. Add a Supabase Edge Function or small backend. Never put Plaid secret keys in the browser.
-3. Browser opens Plaid Link and receives a public_token.
-4. Backend exchanges public_token for access_token.
-5. Store only token metadata and account IDs per BillMaster user.
-6. Pull accounts, balances, and transactions on demand or scheduled refresh.
-7. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills or Subscription.
-8. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
-9. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
+2. Run supabase/schema.sql so Plaid metadata and service-role token tables exist.
+3. Deploy supabase/functions/plaid-sync and set PLAID_CLIENT_ID, PLAID_SECRET, and PLAID_ENV.
+4. Browser opens Plaid Link using create_link_token and receives a public_token.
+5. Backend exchanges public_token for access_token; the browser never sees Plaid secrets.
+6. Store visible connection metadata separately from service-role-only access tokens.
+7. Pull accounts, balances, and transactions with sync_transactions.
+8. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
+9. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
+10. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
     showToast("Plaid production plan copied.");
   }
 
