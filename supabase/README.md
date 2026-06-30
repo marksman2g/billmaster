@@ -60,6 +60,12 @@ Then deploy:
 supabase functions deploy plaid-sync
 ```
 
+In BillMaster, go to `Accounts > Manage`:
+
+1. Click `Check Backend`.
+2. After it reports ready, click `Open Plaid Link`.
+3. After linking, click `Sync Transactions` whenever you want to pull the latest Plaid transaction changes.
+
 The browser should call the function with the signed-in Supabase user's `Authorization: Bearer <access_token>` header. Do not paste bank usernames, passwords, card numbers, or Plaid secrets into BillMaster.
 
 ## Why One Workspace Table First

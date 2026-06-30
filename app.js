@@ -533,6 +533,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "copy-media-storage-plan",
     "cloud-upload-local-media",
     "cloud-refresh-media-links",
+    "check-plaid-backend",
+    "start-plaid-link",
+    "sync-plaid-transactions",
     "simulate-detect",
     "simulate-import",
     "run-smart-sync",
@@ -8846,16 +8849,22 @@ function quickAction(action) {
     const inboxCount = billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
     const connected = Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
     const lastImport = data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    const backendOk = data.settings.plaidBackendReady === true;
+    const backendStatus = backendOk ? "Backend checked" : data.settings.plaidBackendStatus || "Backend not checked";
+    const backendClass = backendOk ? "success" : data.settings.plaidBackendStatus ? "warn" : "info";
+    const backendDetail = data.settings.plaidBackendMessage || "After deployment, Check Backend verifies the plaid-sync function before real Plaid Link opens.";
+    const plaidLinkReady = Boolean(cloudSignedIn() && backendOk);
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
-      const status = sandbox ? "Sandbox linked" : "Local account";
+      const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
+      const status = sandbox ? "Sandbox linked" : livePlaid ? "Plaid linked" : "Local account";
       return `<article class="account-connection-row">
-        <span class="round-icon" style="color:${sandbox ? "var(--teal)" : "var(--navy)"};background:${sandbox ? "#e7fbff" : "#eef6ff"};">${icon(sandbox ? "cloud" : "wallet")}</span>
+        <span class="round-icon" style="color:${sandbox || livePlaid ? "var(--teal)" : "var(--navy)"};background:${sandbox || livePlaid ? "#e7fbff" : "#eef6ff"};">${icon(sandbox || livePlaid ? "cloud" : "wallet")}</span>
         <div>
           <strong>${esc(acct.name)}</strong>
           <small>${esc(acct.type)} ****${esc(acct.last4 || "----")} &middot; ${money(acct.balance || 0)}</small>
         </div>
-        <span class="status ${sandbox ? "success" : "info"}">${esc(status)}</span>
+        <span class="status ${sandbox || livePlaid ? "success" : "info"}">${esc(status)}</span>
       </article>`;
     }).join("");
     return `${modalHeader("Account Connections", "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
@@ -8876,6 +8885,10 @@ function quickAction(action) {
           <span><strong>${inboxCount}</strong><small>review candidates</small></span>
           <span><strong>${esc(lastImport)}</strong><small>last import</small></span>
         </div>
+        <div class="sync-step ${backendClass}" style="margin-top:12px;">
+          <span>${icon(backendOk ? "check" : "settings")}</span>
+          <div><strong>${esc(backendStatus)}</strong><p>${esc(backendDetail)}</p></div>
+        </div>
         <div class="plaid-flow">
           ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
           ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}
@@ -8884,6 +8897,9 @@ function quickAction(action) {
         </div>
         <div class="sheet-actions plaid-actions">
           <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>
+          <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
+          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : "disabled"}>${icon("wallet")} Open Plaid Link</button>
+          <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : "disabled"}>${icon("refresh")} Sync Transactions</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
           <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
           <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy Plan</button>
@@ -11621,6 +11637,9 @@ function quickAction(action) {
     if (action === "copy-media-storage-plan") return copyMediaStoragePlan();
     if (action === "cloud-upload-local-media") return uploadLocalMediaToCloud();
     if (action === "cloud-refresh-media-links") return refreshCloudMediaLinks();
+    if (action === "check-plaid-backend") return checkPlaidBackend();
+    if (action === "start-plaid-link") return startPlaidLink();
+    if (action === "sync-plaid-transactions") return syncPlaidTransactions();
     if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
     if (action === "copy-plaid-production-plan") return copyPlaidProductionPlan();
     if (action === "simulate-scan") return simulateBillScan();
@@ -17729,6 +17748,267 @@ function quickAction(action) {
     const existingIndex = collection.findIndex((candidate) => candidate.id === item.id);
     if (existingIndex >= 0) collection[existingIndex] = { ...collection[existingIndex], ...item };
     else collection.unshift(item);
+  }
+
+  async function plaidFunctionFetch(action, payload = {}, options = {}) {
+    if (!cloudConfigured()) throw new Error("Finish Supabase cloud setup before using Plaid Link.");
+    const authenticated = options.authenticated !== false;
+    if (authenticated) await refreshCloudSessionIfNeeded();
+    let response = null;
+    try {
+      response = await fetch(`${cloudConfig.url}/functions/v1/plaid-sync`, {
+        method: "POST",
+        headers: cloudHeaders(authenticated, options.headers || {}),
+        body: JSON.stringify({ action, ...payload })
+      });
+    } catch (error) {
+      throw new Error("plaid-sync is not reachable yet. Deploy the Supabase Edge Function, set Plaid sandbox secrets, then check again.");
+    }
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        body = text;
+      }
+    }
+    if (!response.ok) {
+      const message = body?.error || body?.message || body?.msg || text || `Plaid backend request failed (${response.status}).`;
+      throw new Error(cloudFriendlyErrorMessage(message, response.status));
+    }
+    return body || {};
+  }
+
+  function recordPlaidBackendStatus(ok, message, details = {}) {
+    data.settings.plaidBackendReady = Boolean(ok);
+    data.settings.plaidBackendStatus = ok ? `Ready ${details.plaid_env ? `(${details.plaid_env})` : ""}`.trim() : "Needs setup";
+    data.settings.plaidBackendMessage = message || "";
+    data.settings.plaidBackendCheckedAt = localTimestamp();
+    saveData({ undo: false, cloudSync: false, syncStamp: false });
+  }
+
+  async function checkPlaidBackend() {
+    if (!cloudConfigured()) {
+      recordPlaidBackendStatus(false, "Finish Supabase setup first, then deploy plaid-sync.");
+      render();
+      showToast("Finish Supabase setup before checking Plaid.", "danger");
+      return;
+    }
+    data.settings.plaidBackendStatus = "Checking backend";
+    data.settings.plaidBackendMessage = "Contacting supabase/functions/v1/plaid-sync...";
+    render();
+    try {
+      const result = await plaidFunctionFetch("health", {}, { authenticated: cloudSignedIn() });
+      const configured = result.configured || {};
+      const missing = [
+        ["PLAID_CLIENT_ID", configured.plaid_client_id],
+        ["PLAID_SECRET", configured.plaid_secret],
+        ["SUPABASE_URL", configured.supabase_url],
+        ["SUPABASE_SERVICE_ROLE_KEY", configured.supabase_service_role_key]
+      ].filter(([, ready]) => !ready).map(([name]) => name);
+      const ok = Boolean(result.ok && !missing.length);
+      const message = ok
+        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode.`
+        : `plaid-sync responded, but missing: ${missing.join(", ") || "required configuration"}.`;
+      recordPlaidBackendStatus(ok, message, result);
+      render();
+      showToast(message, ok ? "success" : "danger");
+    } catch (error) {
+      const message = error?.message || "Plaid backend check failed.";
+      recordPlaidBackendStatus(false, message);
+      render();
+      showToast(message, "danger");
+    }
+  }
+
+  function loadPlaidLinkScript() {
+    if (typeof window === "undefined" || typeof document === "undefined") return Promise.reject(new Error("Plaid Link needs a browser window."));
+    if (window.Plaid?.create) return Promise.resolve();
+    const existing = document.getElementById("plaid-link-script");
+    if (existing) {
+      return new Promise((resolve, reject) => {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Plaid Link script could not load.")), { once: true });
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.id = "plaid-link-script";
+      script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Plaid Link script could not load."));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function startPlaidLink() {
+    if (!cloudConfigured()) {
+      showToast("Finish Supabase setup before opening Plaid Link.", "danger");
+      openModal("cloudSetup");
+      return;
+    }
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before opening Plaid Link.", "danger");
+      openModal("cloudAuth");
+      return;
+    }
+    if (!data.settings.plaidBackendReady) {
+      showToast("Check the Plaid backend first.", "danger");
+      return;
+    }
+    try {
+      data.settings.plaidLinkStatus = "Creating link token";
+      render();
+      const link = await plaidFunctionFetch("create_link_token");
+      if (!link.link_token) throw new Error("plaid-sync did not return a link token.");
+      await loadPlaidLinkScript();
+      const handler = window.Plaid.create({
+        token: link.link_token,
+        onSuccess: async (publicToken, metadata) => {
+          try {
+            data.settings.plaidLinkStatus = "Exchanging public token";
+            render();
+            const linked = await plaidFunctionFetch("exchange_public_token", {
+              public_token: publicToken,
+              metadata: metadata || {}
+            });
+            data.settings.plaidLastLinkedAt = localTimestamp();
+            data.settings.plaidLastLinkedInstitution = linked.institution_name || "Plaid item";
+            data.settings.plaidLinkStatus = "Linked";
+            await syncPlaidTransactions({ silent: true });
+            render();
+            showToast(`${linked.institution_name || "Plaid account"} linked. Transactions synced.`);
+          } catch (error) {
+            data.settings.plaidLinkStatus = "Link exchange failed";
+            render();
+            showToast(error?.message || "Plaid token exchange failed.", "danger");
+          }
+        },
+        onExit: (error) => {
+          data.settings.plaidLinkStatus = error ? "Link exited with error" : "Link exited";
+          render();
+          if (error) showToast(error.display_message || error.error_message || "Plaid Link exited before finishing.", "danger");
+        }
+      });
+      data.settings.plaidLinkStatus = "Plaid Link open";
+      render();
+      handler.open();
+    } catch (error) {
+      data.settings.plaidLinkStatus = "Link setup failed";
+      render();
+      showToast(error?.message || "Plaid Link could not start.", "danger");
+    }
+  }
+
+  async function syncPlaidTransactions(options = {}) {
+    if (!cloudConfigured()) {
+      showToast("Finish Supabase setup before syncing Plaid.", "danger");
+      return;
+    }
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before syncing Plaid.", "danger");
+      openModal("cloudAuth");
+      return;
+    }
+    try {
+      data.settings.plaidLinkStatus = "Syncing transactions";
+      if (!options.silent) render();
+      const result = await plaidFunctionFetch("sync_transactions");
+      const summary = applyPlaidSyncResult(result);
+      data.settings.plaidLastBackendSyncAt = localTimestamp();
+      data.settings.plaidLinkStatus = `Synced ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}`;
+      const connection = data.syncConnections.find((item) => item.id === "sync_1");
+      if (connection) {
+        connection.provider = "Plaid";
+        connection.status = "Connected";
+        connection.needsAuth = false;
+        connection.lastSync = data.settings.plaidLastBackendSyncAt;
+      }
+      saveData();
+      if (!options.silent) {
+        render();
+        showToast(`Plaid sync imported ${summary.accounts} account${summary.accounts === 1 ? "" : "s"} and ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}.`);
+      }
+      return summary;
+    } catch (error) {
+      data.settings.plaidLinkStatus = "Sync failed";
+      render();
+      showToast(error?.message || "Plaid transaction sync failed.", "danger");
+      return { accounts: 0, transactions: 0 };
+    }
+  }
+
+  function plaidStableId(prefix, value) {
+    const safe = String(value || "").replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "");
+    return `${prefix}_${safe || id("plaid")}`;
+  }
+
+  function plaidAccountType(account) {
+    const type = String(account.type || "").toLowerCase();
+    const subtype = String(account.subtype || "").toLowerCase();
+    if (type === "credit") return "Credit";
+    if (subtype.includes("saving")) return "Savings";
+    if (subtype.includes("checking")) return "Checking";
+    return subtype ? subtype.replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Account";
+  }
+
+  function plaidAccountNameByPlaidId(plaidAccountId) {
+    return data.accounts.find((account) => account.plaidAccountId === plaidAccountId)?.name || "Plaid Account";
+  }
+
+  function applyPlaidSyncResult(result) {
+    let accountCount = 0;
+    let transactionCount = 0;
+    safeArray(result.items).forEach((item) => {
+      safeArray(item.accounts).forEach((account) => {
+        if (!account.account_id) return;
+        accountCount += 1;
+        upsertById(data.accounts, {
+          id: plaidStableId("acct_plaid", account.account_id),
+          name: account.name || account.official_name || "Plaid Account",
+          type: plaidAccountType(account),
+          last4: account.mask || "----",
+          balance: Number(account.current_balance || account.available_balance || 0),
+          color: account.type === "credit" ? "coral" : "teal",
+          provider: "Plaid",
+          plaidLinked: true,
+          plaidItemId: item.item_id || "",
+          plaidAccountId: account.account_id || "",
+          currency: account.iso_currency_code || "USD"
+        });
+      });
+      [...safeArray(item.added), ...safeArray(item.modified)].forEach((tx) => {
+        if (!tx.transaction_id) return;
+        transactionCount += 1;
+        const accountName = plaidAccountNameByPlaidId(tx.account_id);
+        upsertById(data.transactions, {
+          id: plaidStableId("tx_plaid", tx.transaction_id),
+          type: tx.type === "income" ? "income" : "expense",
+          name: tx.name || tx.merchant_name || "Plaid Transaction",
+          merchant: tx.merchant_name || tx.name || "Plaid",
+          category: tx.category || "Other",
+          amount: Number(tx.amount || 0),
+          projected: Number(tx.amount || 0),
+          date: tx.date || ui.selectedDate,
+          frequency: "One time",
+          method: accountName,
+          status: tx.type === "income" ? "Received" : "Paid",
+          notes: tx.pending ? "Imported from Plaid. Pending transaction." : "Imported from Plaid.",
+          source: "Plaid",
+          plaidLinked: true,
+          plaidTransactionId: tx.transaction_id,
+          plaidAccountId: tx.account_id || "",
+          accountId: plaidStableId("acct_plaid", tx.account_id)
+        });
+      });
+      safeArray(item.removed).forEach((removed) => {
+        const existing = data.transactions.find((tx) => tx.plaidTransactionId === removed.transaction_id);
+        if (existing) existing.status = "Removed";
+      });
+    });
+    return { accounts: accountCount, transactions: transactionCount };
   }
 
   function copyPlaidProductionPlan() {
