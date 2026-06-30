@@ -17353,14 +17353,15 @@ canvas {
 
 /* Day task cards: pull content down-left and make schedule text easier to read. */
 .compact-day-task > .time-of-day-badge {
-  top: 42px;
-  left: 10px;
+  top: 10px;
+  right: 10px;
+  left: auto;
 }
 
 .compact-day-task .day-task-main {
   gap: 6px;
-  padding-top: 72px;
-  padding-left: 22px;
+  padding-top: 58px;
+  padding-left: 18px;
 }
 
 .compact-day-task .day-task-title-row {
