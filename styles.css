@@ -12536,6 +12536,12 @@ canvas {
   outline-offset: 4px;
 }
 
+.habit-card.time-drag-over {
+  outline: 3px solid #f6b319;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px rgba(246, 179, 25, 0.18), var(--shadow);
+}
+
 .habit-card-head {
   align-items: flex-start;
 }
@@ -12655,8 +12661,13 @@ canvas {
   gap: 6px;
   margin-top: 4px;
   color: var(--muted);
+  cursor: grab;
   font-size: 0.9rem;
   font-weight: 820;
+}
+
+.habit-time-row:active {
+  cursor: grabbing;
 }
 
 .habit-inline-row select,

@@ -427,6 +427,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let taskAlertAudioContext = null;
   let suppressCardEditUntil = 0;
   let projectDragSelectState = null;
+  let habitTimeDragId = "";
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockSelectHoldDelay = 520;
@@ -3106,7 +3107,7 @@ function quickAction(action) {
               <select data-action="habit-inline" data-id="${habit.id}" data-field="type" aria-label="Habit type">${inlineOptions(habitTypeOptions, habit.type)}</select>
               <select data-action="habit-inline" data-id="${habit.id}" data-field="schedule" aria-label="Habit schedule">${inlineOptions(habitScheduleOptions, habit.schedule)}</select>
             </div>
-            <div class="habit-time-row">
+            <div class="habit-time-row" draggable="true" data-habit-time-swap="${habit.id}" title="Drag this time row onto another habit to swap times">
               <input type="time" data-action="habit-inline" data-id="${habit.id}" data-field="start" value="${esc(habit.start || "08:00")}" aria-label="Start time">
               <span>to</span>
               <input type="time" data-action="habit-inline" data-id="${habit.id}" data-field="end" value="${esc(habit.end || "08:30")}" aria-label="End time">
@@ -9476,6 +9477,15 @@ function quickAction(action) {
       if (card.dataset.dragBound === "true") return;
       card.dataset.dragBound = "true";
       card.addEventListener("dragstart", (event) => {
+        const timeRow = event.target.closest?.(".habit-time-row[data-habit-time-swap]");
+        if (timeRow) {
+          habitTimeDragId = timeRow.dataset.habitTimeSwap || card.dataset.habitId || "";
+          card.classList.add("is-dragging", "is-time-dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("application/x-billmaster-habit-time", habitTimeDragId);
+          event.dataTransfer.setData("text/plain", `habit-time:${habitTimeDragId}`);
+          return;
+        }
         if (event.target.closest("button,input,select,textarea,a")) {
           event.preventDefault();
           return;
@@ -9485,18 +9495,33 @@ function quickAction(action) {
         event.dataTransfer.setData("text/plain", card.dataset.habitId || "");
       });
       card.addEventListener("dragend", () => {
+        habitTimeDragId = "";
         card.classList.remove("is-dragging");
+        card.classList.remove("is-time-dragging");
         document.querySelectorAll(".habit-card.drag-over").forEach((item) => item.classList.remove("drag-over"));
+        document.querySelectorAll(".habit-card.time-drag-over").forEach((item) => item.classList.remove("time-drag-over"));
       });
       card.addEventListener("dragover", (event) => {
         event.preventDefault();
-        card.classList.add("drag-over");
+        if (habitTimeDragId) card.classList.add("time-drag-over");
+        else card.classList.add("drag-over");
       });
-      card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
+      card.addEventListener("dragleave", () => {
+        card.classList.remove("drag-over");
+        card.classList.remove("time-drag-over");
+      });
       card.addEventListener("drop", (event) => {
         event.preventDefault();
         card.classList.remove("drag-over");
-        const sourceId = event.dataTransfer.getData("text/plain");
+        card.classList.remove("time-drag-over");
+        const plainDragData = event.dataTransfer.getData("text/plain") || "";
+        const timeSource = event.dataTransfer.getData("application/x-billmaster-habit-time") || (plainDragData.startsWith("habit-time:") ? plainDragData.replace(/^habit-time:/, "") : "");
+        if (timeSource) {
+          swapHabitTimes(timeSource, card.dataset.habitId || "");
+          habitTimeDragId = "";
+          return;
+        }
+        const sourceId = plainDragData;
         const targetId = card.dataset.habitId || "";
         swapHabits(sourceId, targetId);
       });
@@ -14617,6 +14642,22 @@ function quickAction(action) {
     saveData();
     render();
     showToast("Habits swapped.");
+  }
+
+  function swapHabitTimes(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const source = data.habits.find((habit) => habit.id === sourceId);
+    const target = data.habits.find((habit) => habit.id === targetId);
+    if (!source || !target) return;
+    const sourceStart = source.start || "08:00";
+    const sourceEnd = source.end || "08:30";
+    source.start = target.start || "08:00";
+    source.end = target.end || "08:30";
+    target.start = sourceStart;
+    target.end = sourceEnd;
+    saveData();
+    render();
+    showToast("Habit times swapped.");
   }
 
   function adjustHabitEnd(habitId, deltaMinutes) {
