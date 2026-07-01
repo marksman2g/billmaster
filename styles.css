@@ -4493,6 +4493,20 @@ button.round-icon {
   grid-column: 1 / -1;
 }
 
+.day-task-grid.day-tasks-regular {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.day-task-grid.day-tasks-compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+}
+
+.day-task-grid.day-tasks-gallery {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+}
+
 .bill-card,
 .subscription-card,
 .task-card,
@@ -9476,6 +9490,12 @@ canvas {
   transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
+.day-task-card.selected {
+  border-color: #2196f3;
+  background: #eaf4ff;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.18), var(--shadow);
+}
+
 .day-task-grid.day-swap-mode .day-task-card {
   touch-action: none;
 }
@@ -9520,6 +9540,43 @@ canvas {
   overflow: hidden;
 }
 
+.day-task-card-compact {
+  min-height: 210px;
+  padding: 9px;
+  box-shadow: none;
+}
+
+.day-task-card-compact .task-address-row,
+.day-task-card-compact .task-checklist {
+  display: none;
+}
+
+.day-task-card-compact .compact-card-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.day-task-card-compact .compact-card-actions button {
+  min-height: 30px;
+  padding-inline: 7px;
+  font-size: 0.74rem;
+}
+
+.day-task-card-gallery {
+  min-height: 340px;
+}
+
+.day-task-card-gallery .day-task-picture img {
+  opacity: var(--day-picture-opacity, 0.42);
+}
+
+.day-task-card-gallery.has-task-picture::after {
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.day-task-card-gallery .entity-title {
+  font-size: 1.16rem;
+}
+
 .compact-day-task.has-task-picture {
   isolation: isolate;
 }
@@ -9551,7 +9608,7 @@ canvas {
   background: rgba(255, 255, 255, 0.66);
 }
 
-.compact-day-task > :not(.day-task-picture):not(.time-of-day-badge) {
+.compact-day-task > :not(.day-task-picture):not(.time-of-day-badge):not(.task-select-square) {
   position: relative;
   z-index: 1;
 }
@@ -9580,15 +9637,16 @@ canvas {
 
 .day-task-title-row .task-select-square,
 .compact-day-task > .task-select-square {
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
-  flex: 0 0 26px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
   color: var(--blue);
   background: #f8fbff;
   border: 1.5px solid #b9d7ff;
-  border-radius: 7px;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(24, 67, 112, 0.12), inset 0 0 0 2px rgba(255, 255, 255, 0.9);
+  pointer-events: auto;
 }
 
 .day-task-title-row .task-select-square.selected,
@@ -9601,8 +9659,8 @@ canvas {
 
 .day-task-title-row .task-select-square svg,
 .compact-day-task > .task-select-square svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 
 .day-task-body {
@@ -11325,6 +11383,34 @@ canvas {
 .calendar-summary.day-toolbar {
   gap: 7px;
   margin: 7px 0 8px;
+}
+
+.day-view-mode-picker {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid #cfe3f8;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.day-view-mode-picker button {
+  min-height: 28px;
+  padding: 4px 10px;
+  color: var(--navy);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.day-view-mode-picker button.active {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+  box-shadow: 0 8px 18px rgba(33, 150, 243, 0.2);
 }
 
 .day-toolbar .time-of-day-legend {
@@ -17738,7 +17824,7 @@ canvas {
   top: 12px !important;
   right: 14px !important;
   left: auto !important;
-  z-index: 4;
+  z-index: 20 !important;
   margin: 0 !important;
   transform: none !important;
 }
