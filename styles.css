@@ -690,6 +690,13 @@ video {
     0 0 14px rgba(31, 74, 130, 0.32);
 }
 
+.calendar-quick-add .quick-ask-btn.is-listening {
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff675e, #a72f42);
+  border-color: rgba(255, 255, 255, 0.76);
+  animation: pulse-mic 1.05s ease-in-out infinite;
+}
+
 .calendar-quick-add input {
   min-height: 38px;
   padding: 0 2px;
@@ -907,6 +914,12 @@ button.round-icon {
 .quick-voice-btn {
   color: #fff;
   background: var(--navy-2);
+}
+
+.quick-voice-btn.is-listening {
+  background: var(--coral);
+  box-shadow: 0 0 0 4px rgba(255, 103, 94, 0.18), 0 0 18px rgba(255, 103, 94, 0.38);
+  animation: pulse-mic 1.05s ease-in-out infinite;
 }
 
 .voice-panel {
@@ -11589,6 +11602,41 @@ canvas {
 
 .ai-chat .quick-add {
   grid-template-columns: 44px minmax(0, 1fr) 44px auto;
+}
+
+.ai-voice-settings {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #d8e7f7;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.ai-voice-settings span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ai-voice-settings button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #bfd7f4;
+  border-radius: 8px;
+  color: var(--navy);
+  background: #ffffff;
+  font-weight: 850;
+}
+
+.ai-voice-settings button.active {
+  color: #ffffff;
+  background: var(--navy-2);
+  border-color: var(--navy-2);
+  box-shadow: 0 8px 18px rgba(31, 74, 130, 0.18);
 }
 
 .ai-voice-btn {

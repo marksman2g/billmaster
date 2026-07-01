@@ -69,6 +69,8 @@
     aiDraft: "",
     aiListening: false,
     aiVoiceError: "",
+    aiVoiceProfile: "femaleWarm",
+    aiAutoSpeak: true,
     voiceTranscript: "",
     voiceParsedTask: null,
     voiceCorrectionDraft: "",
@@ -423,15 +425,45 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let dayDragState = null;
   let voiceRecognition = null;
   let voiceStopRequested = false;
+  let quickHoldState = null;
+  let quickHoldClickSuppressUntil = 0;
   let taskAlertSchedulerStarted = false;
   let taskAlertAudioContext = null;
   let suppressCardEditUntil = 0;
+  let modalInsideInteractionUntil = 0;
   let projectDragSelectState = null;
   let habitTimeDragId = "";
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockSelectHoldDelay = 520;
   const blockHoldMoveTolerance = 8;
+  const quickHoldDelay = 560;
+  const aiVoiceProfiles = {
+    femaleWarm: {
+      label: "Female 1",
+      rate: 0.9,
+      pitch: 1.08,
+      names: ["aria", "jenny", "zira", "samantha", "ava", "emma", "libby", "google us english"]
+    },
+    femaleClear: {
+      label: "Female 2",
+      rate: 0.96,
+      pitch: 1,
+      names: ["jenny", "aria", "zira", "susan", "karen", "moira", "google uk english female"]
+    },
+    maleWarm: {
+      label: "Male 1",
+      rate: 0.88,
+      pitch: 0.92,
+      names: ["guy", "david", "mark", "george", "daniel", "ryan", "google uk english male"]
+    },
+    maleClear: {
+      label: "Male 2",
+      rate: 0.94,
+      pitch: 0.86,
+      names: ["david", "mark", "guy", "alex", "fred", "google us english"]
+    }
+  };
   const singleSubmitActions = new Set([
     "save-bill",
     "save-transaction",
@@ -4721,10 +4753,10 @@ function quickAction(action) {
   function calendarQuickAddBar(view) {
     const label = isBlockLikeCalendarView(view) ? `Quick add ${filterLabel(view)} block task...` : `Quick add ${filterLabel(view)} task...`;
     return `<div class="quick-add calendar-quick-add">
-      <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
+      <button class="round-icon quick-voice-btn ${ui.voiceListening ? "is-listening" : ""}" data-action="quick-voice-task" data-hold-action="open-modal" data-hold-modal="voiceTask" aria-label="Tap to add by voice. Hold for full voice task form." title="Tap to add by voice. Hold for the full form.">${icon(ui.voiceListening ? "close" : "mic")}</button>
       <input id="quickTaskInput" placeholder="${esc(label)} (Ctrl+T)" />
       <button class="icon-btn primary-btn" data-action="quick-add-task" aria-label="Add calendar task">${icon("check")}</button>
-      <button class="icon-btn quick-ask-btn" data-action="quick-ask-ai" aria-label="Ask BillMaster AI about your app" title="Ask BillMaster AI about your app">${icon("ai")}</button>
+      <button class="icon-btn quick-ask-btn ${ui.aiListening ? "is-listening" : ""}" data-action="quick-ask-ai" data-hold-action="navigate" data-hold-view="ai" aria-label="Tap to ask BillMaster AI. Hold for the full AI Assistant." title="Tap to ask. Hold for the full AI Assistant.">${icon(ui.aiListening ? "close" : "ai")}</button>
     </div>`;
   }
 
@@ -7207,6 +7239,8 @@ function quickAction(action) {
   function renderAi() {
     const aiVoiceAvailable = Boolean(speechRecognitionCtor());
     const lastAiText = lastAiMessageText();
+    const voiceProfile = currentAiVoiceProfile();
+    const autoSpeak = aiAutoSpeakEnabled();
     return `<section class="screen">
       ${header("AI Assistant")}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
@@ -7227,6 +7261,12 @@ function quickAction(action) {
           <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="${ui.aiListening ? "Listening for your question..." : "Type a question, tap the mic, or press Enter..."}" />
           <button class="icon-btn ai-speak-btn" data-action="speak-last-ai" title="Read last answer aloud" aria-label="Read last answer aloud" ${lastAiText ? "" : "disabled"}>${icon("speaker")}</button>
           <button class="primary-btn ai-send-btn" data-action="send-ai" title="Ask BillMaster AI">${icon("ai")} Ask</button>
+        </div>
+        <div class="ai-voice-settings" aria-label="AI voice options">
+          <span>Voice</span>
+          ${Object.entries(aiVoiceProfiles).map(([key, profile]) => `<button class="${voiceProfile === key ? "active" : ""}" data-action="set-ai-voice-profile" data-profile="${key}">${esc(profile.label)}</button>`).join("")}
+          <button class="${autoSpeak ? "active" : ""}" data-action="toggle-ai-auto-speak">${icon(autoSpeak ? "speaker" : "close")} Auto read ${autoSpeak ? "on" : "off"}</button>
+          <button data-action="test-ai-voice">${icon("playcard")} Test</button>
         </div>
         ${ui.aiVoiceError ? `<div class="voice-message ai-voice-message">${esc(ui.aiVoiceError)}</div>` : ""}
       </div>
@@ -8858,7 +8898,20 @@ function quickAction(action) {
     const backendStatus = backendOk ? "Backend checked" : data.settings.plaidBackendStatus || "Backend not checked";
     const backendClass = backendOk ? "success" : data.settings.plaidBackendStatus ? "warn" : "info";
     const backendDetail = data.settings.plaidBackendMessage || "After deployment, Check Backend verifies the plaid-sync function before real Plaid Link opens.";
-    const plaidLinkReady = Boolean(cloudSignedIn() && backendOk);
+    const signedIn = cloudSignedIn();
+    const cloudReadyClass = signedIn ? "success" : cloudConfigured() ? "warn" : "info";
+    const cloudReadyTitle = signedIn ? "BillMaster signed in" : cloudConfigured() ? "BillMaster sign-in needed" : "Cloud setup needed";
+    const cloudReadyDetail = signedIn
+      ? `Ready to open Plaid Link as ${cloudSafeEmail()}.`
+      : cloudConfigured()
+        ? "Sign in to BillMaster cloud before opening Plaid Link or syncing backend transactions."
+        : "Finish BillMaster cloud setup before opening Plaid Link or syncing backend transactions.";
+    const plaidLinkReady = Boolean(signedIn && backendOk);
+    const plaidLinkBlocker = !backendOk
+      ? "Check backend first"
+      : !signedIn
+        ? "Sign in to BillMaster cloud first"
+        : "";
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
       const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
@@ -8894,6 +8947,10 @@ function quickAction(action) {
           <span>${icon(backendOk ? "check" : "settings")}</span>
           <div><strong>${esc(backendStatus)}</strong><p>${esc(backendDetail)}</p></div>
         </div>
+        <div class="sync-step ${cloudReadyClass}" style="margin-top:12px;">
+          <span>${icon(signedIn ? "check" : "home")}</span>
+          <div><strong>${esc(cloudReadyTitle)}</strong><p>${esc(cloudReadyDetail)}</p></div>
+        </div>
         <div class="plaid-flow">
           ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
           ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}
@@ -8903,8 +8960,9 @@ function quickAction(action) {
         <div class="sheet-actions plaid-actions">
           <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>
           <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
-          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : "disabled"}>${icon("wallet")} Open Plaid Link</button>
-          <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : "disabled"}>${icon("refresh")} Sync Transactions</button>
+          ${signedIn ? "" : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in to BillMaster" : "Setup BillMaster Cloud"}</button>`}
+          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} Open Plaid Link</button>
+          <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("refresh")} Sync Transactions</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
           <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
           <button class="outline-btn" data-action="copy-plaid-backend-setup">${icon("note")} Copy Backend Setup</button>
@@ -11036,6 +11094,25 @@ function quickAction(action) {
     ctx.globalCompositeOperation = "source-over";
   }
 
+  function clearQuickHoldState() {
+    if (quickHoldState?.timer) clearTimeout(quickHoldState.timer);
+    quickHoldState = null;
+  }
+
+  function performHeldQuickAction(el) {
+    const action = el?.dataset?.holdAction;
+    if (!action) return;
+    if (action === "open-modal") {
+      openModal(el.dataset.holdModal || el.dataset.modal, el.dataset.id, el.dataset.returnModal, el.dataset.returnId);
+      showToast("Full voice task form opened.");
+      return;
+    }
+    if (action === "navigate") {
+      navigate(el.dataset.holdView || el.dataset.view || "ai");
+      showToast("Full AI Assistant opened.");
+    }
+  }
+
   function guardBlockDrawTouch(event) {
     if (!ui.blockDrawMode || ui.view !== "calendar" || !isBlockLikeCalendarView()) return;
     const target = event.target;
@@ -11058,9 +11135,49 @@ function quickAction(action) {
   document.addEventListener("touchend", handleDateZoneTouch, { passive: false });
 
   document.addEventListener("pointerdown", (event) => {
+    if (event.target.closest?.("[data-sheet]")) {
+      modalInsideInteractionUntil = Date.now() + 1400;
+    }
+    const holdEl = event.target.closest?.("[data-hold-action]");
+    if (holdEl && event.button !== 2) {
+      clearQuickHoldState();
+      quickHoldState = {
+        el: holdEl,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        triggered: false,
+        timer: setTimeout(() => {
+          if (!quickHoldState || quickHoldState.el !== holdEl) return;
+          quickHoldState.triggered = true;
+          quickHoldClickSuppressUntil = Date.now() + 850;
+          performHeldQuickAction(holdEl);
+        }, quickHoldDelay)
+      };
+    }
     const active = document.activeElement;
     if (active?.matches?.("select") && !event.target.closest?.("select")) {
       suppressCardEditUntil = Date.now() + 350;
+    }
+  }, true);
+
+  document.addEventListener("pointermove", (event) => {
+    if (!quickHoldState || quickHoldState.pointerId !== event.pointerId || quickHoldState.triggered) return;
+    const moved = Math.hypot(event.clientX - quickHoldState.startX, event.clientY - quickHoldState.startY);
+    if (moved > blockHoldMoveTolerance) clearQuickHoldState();
+  }, true);
+
+  document.addEventListener("pointerup", (event) => {
+    if (!quickHoldState || quickHoldState.pointerId !== event.pointerId) return;
+    if (quickHoldState.triggered) quickHoldClickSuppressUntil = Date.now() + 850;
+    clearQuickHoldState();
+  }, true);
+
+  document.addEventListener("pointercancel", clearQuickHoldState, true);
+
+  document.addEventListener("focusin", (event) => {
+    if (event.target.closest?.("[data-sheet]")) {
+      modalInsideInteractionUntil = Date.now() + 1400;
     }
   }, true);
 
@@ -11099,10 +11216,11 @@ function quickAction(action) {
       return;
     }
     const action = actionEl.dataset.action;
+    if (actionEl.dataset.holdAction && Date.now() < quickHoldClickSuppressUntil) return;
     if (action === "habit-inline") return;
     if (action === "note-inline") return;
     if (action === "image-upload") return;
-    if (action === "close-modal" && sheet && actionEl.classList.contains("sheet-backdrop")) return;
+    if (action === "close-modal" && actionEl.classList.contains("sheet-backdrop") && (sheet || document.activeElement?.closest?.("[data-sheet]") || Date.now() < modalInsideInteractionUntil)) return;
     event.preventDefault();
     if (singleSubmitActions.has(action)) {
       const actionKey = singleSubmitKey(actionEl);
@@ -11428,6 +11546,10 @@ function quickAction(action) {
     if (action === "show-task-category-panel") return showTaskCategoryPanel();
     if (action === "quick-add-task") return quickAddTask();
     if (action === "quick-ask-ai") return askAiFromCalendarQuickAdd();
+    if (action === "quick-voice-task") return startQuickVoiceTask();
+    if (action === "set-ai-voice-profile") return setAiVoiceProfile(el.dataset.profile);
+    if (action === "toggle-ai-auto-speak") return toggleAiAutoSpeak();
+    if (action === "test-ai-voice") return testAiVoice();
     if (action === "start-voice-task") return startVoiceTask();
     if (action === "stop-voice-task") return stopVoiceTask();
     if (action === "parse-voice-task") return parseVoiceTaskFromInput();
@@ -11975,14 +12097,152 @@ function quickAction(action) {
     const input = document.getElementById("quickTaskInput");
     const prompt = String(input?.value || "").trim();
     if (!prompt) {
-      navigate("ai");
-      showToast("Ask BillMaster about tasks, bills, goals, notes, and more.");
-      return;
+      return startQuickAiQuestion();
     }
     if (input) input.value = "";
     navigate("ai");
     sendAi(prompt);
     showToast("BillMaster AI answered from your app data.");
+  }
+
+  function startQuickAiQuestion() {
+    const Recognition = speechRecognitionCtor();
+    if (!Recognition) {
+      navigate("ai");
+      showToast("Voice questions need Chrome or Edge microphone support. Type your question here.", "danger");
+      return;
+    }
+    if (voiceRecognition && ui.aiListening) return stopAiVoice();
+    if (voiceRecognition && ui.voiceListening) stopVoiceTask();
+    if (voiceRecognition && ui.voiceCorrectionListening) stopVoiceCorrection();
+    if (voiceRecognition && ui.habitVoiceListening) stopVoiceHabit();
+    const recognition = new Recognition();
+    voiceRecognition = recognition;
+    voiceStopRequested = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    ui.aiListening = true;
+    ui.aiVoiceError = "";
+    render();
+    showToast("Listening for your BillMaster question.");
+    recognition.onresult = (event) => {
+      const transcript = collectSpeechTranscript(event);
+      ui.aiListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      if (transcript) {
+        ui.view = "ai";
+        syncHash("ai");
+        sendAi(transcript);
+        showToast("BillMaster answered out loud.");
+      } else {
+        ui.aiVoiceError = "I did not catch that. Tap the AI button again, hold it for the full Assistant, or type your question.";
+        render();
+      }
+    };
+    recognition.onerror = (event) => {
+      ui.aiListening = false;
+      voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        render();
+        return;
+      }
+      ui.aiVoiceError = aiVoiceErrorMessage(event?.error);
+      render();
+      showToast(ui.aiVoiceError, "danger");
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      if (ui.aiListening) {
+        ui.aiListening = false;
+        render();
+      }
+      voiceStopRequested = false;
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      ui.aiListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      navigate("ai");
+      showToast("Could not start voice questions. Type the question instead.", "danger");
+    }
+  }
+
+  function startQuickVoiceTask() {
+    const Recognition = speechRecognitionCtor();
+    if (!Recognition) {
+      openModal("voiceTask");
+      showToast("Voice task capture needs Chrome or Edge microphone support. Type the task here.", "danger");
+      return;
+    }
+    if (voiceRecognition && ui.voiceListening) return stopVoiceTask();
+    if (voiceRecognition && ui.aiListening) stopAiVoice();
+    if (voiceRecognition && ui.voiceCorrectionListening) stopVoiceCorrection();
+    if (voiceRecognition && ui.habitVoiceListening) stopVoiceHabit();
+    const recognition = new Recognition();
+    voiceRecognition = recognition;
+    voiceStopRequested = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    ui.voiceListening = true;
+    ui.voiceError = "";
+    render();
+    showToast("Listening for the task. Hold the mic for the full form.");
+    recognition.onresult = (event) => {
+      const transcript = collectSpeechTranscript(event);
+      ui.voiceListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      if (!transcript) {
+        ui.voiceError = "I did not catch the task. Tap the mic again or hold it for the full form.";
+        render();
+        return;
+      }
+      ui.voiceTranscript = transcript;
+      ui.voiceParsedTask = parseVoiceTask(transcript);
+      if (voicePromptLooksLikeQuestion(transcript)) {
+        askAiFromVoiceTask(transcript);
+        return;
+      }
+      saveVoiceTask();
+      render();
+    };
+    recognition.onerror = (event) => {
+      ui.voiceListening = false;
+      voiceRecognition = null;
+      if (voiceStopRequested || event?.error === "aborted") {
+        voiceStopRequested = false;
+        render();
+        return;
+      }
+      ui.voiceError = voiceErrorMessage(event?.error);
+      render();
+      showToast(ui.voiceError, "danger");
+    };
+    recognition.onend = () => {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      if (ui.voiceListening) {
+        ui.voiceListening = false;
+        render();
+      }
+      voiceStopRequested = false;
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      ui.voiceListening = false;
+      voiceRecognition = null;
+      voiceStopRequested = false;
+      openModal("voiceTask");
+      showToast("Could not start voice task capture. Type the task instead.", "danger");
+    }
   }
 
   function lastAiMessageText() {
@@ -11992,6 +12252,69 @@ function quickAction(action) {
 
   function aiSpeechSupported() {
     return typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+  }
+
+  function currentAiVoiceProfile() {
+    try {
+      const saved = localStorage.getItem("billmaster-ai-voice-profile");
+      if (saved && aiVoiceProfiles[saved]) return saved;
+    } catch (error) {
+      // Local storage can be blocked in some embedded browsers.
+    }
+    return aiVoiceProfiles[ui.aiVoiceProfile] ? ui.aiVoiceProfile : "femaleWarm";
+  }
+
+  function aiAutoSpeakEnabled() {
+    try {
+      const saved = localStorage.getItem("billmaster-ai-auto-speak");
+      if (saved === "true" || saved === "false") return saved === "true";
+    } catch (error) {
+      // Keep the runtime default when browser storage is unavailable.
+    }
+    return ui.aiAutoSpeak !== false;
+  }
+
+  function setAiVoiceProfile(profileKey) {
+    const key = aiVoiceProfiles[profileKey] ? profileKey : "femaleWarm";
+    ui.aiVoiceProfile = key;
+    try {
+      localStorage.setItem("billmaster-ai-voice-profile", key);
+    } catch (error) {
+      // Non-critical preference.
+    }
+    render();
+    testAiVoice();
+  }
+
+  function toggleAiAutoSpeak() {
+    const next = !aiAutoSpeakEnabled();
+    ui.aiAutoSpeak = next;
+    try {
+      localStorage.setItem("billmaster-ai-auto-speak", String(next));
+    } catch (error) {
+      // Non-critical preference.
+    }
+    render();
+    showToast(`AI auto-read ${next ? "on" : "off"}.`);
+  }
+
+  function testAiVoice() {
+    speakAiText("BillMaster voice is ready. Ask me what is on your calendar, or tell me to add a task.", { manual: true });
+  }
+
+  function preferredAiSpeechVoice(profileKey) {
+    if (!aiSpeechSupported()) return null;
+    const profile = aiVoiceProfiles[profileKey] || aiVoiceProfiles.femaleWarm;
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    if (!voices.length) return null;
+    const englishVoices = voices.filter((voice) => /^en[-_]/i.test(voice.lang || ""));
+    const pool = englishVoices.length ? englishVoices : voices;
+    const natural = pool.find((voice) => /natural|online|neural/i.test(voice.name || ""));
+    for (const name of profile.names) {
+      const match = pool.find((voice) => String(voice.name || "").toLowerCase().includes(name));
+      if (match) return match;
+    }
+    return natural || pool[0] || null;
   }
 
   function speakLastAiAnswer(manual = false) {
@@ -12011,9 +12334,14 @@ function quickAction(action) {
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, " ").trim());
+      const profileKey = currentAiVoiceProfile();
+      const profile = aiVoiceProfiles[profileKey] || aiVoiceProfiles.femaleWarm;
+      const voice = preferredAiSpeechVoice(profileKey);
+      if (voice) utterance.voice = voice;
       utterance.lang = "en-US";
-      utterance.rate = 0.95;
-      utterance.pitch = 1.02;
+      utterance.rate = profile.rate;
+      utterance.pitch = profile.pitch;
+      utterance.volume = 1;
       window.speechSynthesis.speak(utterance);
     } catch (error) {
       if (options.manual) showToast("BillMaster could not read that answer aloud.", "danger");
@@ -12562,6 +12890,7 @@ function quickAction(action) {
     ui.view = "calendar";
     syncHash("calendar");
     ui.modal = null;
+    render();
     showToast(addressId ? "Voice task saved with address." : "Voice task saved.");
   }
 
@@ -12605,6 +12934,7 @@ function quickAction(action) {
     ui.view = "calendar";
     syncHash("calendar");
     ui.modal = null;
+    render();
     showToast(`${habit.title} saved as a repeating task: ${voiceRecurringScheduleLabel(habit)}.`);
   }
 
@@ -18821,7 +19151,7 @@ Expected safe state:
     ui.aiVoiceError = "";
     saveData();
     render();
-    speakAiText(response);
+    if (aiAutoSpeakEnabled()) speakAiText(response);
   }
 
   startLocalWorkspaceSync();
