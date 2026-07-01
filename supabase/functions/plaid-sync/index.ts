@@ -296,17 +296,24 @@ function mapPlaidAccount(account: JsonRecord) {
 function mapPlaidTransaction(tx: JsonRecord) {
   const category = isRecord(tx.personal_finance_category) ? tx.personal_finance_category : {};
   const amount = numberValue(tx.amount);
+  const categoryPrimary = stringValue(category.primary) || firstString(tx.category) || "Other";
+  const categoryDetailed = stringValue(category.detailed);
   return {
     transaction_id: stringValue(tx.transaction_id),
     account_id: stringValue(tx.account_id),
     name: stringValue(tx.name),
     merchant_name: stringValue(tx.merchant_name),
-    category: stringValue(category.primary) || firstString(tx.category) || "Other",
+    category: categoryPrimary,
+    category_primary: categoryPrimary,
+    category_detailed: categoryDetailed,
     amount: Math.abs(amount),
     type: amount >= 0 ? "expense" : "income",
     date: stringValue(tx.date),
     authorized_date: stringValue(tx.authorized_date),
     pending: Boolean(tx.pending),
+    payment_channel: stringValue(tx.payment_channel),
+    iso_currency_code: stringValue(tx.iso_currency_code),
+    unofficial_currency_code: stringValue(tx.unofficial_currency_code),
     source: "Plaid"
   };
 }

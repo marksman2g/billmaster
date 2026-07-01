@@ -3876,16 +3876,13 @@ button.round-icon {
 .goal-strip,
 .suggestion-strip {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 72%);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: 3px 0 10px;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
 }
 
 .account-card,
@@ -4889,6 +4886,25 @@ button.round-icon {
 
 .plaid-stage-grid strong {
   color: var(--navy-2);
+}
+
+.plaid-stage-grid .plaid-next-step {
+  border-width: 2px;
+}
+
+.plaid-stage-grid .plaid-next-step.ready {
+  background: #eafaf1;
+  border-color: #8ad7a2;
+}
+
+.plaid-stage-grid .plaid-next-step.warn {
+  background: #fff8e7;
+  border-color: #f0b84a;
+}
+
+.plaid-stage-grid .plaid-next-step.info {
+  background: #eef6ff;
+  border-color: #9cc9f6;
 }
 
 .plaid-stage-grid small,
@@ -13166,7 +13182,7 @@ canvas {
 
 .habits-compact .habit-time-row {
   display: grid;
-  grid-template-columns: minmax(108px, 1fr) auto minmax(108px, 1fr);
+  grid-template-columns: minmax(126px, 1fr) auto minmax(126px, 1fr);
   gap: 5px;
   align-items: center;
   margin-top: 5px;
@@ -13175,10 +13191,10 @@ canvas {
 .habits-compact .habit-inline-row select,
 .habits-compact .habit-time-row input {
   min-height: 31px;
-  min-width: 108px;
+  min-width: 126px;
   box-sizing: border-box;
   padding: 4px 7px;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
 

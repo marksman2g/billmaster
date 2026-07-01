@@ -8912,6 +8912,21 @@ function quickAction(action) {
       : !signedIn
         ? "Sign in to BillMaster cloud first"
         : "";
+    const plaidLinkStatus = data.settings.plaidLinkStatus || (plaidLinkReady ? "Ready to open Plaid Link" : plaidLinkBlocker || "Preparing Plaid");
+    const plaidLastLinked = data.settings.plaidLastLinkedAt
+      ? `${data.settings.plaidLastLinkedInstitution || "Plaid item"} at ${data.settings.plaidLastLinkedAt}`
+      : "Not linked yet";
+    const plaidLastBackendSync = data.settings.plaidLastBackendSyncAt || "Not synced yet";
+    const plaidNextStep = !connected
+      ? "Run Sandbox Import"
+      : !backendOk
+        ? "Check Backend"
+        : !signedIn
+          ? "Sign in to BillMaster"
+          : data.settings.plaidLastLinkedAt
+            ? "Sync Transactions"
+            : "Open Plaid Link";
+    const plaidNextClass = plaidLinkReady ? "ready" : backendOk || connected ? "warn" : "info";
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
       const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
@@ -8942,6 +8957,10 @@ function quickAction(action) {
           <span><strong>${sandboxTransactions.length}</strong><small>transactions imported</small></span>
           <span><strong>${inboxCount}</strong><small>review candidates</small></span>
           <span><strong>${esc(lastImport)}</strong><small>last import</small></span>
+          <span class="plaid-next-step ${plaidNextClass}"><strong>${esc(plaidNextStep)}</strong><small>next step</small></span>
+          <span><strong>${esc(plaidLinkStatus)}</strong><small>Plaid Link status</small></span>
+          <span><strong>${esc(plaidLastLinked)}</strong><small>last Plaid Link</small></span>
+          <span><strong>${esc(plaidLastBackendSync)}</strong><small>last backend sync</small></span>
         </div>
         <div class="sync-step ${backendClass}" style="margin-top:12px;">
           <span>${icon(backendOk ? "check" : "settings")}</span>
@@ -9623,6 +9642,10 @@ function quickAction(action) {
       if (card.dataset.dragBound === "true") return;
       card.dataset.dragBound = "true";
       card.addEventListener("dragstart", (event) => {
+        if (event.target.closest("button,input,select,textarea,a")) {
+          event.preventDefault();
+          return;
+        }
         const timeRow = event.target.closest?.(".habit-time-row[data-habit-time-swap]");
         if (timeRow) {
           habitTimeDragId = timeRow.dataset.habitTimeSwap || card.dataset.habitId || "";
@@ -9630,10 +9653,6 @@ function quickAction(action) {
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("application/x-billmaster-habit-time", habitTimeDragId);
           event.dataTransfer.setData("text/plain", `habit-time:${habitTimeDragId}`);
-          return;
-        }
-        if (event.target.closest("button,input,select,textarea,a")) {
-          event.preventDefault();
           return;
         }
         card.classList.add("is-dragging");
@@ -11182,8 +11201,14 @@ function quickAction(action) {
   }, true);
 
   document.addEventListener("click", (event) => {
-    const sheet = event.target.closest("[data-sheet]");
-    const actionEl = event.target.closest("[data-action]");
+    const sheet = event.target.closest?.("[data-sheet]");
+    const actionEl = event.target.closest?.("[data-action]");
+    const backdropAction = actionEl?.classList?.contains("sheet-backdrop") && actionEl.dataset.action === "close-modal";
+    const clickedBackdropSurface = backdropAction && event.target === actionEl;
+    if (backdropAction && !clickedBackdropSurface) {
+      if (sheet) modalInsideInteractionUntil = Date.now() + 1400;
+      return;
+    }
     const copyTargetEl = event.target.closest("[data-copy-target-date]");
     const projectSelectCard = event.target.closest(".project-task-mini[data-project-task-id]");
     if (projectSelectCard && actionEl?.dataset.action !== "toggle-task-select" && (ui.projectDragSelectMode || Date.now() < suppressCardEditUntil)) {
@@ -11220,7 +11245,7 @@ function quickAction(action) {
     if (action === "habit-inline") return;
     if (action === "note-inline") return;
     if (action === "image-upload") return;
-    if (action === "close-modal" && actionEl.classList.contains("sheet-backdrop") && (sheet || document.activeElement?.closest?.("[data-sheet]") || Date.now() < modalInsideInteractionUntil)) return;
+    if (action === "close-modal" && actionEl.classList.contains("sheet-backdrop") && (!clickedBackdropSurface || Date.now() < modalInsideInteractionUntil)) return;
     event.preventDefault();
     if (singleSubmitActions.has(action)) {
       const actionKey = singleSubmitKey(actionEl);
@@ -14787,8 +14812,13 @@ function quickAction(action) {
       data.tasks.unshift(savedTask);
     }
     const queuedNotice = task ? queueTaskStatusNotification(savedTask, previousStatus, "task-save") : false;
+    if (payload.alertConfigured) {
+      if (payload.alertDevice) primeTaskAlertPermissionOnSave();
+      if (payload.alertSound) primeTaskAlertSound();
+    }
     saveData();
     closeModal();
+    if (payload.alertConfigured) scanTaskAlerts();
     if (newAddressId) showToast("Task saved with new address.");
     else if (queuedNotice) showToast("Task saved and notification queued.");
   }
@@ -15965,6 +15995,19 @@ function quickAction(action) {
     }
   }
 
+  function primeTaskAlertPermissionOnSave() {
+    if (typeof window === "undefined" || !("Notification" in window)) return false;
+    if (Notification.permission === "default") {
+      requestTaskAlertPermission();
+      return true;
+    }
+    if (Notification.permission === "denied") {
+      showToast("Browser alerts are blocked. Enable notifications in browser settings.", "danger");
+      return false;
+    }
+    return true;
+  }
+
   async function testTaskAlert() {
     const sounded = playTaskAlertSound();
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
@@ -15973,14 +16016,26 @@ function quickAction(action) {
     showToast(sounded ? "Task alert sound tested." : "This browser blocked or does not support alert sound.", sounded ? "success" : "danger");
   }
 
-  function playTaskAlertSound() {
+  function primeTaskAlertSound() {
     if (typeof window === "undefined") return false;
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextCtor) return false;
     try {
       if (!taskAlertAudioContext) taskAlertAudioContext = new AudioContextCtor();
+      if (taskAlertAudioContext.state === "suspended") taskAlertAudioContext.resume?.().catch(() => {});
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function playTaskAlertSound() {
+    if (typeof window === "undefined") return false;
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return false;
+    try {
+      if (!primeTaskAlertSound()) return false;
       const context = taskAlertAudioContext;
-      if (context.state === "suspended") context.resume?.().catch(() => {});
       const startedAt = context.currentTime + 0.03;
       [880, 660, 990].forEach((frequency, index) => {
         const oscillator = context.createOscillator();
@@ -18266,7 +18321,8 @@ function quickAction(action) {
       saveData();
       if (!options.silent) {
         render();
-        showToast(`Plaid sync imported ${summary.accounts} account${summary.accounts === 1 ? "" : "s"} and ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}.`);
+        const reviewText = summary.reviewCandidates ? ` ${summary.reviewCandidates} review candidate${summary.reviewCandidates === 1 ? "" : "s"} staged.` : "";
+        showToast(`Plaid sync imported ${summary.accounts} account${summary.accounts === 1 ? "" : "s"} and ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}.${reviewText}`);
       }
       return summary;
     } catch (error) {
@@ -18295,9 +18351,88 @@ function quickAction(action) {
     return data.accounts.find((account) => account.plaidAccountId === plaidAccountId)?.name || "Plaid Account";
   }
 
+  function plaidText(tx) {
+    return [
+      tx?.name,
+      tx?.merchant_name,
+      tx?.category,
+      tx?.category_primary,
+      tx?.category_detailed,
+      tx?.payment_channel
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function plaidLooksLikeSubscription(tx) {
+    return /\b(netflix|spotify|adobe|prime|hulu|disney|youtube|icloud|cloud|dropbox|microsoft|apple|subscription|stream|membership|patreon|canva|gym)\b/i.test(plaidText(tx));
+  }
+
+  function plaidLooksLikeBill(tx) {
+    return /\b(verizon|wireless|phone|electric|utility|water|gas|internet|insurance|rent|mortgage|loan|credit card|payment|power|energy|sewer|trash)\b/i.test(plaidText(tx));
+  }
+
+  function plaidAppCategory(tx) {
+    const raw = [tx?.category, tx?.category_primary, tx?.category_detailed].filter(Boolean).join(" ").toUpperCase();
+    const detailed = String(tx?.category_detailed || "").toUpperCase();
+    const text = plaidText(tx);
+    if (tx?.type === "income" || raw.includes("INCOME") || /\b(payroll|salary|deposit|wage|repayment)\b/i.test(text)) return "Salary";
+    if (plaidLooksLikeSubscription(tx)) return "Subscriptions";
+    if (detailed.includes("RENT") || detailed.includes("MORTGAGE")) return "Housing";
+    if (raw.includes("UTILITY") || /\b(verizon|wireless|phone|electric|utility|water|gas|internet|power|energy|sewer|trash)\b/i.test(text)) return "Utilities";
+    if (raw.includes("LOAN") || raw.includes("CREDIT_CARD") || /\b(loan|credit card|card payment|capital one payment)\b/i.test(text)) return "Credit Card";
+    if (raw.includes("RENT") || raw.includes("HOME") || /\b(rent|mortgage|housing)\b/i.test(text)) return "Housing";
+    if (raw.includes("FOOD") || /\b(grocery|restaurant|coffee|market)\b/i.test(text)) return "Food";
+    if (raw.includes("TRANSPORT") || /\b(gas station|uber|lyft|parking|fuel)\b/i.test(text)) return "Transportation";
+    if (raw.includes("GENERAL_MERCHANDISE")) return "Shopping";
+    return tx?.category ? String(tx.category).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Other";
+  }
+
+  function plaidImportFrequency(tx, category) {
+    if (tx?.type !== "expense") return "One time";
+    if (category === "Subscriptions" || category === "Utilities" || category === "Housing" || category === "Credit Card") return "Monthly";
+    if (plaidLooksLikeBill(tx)) return "Monthly";
+    return "One time";
+  }
+
+  function plaidReviewCandidate(tx, appTx) {
+    if (!tx?.transaction_id || appTx.type !== "expense" || appTx.frequency === "One time") return null;
+    const isSubscription = appTx.category === "Subscriptions" || plaidLooksLikeSubscription(tx);
+    let confidence = isSubscription ? 91 : 84;
+    if (appTx.category === "Utilities" || appTx.category === "Credit Card" || appTx.category === "Housing") confidence += 6;
+    if (tx.pending) confidence -= 8;
+    return {
+      id: plaidStableId("plaid_inbox", tx.transaction_id),
+      sourceId: appTx.id,
+      type: isSubscription ? "subscription" : "bill",
+      status: "pending",
+      source: "Plaid recurring detector",
+      title: appTx.name,
+      merchant: appTx.merchant,
+      category: appTx.category,
+      amount: appTx.amount,
+      projected: appTx.projected,
+      dueDate: addMonthsIso(appTx.date || ui.selectedDate, 1),
+      confidence: clamp(confidence, 70, 98),
+      notes: `Plaid imported this as a likely recurring ${isSubscription ? "subscription" : "bill"}. Review it before adding it to Bills.`
+    };
+  }
+
+  function stageBillInboxCandidate(item) {
+    if (!item?.id) return false;
+    if (safeArray(data.dismissedInboxIds).includes(item.id)) return false;
+    if (inboxMatch(item)) return false;
+    const existing = data.billInbox.find((candidate) => candidate.id === item.id);
+    if (existing) {
+      if (existing.status === "pending") Object.assign(existing, { ...item, status: existing.status });
+      return false;
+    }
+    data.billInbox.unshift(item);
+    return true;
+  }
+
   function applyPlaidSyncResult(result) {
     let accountCount = 0;
     let transactionCount = 0;
+    let reviewCount = 0;
     safeArray(result.items).forEach((item) => {
       safeArray(item.accounts).forEach((account) => {
         if (!account.account_id) return;
@@ -18320,32 +18455,40 @@ function quickAction(action) {
         if (!tx.transaction_id) return;
         transactionCount += 1;
         const accountName = plaidAccountNameByPlaidId(tx.account_id);
-        upsertById(data.transactions, {
+        const category = plaidAppCategory(tx);
+        const frequency = plaidImportFrequency(tx, category);
+        const appTx = {
           id: plaidStableId("tx_plaid", tx.transaction_id),
           type: tx.type === "income" ? "income" : "expense",
           name: tx.name || tx.merchant_name || "Plaid Transaction",
           merchant: tx.merchant_name || tx.name || "Plaid",
-          category: tx.category || "Other",
+          category,
           amount: Number(tx.amount || 0),
           projected: Number(tx.amount || 0),
           date: tx.date || ui.selectedDate,
-          frequency: "One time",
+          frequency,
           method: accountName,
           status: tx.type === "income" ? "Received" : "Paid",
-          notes: tx.pending ? "Imported from Plaid. Pending transaction." : "Imported from Plaid.",
+          notes: tx.pending
+            ? "Imported from Plaid. Pending transaction."
+            : frequency === "One time"
+              ? "Imported from Plaid."
+              : "Imported from Plaid and flagged as a possible recurring charge.",
           source: "Plaid",
           plaidLinked: true,
           plaidTransactionId: tx.transaction_id,
           plaidAccountId: tx.account_id || "",
           accountId: plaidStableId("acct_plaid", tx.account_id)
-        });
+        };
+        upsertById(data.transactions, appTx);
+        if (stageBillInboxCandidate(plaidReviewCandidate(tx, appTx))) reviewCount += 1;
       });
       safeArray(item.removed).forEach((removed) => {
         const existing = data.transactions.find((tx) => tx.plaidTransactionId === removed.transaction_id);
         if (existing) existing.status = "Removed";
       });
     });
-    return { accounts: accountCount, transactions: transactionCount };
+    return { accounts: accountCount, transactions: transactionCount, reviewCandidates: reviewCount };
   }
 
   function plaidBackendSetupText() {
