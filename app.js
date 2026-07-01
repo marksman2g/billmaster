@@ -100,6 +100,9 @@
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
   const goalScheduleOptions = ["None", "Weekly", "Bi-weekly", "Monthly"];
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
+  const billPaymentPreferenceOptions = ["Full balance", "Minimum payment", "Custom amount"];
+  const billPayDateRuleOptions = ["Due date", "3 days before due", "1st of month", "15th of month", "1st and 15th", "Custom date"];
+  const billPaymentStageOptions = ["Not scheduled", "Planned", "Ready to pay", "Autopay expected", "Paid manually"];
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
 const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
@@ -578,6 +581,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "cancel-inbox-subscription",
     "link-inbox-item",
     "dismiss-inbox-item",
+    "reopen-inbox-item",
+    "reopen-approved-inbox",
+    "reset-sandbox-review",
     "save-subscription",
     "save-subscription-media",
     "reset-data"
@@ -1195,6 +1201,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       if (!isHexColor(nextData.settings.categoryColors[category])) nextData.settings.categoryColors[category] = defaultCategoryColors[category];
     });
     normalizeAddresses(nextData);
+    normalizeBills(nextData);
     normalizeLoans(nextData);
     normalizeGoals(nextData);
     normalizeProjects(nextData);
@@ -1577,6 +1584,28 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function loanAmount(loan) {
     return Math.max(0, moneyNumber(loan?.amount));
+  }
+
+  function normalizeBills(nextData) {
+    nextData.bills = safeArray(nextData.bills).map((bill) => {
+      const amount = Math.max(0, moneyNumber(bill.amount));
+      const minimumPayment = Math.max(0, moneyNumber(bill.minimumPayment));
+      const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
+      const dateRule = billPayDateRuleOptions.includes(bill.payDateRule) ? bill.payDateRule : "Due date";
+      const stage = billPaymentStageOptions.includes(bill.paymentStage) ? bill.paymentStage : (bill.autopay ? "Autopay expected" : "Not scheduled");
+      return {
+        ...bill,
+        amount,
+        projected: Math.max(0, moneyNumber(bill.projected || amount)),
+        dueDate: bill.dueDate || todayIso(),
+        minimumPayment,
+        paymentPreference: preference,
+        customPaymentAmount: Math.max(0, moneyNumber(bill.customPaymentAmount)),
+        payDateRule: dateRule,
+        scheduledPayDate: bill.scheduledPayDate || bill.dueDate || todayIso(),
+        paymentStage: stage
+      };
+    });
   }
 
   function loanRepaid(loan) {
@@ -2097,12 +2126,12 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function statusClass(status) {
     const s = String(status || "").toLowerCase();
-    if (["paid", "active", "completed", "received", "closed", "done"].includes(s)) return "success";
-    if (["trial", "due soon", "partial", "money owed"].includes(s)) return "warn";
-    if (["in progress"].includes(s)) return "info";
+    if (["paid", "paid manually", "active", "completed", "received", "closed", "done"].includes(s)) return "success";
+    if (["trial", "due soon", "partial", "money owed", "ready to pay", "autopay expected"].includes(s)) return "warn";
+    if (["in progress", "planned"].includes(s)) return "info";
     if (["overdue", "failed", "cancelled", "urgent"].includes(s)) return "danger";
     if (["unpaid", "outstanding"].includes(s)) return "info";
-    if (["not started"].includes(s)) return "muted";
+    if (["not started", "not scheduled"].includes(s)) return "muted";
     if (["forgiven"].includes(s)) return "muted";
     return "muted";
   }
@@ -3518,6 +3547,7 @@ function quickAction(action) {
       </section>
       ${notificationFoundationPanel("inbox")}
       ${billSyncPanel(items)}
+      ${billReviewControlPanel(items)}
       <div class="filter-row">
         ${["pending", "subscription", "bill", "approved", "all"].map((filter) => `<button class="${ui.billInboxFilter === filter ? "active" : ""}" data-action="set-tab" data-key="billInboxFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
       </div>
@@ -4416,10 +4446,40 @@ function quickAction(action) {
     </section>`;
   }
 
+  function billReviewControlPanel(items) {
+    const pendingCount = items.filter((item) => item.status === "pending").length;
+    const approvedCount = safeArray(data.billInbox).filter((item) => item.status === "approved").length;
+    const heldCount = safeArray(data.dismissedInboxIds).length;
+    const sandboxCount = safeArray(data.billInbox).filter((item) => isSandboxReviewItem(item)).length;
+    return `<section class="section-card review-control-panel">
+      <div>
+        <h2>Review Control</h2>
+        <p>Use this when you want to understand or rewind Plaid sandbox review decisions. Existing Bills and Subscriptions stay put so nothing important disappears.</p>
+      </div>
+      <div class="review-control-stats">
+        <span><strong>${pendingCount}</strong><small>pending</small></span>
+        <span><strong>${approvedCount}</strong><small>approved log</small></span>
+        <span><strong>${heldCount}</strong><small>hidden decisions</small></span>
+        <span><strong>${sandboxCount}</strong><small>sandbox cards</small></span>
+      </div>
+      <div class="review-control-actions">
+        <button class="outline-btn" data-action="set-tab" data-key="billInboxFilter" data-value="approved">${icon("check")} Show approved</button>
+        <button class="outline-btn" data-action="reopen-approved-inbox">${icon("undo")} Reopen approved</button>
+        <button class="danger-btn" data-action="reset-sandbox-review">${icon("filter")} Reset sandbox review</button>
+      </div>
+    </section>`;
+  }
+
   function billInboxCard(item) {
     const isSubscription = item.type === "subscription";
     const confidence = clamp(Number(item.confidence || 0), 0, 100);
     const match = inboxMatch(item);
+    const approved = item.status === "approved";
+    const filedLabel = item.filedAsType
+      ? `Filed as ${filterLabel(item.filedAsType)}${item.reviewedAt ? ` on ${esc(item.reviewedAt)}` : ""}.`
+      : item.reviewedAt
+        ? `Reviewed on ${esc(item.reviewedAt)}.`
+        : "";
     return `<article class="inbox-card ${item.status}">
       <div class="card-row">
         <div style="display:flex;gap:10px;align-items:center;min-width:0;">
@@ -4435,10 +4495,13 @@ function quickAction(action) {
       </div>
       <div class="progress blue" style="--value:${confidence}%"><span></span></div>
       ${match ? `<div class="match-banner">${icon("alert")} Possible match: <strong>${esc(match.label)}</strong><button class="text-btn" data-action="link-inbox-item" data-id="${item.id}">Link</button></div>` : ""}
+      ${filedLabel ? `<div class="review-decision-banner">${icon("check")} ${filedLabel}</div>` : ""}
       <p class="muted">${esc(item.notes || "Ready for review.")}</p>
       <div class="sheet-actions inbox-actions">
-        ${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
-        <button class="danger-btn" data-action="dismiss-inbox-item" data-id="${item.id}">${icon("trash")}</button>
+        ${approved
+          ? `<button class="outline-btn" data-action="reopen-inbox-item" data-id="${item.id}">${icon("undo")} Reopen Review</button><button class="outline-btn" data-action="navigate" data-view="${isSubscription ? "subscriptions" : "bills"}">${icon(isSubscription ? "playcard" : "receipt")} ${isSubscription ? "Subscriptions" : "Bills"}</button>`
+          : `${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
+        <button class="danger-btn" data-action="dismiss-inbox-item" data-id="${item.id}">${icon("trash")}</button>`}
       </div>
     </article>`;
   }
@@ -4540,24 +4603,72 @@ function quickAction(action) {
     return rows || `<p class="muted">No subscriptions to review yet.</p>`;
   }
 
+  function billDateWithDay(bill, day) {
+    const base = parseLocalDate(bill.dueDate || ui.selectedDate || todayIso());
+    const maxDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+    base.setDate(Math.min(day, maxDay));
+    return isoDate(base);
+  }
+
+  function billScheduledPaymentDate(bill) {
+    const rule = billPayDateRuleOptions.includes(bill.payDateRule) ? bill.payDateRule : "Due date";
+    if (rule === "Custom date") return bill.scheduledPayDate || bill.dueDate || todayIso();
+    if (rule === "3 days before due") return addDaysIso(bill.dueDate || todayIso(), -3);
+    if (rule === "1st of month") return billDateWithDay(bill, 1);
+    if (rule === "15th of month") return billDateWithDay(bill, 15);
+    if (rule === "1st and 15th") {
+      const due = parseLocalDate(bill.dueDate || todayIso());
+      return billDateWithDay(bill, due.getDate() <= 15 ? 1 : 15);
+    }
+    return bill.dueDate || todayIso();
+  }
+
+  function billPaymentPlanAmount(bill) {
+    const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
+    if (preference === "Minimum payment") return Math.max(0, moneyNumber(bill.minimumPayment)) || Math.max(0, moneyNumber(bill.amount));
+    if (preference === "Custom amount") return Math.max(0, moneyNumber(bill.customPaymentAmount)) || Math.max(0, moneyNumber(bill.amount));
+    return Math.max(0, moneyNumber(bill.amount));
+  }
+
+  function billPaymentPlanSummary(bill) {
+    const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
+    return `${preference} - ${money(billPaymentPlanAmount(bill))}`;
+  }
+
   function billCard(bill) {
-    const overdue = daysBetween(bill.dueDate) < 0;
+    const statusKey = String(bill.status || "").toLowerCase();
+    const isPaid = statusKey === "paid";
+    const isPartial = statusKey === "partial";
+    const overdue = !isPaid && daysBetween(bill.dueDate) < 0;
     const dueSoon = daysBetween(bill.dueDate) <= 3 && !overdue;
     const media = entityImage(bill);
-    return `<article class="bill-card compact ${overdue ? "overdue" : ""}">
+    const scheduledDate = billScheduledPaymentDate(bill);
+    const paymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    const statusLabel = isPaid ? "Paid" : overdue ? "Overdue" : bill.status;
+    const dueLabel = isPaid
+      ? `Paid ${dateLabel(bill.lastPaidDate || todayIso())}${bill.lastPaidAmount ? ` - ${money(bill.lastPaidAmount)}` : ""}`
+      : dueText(bill.dueDate);
+    const payButton = isPaid
+      ? `<button class="success-btn bill-paid-button" disabled>${icon("check")} Paid</button>`
+      : `<button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} ${isPartial ? "Mark Remaining Paid" : "Mark Paid"}</button>`;
+    return `<article class="bill-card compact ${overdue ? "overdue" : ""} ${isPaid ? "paid" : ""} ${isPartial ? "partial" : ""}">
       <div class="card-row">
         <div class="bill-title-pack">
-          ${media ? `<span class="media-thumb" ${imageStyleAttr(bill)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${overdue ? "red" : dueSoon ? "amber" : "navy-2"});background:${overdue ? "#fff0f0" : dueSoon ? "#fff8df" : "#eef3f9"}">${icon(categoryIcon(bill.category))}</span>`}
+          ${media ? `<span class="media-thumb" ${imageStyleAttr(bill)}><img src="${esc(media)}" alt=""></span>` : `<span class="round-icon" style="color:var(--${isPaid ? "green" : overdue ? "red" : dueSoon ? "amber" : "navy-2"});background:${isPaid ? "#eafaf1" : overdue ? "#fff0f0" : dueSoon ? "#fff8df" : "#eef3f9"}">${icon(isPaid ? "check" : categoryIcon(bill.category))}</span>`}
           <div><h2 class="entity-title">${esc(bill.name)}</h2><div class="entity-subtitle">${esc(bill.payee)} - ${esc(bill.category)}</div></div>
         </div>
-        <div style="text-align:right;"><strong class="amount-large">${money(bill.amount)}</strong><br><span class="status ${statusClass(overdue ? "Overdue" : bill.status)}">${overdue ? "Overdue" : esc(bill.status)}</span></div>
+        <div style="text-align:right;"><strong class="amount-large">${money(bill.amount)}</strong><br><span class="status ${statusClass(statusLabel)}">${esc(statusLabel)}</span></div>
       </div>
       <div class="bill-meta-line">
-        <span class="${overdue ? "negative" : dueSoon ? "danger-text" : "muted"}">${icon("calendar")} ${dueText(bill.dueDate)}</span>
+        <span class="${isPaid ? "positive" : overdue ? "negative" : dueSoon ? "danger-text" : "muted"}">${icon(isPaid ? "check" : "calendar")} ${dueLabel}</span>
         <span class="muted">${bill.autopay ? "Auto-pay" : "Manual"} - ${esc(bill.method)}</span>
       </div>
+      <div class="bill-payment-plan">
+        <span>${icon("wallet")} <strong>${esc(billPaymentPlanSummary(bill))}</strong></span>
+        <span>${icon("calendar")} ${dateLabel(scheduledDate)} <strong class="status ${statusClass(paymentStage)}">${esc(paymentStage)}</strong></span>
+      </div>
       <div class="sheet-actions" style="grid-template-columns:1fr auto auto;">
-        <button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} Pay</button>
+        ${payButton}
         <button class="outline-btn" data-action="open-modal" data-modal="addBill" data-id="${bill.id}">${icon("edit")}</button>
         <button class="icon-btn danger-btn" data-action="delete-bill" data-id="${bill.id}" aria-label="Delete bill">${icon("trash")}</button>
       </div>
@@ -7393,6 +7504,12 @@ function quickAction(action) {
         ${field("billDue", "Due Date", bill.dueDate || "2026-05-12", "", "date")}
         ${selectField("billCategory", "Category", ["Utilities", "Phone", "Insurance", "Housing", "Subscriptions", "Credit"], bill.category || "Utilities")}
         ${selectField("billAutopay", "Autopay", ["None", "Chase Checking", "Capital One Credit Card", "Wells Fargo Savings"], bill.autopay ? bill.method : "None")}
+        ${field("billMinimumPayment", "Minimum Payment", bill.minimumPayment || "", "Minimum due", "number")}
+        ${selectField("billPaymentPreference", "Pay Preference", billPaymentPreferenceOptions, bill.paymentPreference || "Full balance")}
+        ${field("billCustomPaymentAmount", "Custom Payment Amount", bill.customPaymentAmount || "", "Optional custom amount", "number")}
+        ${selectField("billPayDateRule", "Pay Date Rule", billPayDateRuleOptions, bill.payDateRule || "Due date")}
+        ${field("billScheduledPayDate", "Scheduled Pay Date", bill.scheduledPayDate || bill.dueDate || "2026-05-12", "", "date")}
+        ${selectField("billPaymentStage", "Payment Stage", billPaymentStageOptions, bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled"))}
         ${imageAttachmentField("bill", bill.image || "", "Bill Picture / Graphic", bill.imageZoom, bill.imageX, bill.imageY, bill.imageFit, bill.imageOpacity)}
       </div>
       <div class="sheet-actions"><button class="primary-btn" data-action="save-bill" data-id="${bill.id || ""}">${bill.id ? "Save Changes" : "Add Bill"}</button></div>`;
@@ -11810,6 +11927,9 @@ function quickAction(action) {
     if (action === "cancel-inbox-subscription") return cancelInboxSubscription(el.dataset.id);
     if (action === "link-inbox-item") return linkInboxItem(el.dataset.id);
     if (action === "dismiss-inbox-item") return dismissInboxItem(el.dataset.id);
+    if (action === "reopen-inbox-item") return reopenInboxItem(el.dataset.id);
+    if (action === "reopen-approved-inbox") return reopenApprovedInbox();
+    if (action === "reset-sandbox-review") return resetSandboxReview();
     if (action === "save-subscription") return saveSubscription();
     if (action === "save-subscription-media") return saveSubscriptionMedia(el.dataset.id);
     if (action === "download-calendar-ics") return downloadCalendarIcs();
@@ -13762,21 +13882,33 @@ function quickAction(action) {
   function payBill(billId) {
     const bill = data.bills.find((item) => item.id === billId);
     if (!bill) return;
+    if (String(bill.status || "").toLowerCase() === "paid") {
+      showToast("This bill is already marked paid. Edit it first if you need to change the payment.");
+      return;
+    }
     const confirmation = `BM-${Date.now().toString().slice(-8)}`;
-    bill.status = "Paid";
+    const paymentAmount = billPaymentPlanAmount(bill);
+    const fullAmount = Math.max(0, moneyNumber(bill.amount));
+    const partialPayment = fullAmount > 0 && paymentAmount > 0 && paymentAmount < fullAmount;
+    bill.status = partialPayment ? "Partial" : "Paid";
+    bill.paymentStage = "Paid manually";
     bill.lastPaidDate = todayIso();
+    bill.lastPaidAmount = paymentAmount;
     bill.lastConfirmation = confirmation;
     data.payments.unshift({
       id: id("pay"),
       billId: bill.id,
       name: bill.name,
       payee: bill.payee,
-      amount: bill.amount,
+      amount: paymentAmount,
+      plannedAmount: paymentAmount,
+      preference: bill.paymentPreference || "Full balance",
+      scheduledPayDate: billScheduledPaymentDate(bill),
       method: bill.method,
-      status: "Paid",
+      status: bill.status,
       date: todayIso(),
       confirmation,
-      rail: "Local prototype"
+      rail: "Local prototype - no money moved"
     });
     data.transactions.unshift({
       id: id("tx"),
@@ -13784,17 +13916,17 @@ function quickAction(action) {
       name: bill.name,
       merchant: bill.payee,
       category: bill.category,
-      amount: bill.amount,
+      amount: paymentAmount,
       projected: bill.projected,
       date: todayIso(),
       frequency: "Monthly",
       method: bill.method,
-      status: "Paid",
-      notes: `Logged from bill payment. Confirmation ${confirmation}.`
+      status: bill.status,
+      notes: `Local payment log only. Confirmation ${confirmation}.`
     });
     saveData();
     render();
-    showToast(`Bill marked paid. Confirmation ${confirmation}.`);
+    showToast(`Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
   }
 
   function saveBill(billId) {
@@ -13806,9 +13938,15 @@ function quickAction(action) {
       amount: numberValue("billAmount"),
       projected: numberValue("billProjected") || numberValue("billAmount"),
       dueDate: value("billDue") || "2026-05-12",
-      status: "Unpaid",
+      status: bill ? bill.status || "Unpaid" : "Unpaid",
       method: value("billAutopay") === "None" ? "Manual" : value("billAutopay"),
       autopay: value("billAutopay") !== "None",
+      minimumPayment: numberValue("billMinimumPayment"),
+      paymentPreference: value("billPaymentPreference") || "Full balance",
+      customPaymentAmount: numberValue("billCustomPaymentAmount"),
+      payDateRule: value("billPayDateRule") || "Due date",
+      scheduledPayDate: value("billScheduledPayDate") || value("billDue") || todayIso(),
+      paymentStage: value("billPaymentStage") || (value("billAutopay") === "None" ? "Not scheduled" : "Autopay expected"),
       addressId: bill ? bill.addressId : null,
       image: imageValue("bill"),
       imageZoom: imageZoomValue("bill"),
@@ -18621,15 +18759,17 @@ Expected safe state:
   function addInboxAsBill(itemId) {
     const item = findBillInboxItem(itemId);
     if (!item) return;
-    if (data.bills.some((bill) => normalizedName(bill.name) === normalizedName(item.title) || normalizedName(bill.payee) === normalizedName(item.merchant))) {
-      markInboxItem(itemId, "approved");
+    const existingBill = data.bills.find((bill) => normalizedName(bill.name) === normalizedName(item.title) || normalizedName(bill.payee) === normalizedName(item.merchant));
+    if (existingBill) {
+      markInboxItem(item, "approved", { filedAsType: "bill", filedAsId: existingBill.id });
       saveData();
       render();
       showToast("That bill is already being tracked.");
       return;
     }
+    const billId = id("bill");
     data.bills.unshift({
-      id: id("bill"),
+      id: billId,
       name: item.title || "Detected Bill",
       payee: item.merchant || item.title || "Biller",
       category: item.category || "Utilities",
@@ -18639,9 +18779,15 @@ Expected safe state:
       status: "Unpaid",
       method: "Manual",
       autopay: false,
+      minimumPayment: 0,
+      paymentPreference: "Full balance",
+      customPaymentAmount: 0,
+      payDateRule: "Due date",
+      scheduledPayDate: item.dueDate || ui.selectedDate,
+      paymentStage: "Not scheduled",
       addressId: null
     });
-    markInboxItem(itemId, "approved");
+    markInboxItem(item, "approved", { filedAsType: "bill", filedAsId: billId });
     saveData();
     render();
     showToast("Bill added from inbox.");
@@ -18650,15 +18796,17 @@ Expected safe state:
   function addInboxAsSubscription(itemId) {
     const item = findBillInboxItem(itemId);
     if (!item) return;
-    if (data.subscriptions.some((sub) => subscriptionMatchesInboxItem(sub, item))) {
-      markInboxItem(itemId, "approved");
+    const existingSub = data.subscriptions.find((sub) => subscriptionMatchesInboxItem(sub, item));
+    if (existingSub) {
+      markInboxItem(item, "approved", { filedAsType: "subscription", filedAsId: existingSub.id });
       saveData();
       render();
       showToast("That subscription is already being tracked.");
       return;
     }
+    const subId = id("sub");
     data.subscriptions.unshift({
-      id: id("sub"),
+      id: subId,
       name: item.title || "Detected Subscription",
       plan: item.category || "Detected Plan",
       category: item.category || "Subscriptions",
@@ -18671,7 +18819,7 @@ Expected safe state:
       autopay: true,
       method: "Capital One Credit Card"
     });
-    markInboxItem(itemId, "approved");
+    markInboxItem(item, "approved", { filedAsType: "subscription", filedAsId: subId });
     saveData();
     render();
     showToast("Subscription added from inbox.");
@@ -18682,7 +18830,7 @@ Expected safe state:
     if (!item) return;
     const existing = data.subscriptions.find((sub) => normalizedName(sub.name) === normalizedName(item.title));
     if (existing) {
-      markInboxItem(itemId, "approved");
+      markInboxItem(item, "approved", { filedAsType: "subscription", filedAsId: existing.id });
       setSubscriptionStatus(existing.id, "Cancelled");
       showToast("Cancellation workflow started.");
       return;
@@ -18696,7 +18844,7 @@ Expected safe state:
       date: todayIso(),
       notes: "Started from Review Inbox detection before adding as active subscription."
     });
-    markInboxItem(itemId, "approved");
+    markInboxItem(item, "approved", { filedAsType: "cancellation" });
     saveData();
     render();
     showToast("Cancellation workflow started.");
@@ -18709,24 +18857,91 @@ Expected safe state:
       showToast("No match found for this inbox item.", "danger");
       return;
     }
-    markInboxItem(itemId, "approved");
+    markInboxItem(item, "approved", { filedAsType: match.type, filedAsId: match.id });
     saveData();
     render();
     showToast(`Linked to existing ${match.type}.`);
   }
 
   function dismissInboxItem(itemId) {
+    const item = findBillInboxItem(itemId);
+    if (!item) return;
     if (!data.dismissedInboxIds.includes(itemId)) data.dismissedInboxIds.push(itemId);
-    markInboxItem(itemId, "dismissed", false);
+    markInboxItem(item, "dismissed");
     saveData();
     render();
     showToast("Inbox item dismissed.");
   }
 
-  function markInboxItem(itemId, status, shouldDismissDetected = true) {
-    const stored = data.billInbox.find((item) => item.id === itemId);
-    if (stored) stored.status = status;
-    else if (shouldDismissDetected && !data.dismissedInboxIds.includes(itemId)) data.dismissedInboxIds.push(itemId);
+  function markInboxItem(item, status, details = {}) {
+    if (!item?.id) return;
+    const existing = data.billInbox.find((candidate) => candidate.id === item.id);
+    const next = {
+      ...item,
+      ...(existing || {}),
+      ...details,
+      status,
+      reviewedAt: localTimestamp()
+    };
+    if (existing) Object.assign(existing, next);
+    else data.billInbox.unshift(next);
+    if (status !== "dismissed") {
+      data.dismissedInboxIds = safeArray(data.dismissedInboxIds).filter((idValue) => idValue !== item.id);
+    }
+  }
+
+  function isSandboxReviewItem(item) {
+    const text = `${item?.id || ""} ${item?.source || ""}`.toLowerCase();
+    return text.includes("plaid") || text.includes("recurring detector") || text.startsWith("detected_");
+  }
+
+  function reopenInboxItem(itemId) {
+    const item = data.billInbox.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      showToast("I could not find that review item.", "danger");
+      return;
+    }
+    item.status = "pending";
+    delete item.filedAsId;
+    delete item.filedAsType;
+    delete item.reviewedAt;
+    data.dismissedInboxIds = safeArray(data.dismissedInboxIds).filter((idValue) => idValue !== itemId);
+    saveData();
+    render();
+    showToast("Review item reopened. Existing Bills or Subscriptions were not deleted.");
+  }
+
+  function reopenApprovedInbox() {
+    let count = 0;
+    safeArray(data.billInbox).forEach((item) => {
+      if (item.status !== "approved") return;
+      item.status = "pending";
+      delete item.filedAsId;
+      delete item.filedAsType;
+      delete item.reviewedAt;
+      count += 1;
+    });
+    const approvedIds = new Set(safeArray(data.billInbox).filter((item) => item.status === "pending").map((item) => item.id));
+    data.dismissedInboxIds = safeArray(data.dismissedInboxIds).filter((idValue) => !approvedIds.has(idValue));
+    saveData();
+    render();
+    showToast(count ? `${count} approved review item${count === 1 ? "" : "s"} reopened.` : "No approved review items to reopen.");
+  }
+
+  function resetSandboxReview() {
+    let count = 0;
+    safeArray(data.billInbox).forEach((item) => {
+      if (!isSandboxReviewItem(item)) return;
+      item.status = "pending";
+      delete item.filedAsId;
+      delete item.filedAsType;
+      delete item.reviewedAt;
+      count += 1;
+    });
+    data.dismissedInboxIds = safeArray(data.dismissedInboxIds).filter((itemId) => !isSandboxReviewItem({ id: itemId, source: "" }));
+    saveData();
+    render();
+    showToast(count ? `Sandbox review reopened ${count} item${count === 1 ? "" : "s"}. Bills and Subscriptions stayed put.` : "Sandbox review is already clear.");
   }
 
   function saveSubscription() {

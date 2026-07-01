@@ -4643,6 +4643,18 @@ button.round-icon {
   box-shadow: none;
 }
 
+.bill-card.compact.paid {
+  border-color: #8ee0ad;
+  background: linear-gradient(135deg, #f7fffb, #eefaf3);
+  box-shadow: inset 4px 0 0 #1aae69;
+}
+
+.bill-card.compact.partial {
+  border-color: #ffe49a;
+  background: linear-gradient(135deg, #fffdf4, #fff8df);
+  box-shadow: inset 4px 0 0 #f0a400;
+}
+
 .bill-title-pack {
   display: flex;
   align-items: center;
@@ -4702,6 +4714,37 @@ button.round-icon {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bill-payment-plan {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #d8e8f8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fbff, #eef8ff);
+  color: var(--navy);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.bill-payment-plan span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.bill-payment-plan .status {
+  margin-left: auto;
+}
+
+.bill-paid-button:disabled {
+  cursor: default;
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(26, 174, 105, 0.14);
 }
 
 .bill-card.compact .sheet-actions {
@@ -5909,6 +5952,83 @@ button.round-icon {
   line-height: 1.35;
 }
 
+.review-control-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  background: #f7fbff;
+  border-color: #bfdbfe;
+  box-shadow: none;
+}
+
+.review-control-panel h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.review-control-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.review-control-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.review-control-stats span {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.review-control-stats strong {
+  color: var(--navy);
+  font-size: 1rem;
+}
+
+.review-control-stats small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.review-control-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.review-control-actions .outline-btn,
+.review-control-actions .danger-btn {
+  min-height: 38px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 900px) {
+  .review-control-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .review-control-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .review-control-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .inbox-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -5929,6 +6049,19 @@ button.round-icon {
 
 .inbox-card.approved {
   opacity: 0.78;
+}
+
+.review-decision-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #047857;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .compact-amounts {
