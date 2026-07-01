@@ -8970,6 +8970,10 @@ function quickAction(action) {
           <span>${icon(signedIn ? "check" : "home")}</span>
           <div><strong>${esc(cloudReadyTitle)}</strong><p>${esc(cloudReadyDetail)}</p></div>
         </div>
+        <div class="sync-step info plaid-sandbox-tip" style="margin-top:12px;">
+          <span>${icon("alert")}</span>
+          <div><strong>Plaid sandbox tip</strong><p>If Plaid asks for a phone number and rejects it, back out of phone sign-in and search for <strong>First Platypus Bank</strong>. Use sandbox credentials <strong>user_good</strong> / <strong>pass_good</strong> to prove BillMaster linking first.</p></div>
+        </div>
         <div class="plaid-flow">
           ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
           ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}

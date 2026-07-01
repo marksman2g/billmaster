@@ -3899,6 +3899,31 @@ button.round-icon {
   border-left: 4px solid var(--teal);
 }
 
+.dashboard-panel--accounts .account-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-panel--accounts .account-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.dashboard-panel--accounts .account-card .entity-title {
+  font-size: 0.92rem;
+  line-height: 1.15;
+}
+
+.dashboard-panel--accounts .account-card .entity-subtitle {
+  font-size: 0.75rem;
+}
+
+.dashboard-panel--accounts .account-card .amount-large {
+  font-size: clamp(1.16rem, 5vw, 1.55rem);
+  line-height: 1.05;
+}
+
 .account-sync-modal-panel {
   margin-bottom: 14px;
 }
@@ -5861,6 +5886,15 @@ button.round-icon {
 .sync-step.warn > span {
   color: #a06d00;
   background: #fff5d6;
+}
+
+.sync-step.info > span {
+  color: var(--blue);
+  background: #e8f5ff;
+}
+
+.sync-step.info {
+  border-color: #bddcff;
 }
 
 .sync-step strong {
