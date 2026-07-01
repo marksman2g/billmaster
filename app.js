@@ -18203,10 +18203,19 @@ function quickAction(action) {
         ["SUPABASE_URL", configured.supabase_url],
         ["SUPABASE_SERVICE_ROLE_KEY", configured.supabase_service_role_key]
       ].filter(([, ready]) => !ready).map(([name]) => name);
-      const ok = Boolean(result.ok && !missing.length);
+      const database = result.database || {};
+      const databaseIssues = [
+        ["Plaid token table/service role", database.plaid_tokens_ready],
+        ["Plaid connection table/service role", database.plaid_connections_ready]
+      ].filter(([, ready]) => ready === false).map(([name]) => name);
+      const databaseDetail = [
+        database.token_error ? `Token table: ${database.token_error}` : "",
+        database.connection_error ? `Connection table: ${database.connection_error}` : ""
+      ].filter(Boolean).join(" ");
+      const ok = Boolean(result.ok && !missing.length && !databaseIssues.length);
       const message = ok
-        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode.`
-        : `plaid-sync responded, but missing: ${missing.join(", ") || "required configuration"}.`;
+        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode, and Plaid tables are reachable.`
+        : `plaid-sync needs attention: ${[...missing, ...databaseIssues].join(", ") || "required setup"}.${databaseDetail ? ` ${databaseDetail}` : ""}`;
       recordPlaidBackendStatus(ok, message, result);
       render();
       showToast(message, ok ? "success" : "danger");

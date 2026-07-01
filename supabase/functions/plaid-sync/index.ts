@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   try {
     const body = await readJson(req);
     const action = String(body.action || "health");
-    if (action === "health") return json(plaidHealth());
+    if (action === "health") return json(await plaidHealth());
 
     const { user, admin } = await requireUser(req);
     if (action === "create_link_token") return json(await createLinkToken(user.id));
@@ -57,7 +57,7 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-function plaidHealth() {
+async function plaidHealth() {
   return {
     ok: true,
     plaid_env: plaidEnv(),
@@ -68,7 +68,31 @@ function plaidHealth() {
       supabase_anon_key: Boolean(publicSupabaseKey()),
       supabase_service_role_key: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))
     },
+    database: await plaidDatabaseHealth(),
     actions: ["create_link_token", "exchange_public_token", "sync_transactions"]
+  };
+}
+
+async function plaidDatabaseHealth() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    return {
+      plaid_tokens_ready: false,
+      plaid_connections_ready: false,
+      message: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
+    };
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  const tokenProbe = await admin.from("billmaster_plaid_tokens").select("item_id").limit(1);
+  const connectionProbe = await admin.from("billmaster_plaid_connections").select("item_id").limit(1);
+  return {
+    plaid_tokens_ready: !tokenProbe.error,
+    plaid_connections_ready: !connectionProbe.error,
+    token_error: dbErrorSummary(tokenProbe.error),
+    connection_error: dbErrorSummary(connectionProbe.error)
   };
 }
 
@@ -338,5 +362,16 @@ function assertDb(error: unknown, label: string) {
   if (!error) return;
   const message = isRecord(error) && typeof error.message === "string" ? error.message : "Unknown database error.";
   const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
-  throw new HttpError(500, `${label} failed. Run supabase/schema.sql, then redeploy the plaid-sync function.`, { code, message });
+  throw new HttpError(500, `${label} failed: ${message}`, {
+    code,
+    message,
+    hint: "Run supabase/schema.sql, redeploy plaid-sync, and confirm SUPABASE_SERVICE_ROLE_KEY is the service_role key."
+  });
+}
+
+function dbErrorSummary(error: unknown) {
+  if (!error) return "";
+  const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+  const message = isRecord(error) && typeof error.message === "string" ? error.message : "Unknown database error.";
+  return [code, message].filter(Boolean).join(": ");
 }
