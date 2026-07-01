@@ -102,6 +102,7 @@ create table if not exists public.billmaster_plaid_connections (
 alter table public.billmaster_plaid_connections enable row level security;
 
 grant select, insert, update, delete on table public.billmaster_plaid_connections to authenticated;
+grant select, insert, update, delete on table public.billmaster_plaid_connections to service_role;
 
 drop policy if exists "Users can read their own Plaid connection metadata" on public.billmaster_plaid_connections;
 create policy "Users can read their own Plaid connection metadata"
@@ -149,5 +150,6 @@ alter table public.billmaster_plaid_tokens enable row level security;
 -- Intentionally no client grants or policies for token rows.
 -- Edge Functions use the Supabase service role key, which bypasses RLS.
 revoke all on table public.billmaster_plaid_tokens from anon, authenticated;
+grant select, insert, update, delete on table public.billmaster_plaid_tokens to service_role;
 
 notify pgrst, 'reload schema';
