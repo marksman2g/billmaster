@@ -78,9 +78,50 @@ button:disabled {
 }
 
 .app-shell {
+  --workspace-accent: var(--blue);
+  --workspace-accent-2: var(--navy-2);
+  --workspace-panel: #f3f9ff;
+  --workspace-panel-2: #fbfdff;
+  --workspace-border: #cfe6ff;
   min-height: 100vh;
   min-width: 0;
   overflow-x: hidden;
+}
+
+.app-view-calendar,
+.app-view-tasks,
+.app-view-habits,
+.app-view-projects {
+  --workspace-accent: #2196f3;
+  --workspace-accent-2: #1d3f6f;
+  --workspace-panel: #eef7ff;
+  --workspace-panel-2: #f8fbff;
+  --workspace-border: #cfe6ff;
+}
+
+.app-view-notes,
+.app-view-notebooks {
+  --workspace-accent: #6c63ff;
+  --workspace-accent-2: #3f3a9f;
+  --workspace-panel: #f4f2ff;
+  --workspace-panel-2: #fbfaff;
+  --workspace-border: #dcd8ff;
+}
+
+.app-view-dashboard,
+.app-view-tracking,
+.app-view-analytics,
+.app-view-bills,
+.app-view-subscriptions,
+.app-view-inbox,
+.app-view-sync,
+.app-view-goals,
+.app-view-lending {
+  --workspace-accent: #168f73;
+  --workspace-accent-2: #1d3f6f;
+  --workspace-panel: #effaf7;
+  --workspace-panel-2: #fbfffd;
+  --workspace-border: #cbece2;
 }
 
 img,
@@ -205,8 +246,9 @@ video {
   min-height: 58px;
   padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
   margin: -18px -16px 14px;
-  background: rgba(246, 248, 251, 0.93);
-  border-bottom: 1px solid rgba(223, 230, 238, 0.85);
+  background:
+    linear-gradient(90deg, rgba(246, 248, 251, 0.96), color-mix(in srgb, var(--workspace-panel) 74%, #ffffff 26%));
+  border-bottom: 1px solid color-mix(in srgb, var(--workspace-border) 76%, rgba(223, 230, 238, 0.85) 24%);
   backdrop-filter: blur(14px);
 }
 
@@ -238,7 +280,8 @@ video {
 
 .icon-btn:hover,
 .icon-btn:focus-visible {
-  background: var(--surface-3);
+  color: var(--workspace-accent-2);
+  background: color-mix(in srgb, var(--workspace-panel) 72%, #ffffff 28%);
   outline: none;
 }
 
@@ -386,6 +429,34 @@ video {
 
 .section-card {
   padding: 16px;
+}
+
+.app-shell .screen > .section-card:not(.balance-panel):not(.prism-hero),
+.app-shell .screen .card:not(.balance-panel),
+.app-shell .screen .task-card,
+.app-shell .screen .bill-card,
+.app-shell .screen .note-card,
+.app-shell .screen .project-card {
+  border-color: color-mix(in srgb, var(--workspace-border) 58%, var(--line) 42%);
+}
+
+.app-view-tasks .balance-panel,
+.app-view-habits .habit-hero {
+  color: var(--text);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--workspace-panel) 82%, #ffffff 18%), #ffffff);
+  border: 1px solid var(--workspace-border);
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.05);
+}
+
+.app-view-tasks .balance-panel .panel-title,
+.app-view-habits .habit-hero h2 {
+  color: var(--text) !important;
+}
+
+.app-view-tasks .balance-panel .balance-meta,
+.app-view-habits .habit-hero p {
+  color: var(--muted);
 }
 
 .section-title {
@@ -4407,6 +4478,204 @@ button.round-icon {
   font-weight: 780;
 }
 
+.task-control-bar,
+.habit-control-bar,
+.notes-control-panel,
+.note-action-bar,
+.project-bulk-toolbar,
+.project-task-toolbar,
+.toolbar,
+.segmented,
+.mini-tabs,
+.filter-row.project-sort-row,
+.filter-row.notebook-view-switcher,
+.filter-row.bill-hub-tabs,
+.filter-row.goal-view-row {
+  background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
+  border: 1px solid var(--workspace-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.05);
+}
+
+.task-control-bar,
+.habit-control-bar,
+.note-action-bar,
+.project-bulk-toolbar,
+.project-task-toolbar,
+.toolbar,
+.filter-row.project-sort-row,
+.filter-row.notebook-view-switcher,
+.filter-row.bill-hub-tabs,
+.filter-row.goal-view-row {
+  padding: 7px;
+}
+
+.segmented,
+.mini-tabs {
+  padding: 4px;
+}
+
+.task-control-bar button,
+.habit-control-bar button,
+.notes-control-panel .filter-row button,
+.note-action-bar button,
+.project-bulk-toolbar button,
+.project-task-toolbar button,
+.toolbar button,
+.segmented button,
+.mini-tabs button,
+.filter-row.project-sort-row button,
+.filter-row.notebook-view-switcher button,
+.filter-row.bill-hub-tabs button,
+.filter-row.goal-view-row button {
+  min-height: 32px;
+  color: var(--workspace-accent-2);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: color-mix(in srgb, var(--workspace-border) 80%, #ffffff 20%);
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 0.78rem;
+}
+
+.task-control-bar button.active,
+.habit-control-bar button.active,
+.notes-control-panel .filter-row button.active,
+.note-action-bar button.active,
+.project-bulk-toolbar button.active,
+.project-task-toolbar button.active,
+.toolbar button.active,
+.segmented button.active,
+.mini-tabs button.active,
+.filter-row.project-sort-row button.active,
+.filter-row.notebook-view-switcher button.active,
+.filter-row.bill-hub-tabs button.active,
+.filter-row.goal-view-row button.active {
+  color: #ffffff;
+  background: var(--workspace-accent);
+  border-color: var(--workspace-accent);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--workspace-accent) 18%, transparent);
+}
+
+.search-field,
+.task-sort-select,
+.notes-subject-select select {
+  border-color: color-mix(in srgb, var(--workspace-border) 78%, var(--line) 22%);
+}
+
+.search-field:focus-within,
+.task-sort-select:focus,
+.notes-subject-select select:focus {
+  border-color: var(--workspace-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-accent) 16%, transparent);
+  outline: none;
+}
+
+.workspace-command-panel {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 14px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
+  border: 1px solid var(--workspace-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.05);
+}
+
+.workspace-command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workspace-mini-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+}
+
+.workspace-mini-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 3px 8px;
+  color: var(--workspace-accent-2);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--workspace-border) 78%, #ffffff 22%);
+  border-radius: 7px;
+  font-size: 0.74rem;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.workspace-mini-metrics strong {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.workspace-command-panel .quick-add,
+.workspace-command-panel .task-control-bar,
+.workspace-command-panel .habit-control-bar,
+.workspace-command-panel .notes-control-panel,
+.workspace-command-panel .note-action-bar,
+.workspace-command-panel .project-bulk-toolbar,
+.workspace-command-panel .project-task-toolbar,
+.workspace-command-panel .toolbar,
+.workspace-command-panel .segmented,
+.workspace-command-panel .mini-tabs,
+.workspace-command-panel .filter-row {
+  margin: 0;
+  box-shadow: none;
+}
+
+.workspace-command-panel .quick-add,
+.workspace-command-panel .toolbar,
+.workspace-command-panel .notes-control-panel,
+.workspace-command-panel .note-action-bar,
+.workspace-command-panel .project-bulk-toolbar,
+.workspace-command-panel .filter-row {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.workspace-command-panel .workspace-quick-add,
+.workspace-command-panel .workspace-search {
+  min-height: 42px;
+}
+
+.workspace-command-panel .hub-note {
+  margin: 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  border-color: color-mix(in srgb, var(--workspace-border) 82%, #ffffff 18%);
+  box-shadow: none;
+}
+
+.workspace-command-panel .hub-note p {
+  margin: 2px 0 0;
+}
+
+.workspace-command-panel .notes-importance-filters {
+  margin-bottom: 0 !important;
+}
+
+.workspace-command-panel .task-control-group + .task-control-group {
+  border-left-color: color-mix(in srgb, var(--workspace-border) 80%, #ffffff 20%);
+}
+
+@media (max-width: 760px) {
+  .workspace-command-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-mini-metrics {
+    justify-content: flex-start;
+  }
+}
+
 .category-filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -4755,6 +5024,15 @@ button.round-icon {
   margin-left: auto;
 }
 
+.bill-payment-safety {
+  display: flex;
+  width: 100%;
+  padding-top: 3px;
+  border-top: 1px solid rgba(26, 31, 54, 0.08);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
 .bill-paid-button:disabled {
   cursor: default;
   opacity: 1;
@@ -4765,6 +5043,10 @@ button.round-icon {
   gap: 6px;
   margin-top: 0;
   grid-template-columns: minmax(0, 1fr) 34px 34px !important;
+}
+
+.bill-card.compact .bill-card-actions.has-undo {
+  grid-template-columns: minmax(0, 1fr) minmax(72px, auto) 34px 34px !important;
 }
 
 .bill-card.compact .primary-btn,
@@ -4779,6 +5061,12 @@ button.round-icon {
 .bill-card.compact .danger-btn {
   width: 34px;
   padding: 0;
+}
+
+.bill-card.compact .bill-undo-payment {
+  width: auto;
+  min-width: 72px;
+  padding: 0 10px;
 }
 
 .prism-hero {
@@ -13650,6 +13938,122 @@ canvas {
   animation-delay: 0.7s;
 }
 
+.weather-motion-timeline {
+  opacity: 0.52;
+}
+
+.weather-motion-timeline::before,
+.weather-motion-timeline::after {
+  content: none;
+  display: none;
+}
+
+.weather-segment {
+  position: absolute;
+  top: var(--weather-start, 0%);
+  right: 0;
+  left: 0;
+  height: max(14px, var(--weather-size, 100%));
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 0;
+}
+
+.weather-segment::before,
+.weather-segment::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.weather-segment-sun {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 184, 0.16), rgba(255, 238, 88, 0.04) 68%, transparent);
+  opacity: 0.56;
+}
+
+.weather-segment-sun::before {
+  inset: -48px -12px -22px;
+  background:
+    radial-gradient(circle at 78% 11%, rgba(255, 255, 255, 0.92) 0 9px, rgba(255, 224, 79, 0.7) 10px 23px, rgba(255, 184, 0, 0.16) 24px 42px, transparent 43px),
+    repeating-linear-gradient(112deg, transparent 0 48px, rgba(255, 213, 79, 0.2) 49px 51px, transparent 52px 104px),
+    radial-gradient(circle at 28% 26%, rgba(255, 245, 157, 0.34) 0 4px, transparent 5px),
+    radial-gradient(circle at 64% 52%, rgba(255, 236, 128, 0.3) 0 5px, transparent 6px),
+    radial-gradient(circle at 38% 78%, rgba(255, 236, 128, 0.26) 0 4px, transparent 5px);
+  background-size: auto, 78px 118px, 130px 210px, 145px 240px, 170px 270px;
+  filter: brightness(1.18) drop-shadow(0 0 8px rgba(255, 224, 79, 0.22));
+  animation: bmWeatherSunTrickle 8.4s linear infinite;
+}
+
+.weather-segment-sun::after {
+  top: 8%;
+  right: 12%;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 20%, rgba(255, 238, 88, 0.72) 21% 48%, rgba(255, 184, 0, 0.25) 49% 72%, transparent 73%);
+  box-shadow:
+    0 0 12px rgba(255, 238, 88, 0.42),
+    0 0 26px rgba(255, 193, 7, 0.22);
+  opacity: 0.62;
+  animation: bmWeatherSunPulse 3.1s ease-in-out infinite;
+}
+
+.weather-segment-rain {
+  background: linear-gradient(180deg, rgba(147, 197, 253, 0.12), rgba(14, 116, 144, 0.04));
+  opacity: 0.62;
+}
+
+.weather-segment-rain::before {
+  inset: -48px -12px 0;
+  background:
+    repeating-linear-gradient(
+      105deg,
+      transparent 0 24px,
+      rgba(24, 91, 182, 0.42) 25px 27px,
+      transparent 28px 62px
+    );
+  background-size: 88px 84px;
+  opacity: 0.58;
+  animation: bmWeatherRainFall 1.75s linear infinite;
+}
+
+.weather-segment-rain::after {
+  right: 20%;
+  bottom: 4px;
+  left: 20%;
+  height: 8px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse, rgba(24, 91, 182, 0.2), transparent 68%);
+  animation: bmWeatherRainRipple 1.9s ease-in-out infinite;
+}
+
+.weather-segment-cloud {
+  opacity: 0.42;
+}
+
+.weather-segment-cloud::before {
+  inset: -34px -16px 0;
+  background:
+    radial-gradient(ellipse at 25% 9%, rgba(255, 255, 255, 0.52) 0 18px, transparent 19px),
+    radial-gradient(ellipse at 70% 32%, rgba(213, 227, 241, 0.34) 0 25px, transparent 26px),
+    radial-gradient(ellipse at 42% 68%, rgba(255, 255, 255, 0.28) 0 18px, transparent 19px);
+  background-size: 150px 190px, 180px 235px, 160px 220px;
+  animation: bmWeatherCloudTrickle 11s linear infinite;
+}
+
+.weather-segment-wind {
+  opacity: 0.46;
+}
+
+.weather-segment-wind::before {
+  inset: -36px 0 0;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 46px, rgba(55, 96, 123, 0.18) 47px 49px, transparent 50px 86px),
+    repeating-linear-gradient(160deg, transparent 0 34px, rgba(55, 96, 123, 0.11) 35px 37px, transparent 38px 72px);
+  animation: bmWeatherWindTrickle 8s ease-in-out infinite;
+}
+
 @keyframes bmWeatherSunPulse {
   0%,
   100% {
@@ -18098,11 +18502,12 @@ canvas {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-color: rgba(221, 157, 22, 0.9) !important;
+  border-color: rgba(30, 64, 175, 0.9) !important;
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.98),
-    0 0 0 4px rgba(246, 194, 69, 0.42),
-    0 0 20px rgba(255, 211, 77, 0.28),
+    0 0 0 4px rgba(56, 189, 248, 0.34),
+    0 0 18px rgba(255, 211, 77, 0.28),
+    0 0 28px rgba(239, 68, 68, 0.18),
     inset 0 0 0 1px rgba(255, 247, 209, 0.92) !important;
   animation: bmTodayBoxAttention 1.35s ease-in-out infinite;
 }
@@ -18121,12 +18526,15 @@ canvas {
   background:
     conic-gradient(
       from 0deg,
-      rgba(255, 255, 255, 0) 0deg,
-      rgba(255, 255, 255, 0.96) 36deg,
-      #ffe45c 70deg,
-      rgba(56, 189, 248, 0.86) 112deg,
-      #ffffff 144deg,
-      rgba(255, 255, 255, 0) 162deg,
+      rgba(255, 255, 255, 0) 0deg 14deg,
+      #38bdf8 22deg 58deg,
+      #071323 72deg 98deg,
+      #ef4444 112deg 146deg,
+      #ffd43b 164deg 204deg,
+      #38bdf8 222deg 254deg,
+      #071323 270deg 292deg,
+      #ef4444 308deg 334deg,
+      #ffd43b 346deg 358deg,
       rgba(255, 255, 255, 0) 360deg
     );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -18150,8 +18558,9 @@ canvas {
   border: 2px solid rgba(255, 218, 73, 0.68);
   border-radius: inherit;
   box-shadow:
-    inset 0 0 12px rgba(255, 231, 135, 0.52),
-    0 0 16px rgba(255, 202, 40, 0.5);
+    inset 0 0 12px rgba(255, 231, 135, 0.48),
+    0 0 14px rgba(56, 189, 248, 0.44),
+    0 0 18px rgba(239, 68, 68, 0.28);
   opacity: 0.68;
   animation: bmTodayInnerBlink 1.15s ease-in-out infinite;
 }
@@ -18253,23 +18662,25 @@ canvas {
 @keyframes bmTodayBoxAttention {
   0%,
   100% {
-    border-color: rgba(221, 157, 22, 0.92);
+    border-color: rgba(30, 64, 175, 0.94);
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.98),
-      0 0 0 4px rgba(246, 194, 69, 0.42),
-      0 0 18px rgba(255, 211, 77, 0.28),
+      0 0 0 4px rgba(56, 189, 248, 0.38),
+      0 0 18px rgba(255, 211, 77, 0.22),
+      0 0 28px rgba(239, 68, 68, 0.18),
       inset 0 0 0 1px rgba(255, 247, 209, 0.9);
     filter: brightness(1);
   }
 
   45%,
   62% {
-    border-color: rgba(255, 184, 0, 1);
+    border-color: rgba(239, 68, 68, 1);
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 1),
-      0 0 0 5px rgba(255, 213, 79, 0.72),
-      0 0 26px rgba(255, 193, 7, 0.72),
-      0 0 42px rgba(56, 189, 248, 0.22),
+      0 0 0 5px rgba(7, 19, 35, 0.48),
+      0 0 20px rgba(239, 68, 68, 0.62),
+      0 0 30px rgba(255, 213, 79, 0.56),
+      0 0 42px rgba(56, 189, 248, 0.32),
       inset 0 0 0 2px rgba(255, 245, 196, 1);
     filter: brightness(1.08) saturate(1.08);
   }
@@ -18341,4 +18752,424 @@ canvas {
   62% {
     transform: translateY(1px) scale(0.98);
   }
+}
+
+/* Shared workspace polish: keep Work, Notes, and Money screens visually related. */
+.app-shell .task-control-bar,
+.app-shell .habit-control-bar,
+.app-shell .notes-control-panel,
+.app-shell .note-action-bar,
+.app-shell .project-bulk-toolbar,
+.app-shell .project-task-toolbar,
+.app-shell .toolbar,
+.app-shell .segmented,
+.app-shell .mini-tabs,
+.app-shell .filter-row.project-sort-row,
+.app-shell .filter-row.notebook-view-switcher,
+.app-shell .filter-row.bill-hub-tabs,
+.app-shell .filter-row.goal-view-row {
+  background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
+  border: 1px solid var(--workspace-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(26, 31, 54, 0.05);
+}
+
+.app-shell .task-control-bar button,
+.app-shell .habit-control-bar button,
+.app-shell .notes-control-panel .filter-row button,
+.app-shell .note-action-bar button,
+.app-shell .project-bulk-toolbar button,
+.app-shell .project-task-toolbar button,
+.app-shell .toolbar button,
+.app-shell .segmented button,
+.app-shell .mini-tabs button,
+.app-shell .filter-row.project-sort-row button,
+.app-shell .filter-row.notebook-view-switcher button,
+.app-shell .filter-row.bill-hub-tabs button,
+.app-shell .filter-row.goal-view-row button {
+  color: var(--workspace-accent-2);
+  border-color: color-mix(in srgb, var(--workspace-border) 80%, #ffffff 20%);
+}
+
+.app-shell .task-control-bar button.active,
+.app-shell .habit-control-bar button.active,
+.app-shell .notes-control-panel .filter-row button.active,
+.app-shell .note-action-bar button.active,
+.app-shell .project-bulk-toolbar button.active,
+.app-shell .project-task-toolbar button.active,
+.app-shell .toolbar button.active,
+.app-shell .segmented button.active,
+.app-shell .mini-tabs button.active,
+.app-shell .filter-row.project-sort-row button.active,
+.app-shell .filter-row.notebook-view-switcher button.active,
+.app-shell .filter-row.bill-hub-tabs button.active,
+.app-shell .filter-row.goal-view-row button.active {
+  color: #ffffff;
+  background: var(--workspace-accent);
+  border-color: var(--workspace-accent);
+}
+
+/* Strong current-day attention treatment shared by Month, Week, Day, and Block. */
+:where(
+  .day-cell.is-today,
+  .week-day.is-today,
+  .week-timetable-day-head.is-today,
+  .block-head-button.is-today,
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+) {
+  position: relative !important;
+  isolation: isolate;
+  overflow: visible !important;
+  border-color: #071323 !important;
+  box-shadow:
+    0 0 0 2px rgba(7, 19, 35, 0.98),
+    0 0 0 5px rgba(56, 189, 248, 0.74),
+    0 0 0 8px rgba(239, 68, 68, 0.42),
+    0 0 22px rgba(56, 189, 248, 0.44),
+    0 0 32px rgba(255, 212, 59, 0.46),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.88) !important;
+  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite !important;
+}
+
+:where(
+  .day-cell.is-today,
+  .week-day.is-today,
+  .week-timetable-day-head.is-today,
+  .block-head-button.is-today,
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+)::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  z-index: 8;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--active-day-ring-angle, 0deg),
+    #38bdf8 0deg 36deg,
+    #071323 36deg 66deg,
+    #ef4444 66deg 108deg,
+    #ffd43b 108deg 148deg,
+    #1d4ed8 148deg 194deg,
+    #05070d 194deg 226deg,
+    #dc2626 226deg 268deg,
+    #ffd43b 268deg 314deg,
+    #38bdf8 314deg 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.94;
+  filter:
+    drop-shadow(0 0 9px rgba(56, 189, 248, 0.86))
+    drop-shadow(0 0 14px rgba(220, 38, 38, 0.54));
+  animation: bmActiveDayEdgeSpin 1.6s linear infinite, bmActiveDayEdgeFlash 1.28s ease-in-out infinite;
+}
+
+:where(
+  .day-cell.is-today,
+  .week-day.is-today,
+  .week-timetable-day-head.is-today,
+  .block-head-button.is-today,
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+) .calendar-weekday-name,
+:where(
+  .day-cell.is-today,
+  .week-day.is-today,
+  .week-timetable-day-head.is-today,
+  .block-head-button.is-today,
+  .calendar-day.today,
+  .calendar-day.is-today,
+  .calendar-day.current-day,
+  .calendar-day.is-current-day,
+  .calendar-day-card.today,
+  .calendar-day-card.is-today,
+  .week-day-card.today,
+  .week-day-card.is-today,
+  .month-day.today,
+  .month-day.is-today,
+  .month-day-cell.today,
+  .month-day-cell.is-today,
+  .today-cell,
+  .today-tile,
+  .block-day-header.today,
+  .block-day-header.is-today,
+  .block-calendar-day.today,
+  .block-calendar-day.is-today,
+  [data-today="true"]
+) .date-cell-content > strong {
+  color: #07182e !important;
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 1),
+    0 0 8px rgba(255, 212, 59, 0.95),
+    0 0 14px rgba(56, 189, 248, 0.65);
+  animation: bmActiveDayTextPop 1.28s ease-in-out infinite !important;
+}
+
+@property --active-day-ring-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes bmActiveDayPowerPulse {
+  0%, 100% {
+    border-color: #071323;
+    transform: scale(1);
+    filter: brightness(1.04) saturate(1.14);
+    box-shadow:
+      0 0 0 2px rgba(7, 19, 35, 0.98),
+      0 0 0 5px rgba(56, 189, 248, 0.72),
+      0 0 0 8px rgba(239, 68, 68, 0.38),
+      0 0 22px rgba(56, 189, 248, 0.42),
+      0 0 30px rgba(255, 212, 59, 0.42),
+      inset 0 0 0 2px rgba(255, 255, 255, 0.84);
+  }
+  46% {
+    border-color: #ef4444;
+    transform: scale(1.035);
+    filter: brightness(1.16) saturate(1.48);
+    box-shadow:
+      0 0 0 3px rgba(7, 19, 35, 1),
+      0 0 0 7px rgba(56, 189, 248, 0.86),
+      0 0 0 11px rgba(239, 68, 68, 0.58),
+      0 0 22px rgba(7, 19, 35, 0.5),
+      0 0 34px rgba(255, 212, 59, 0.64),
+      0 0 48px rgba(56, 189, 248, 0.52),
+      inset 0 0 0 3px rgba(255, 255, 255, 0.98);
+  }
+  72% {
+    border-color: #ffd43b;
+    transform: scale(1.012);
+    filter: brightness(1.1) saturate(1.32);
+  }
+}
+
+@keyframes bmActiveDayEdgeSpin {
+  to {
+    --active-day-ring-angle: 360deg;
+  }
+}
+
+@keyframes bmActiveDayEdgeFlash {
+  0%, 100% {
+    opacity: 0.72;
+    filter:
+      drop-shadow(0 0 7px rgba(5, 7, 13, 0.65))
+      drop-shadow(0 0 11px rgba(29, 78, 216, 0.72));
+  }
+  50% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 0 14px rgba(56, 189, 248, 0.96))
+      drop-shadow(0 0 20px rgba(220, 38, 38, 0.76))
+      drop-shadow(0 0 26px rgba(5, 7, 13, 0.46));
+  }
+}
+
+@keyframes bmActiveDayTextPop {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-1px) scale(1.16);
+  }
+  70% {
+    transform: translateY(0) scale(1.05);
+  }
+}
+
+.day-cell.is-today::before,
+.week-day.is-today::before,
+.week-timetable-day-head.is-today::before,
+.block-head-button.is-today::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: -7px !important;
+  z-index: 80 !important;
+  pointer-events: none !important;
+  border-radius: inherit !important;
+  padding: 6px !important;
+  background: conic-gradient(
+    from var(--active-day-ring-angle, 0deg),
+    #38bdf8 0deg 30deg,
+    #0b1220 30deg 58deg,
+    #ef4444 58deg 92deg,
+    #ffd43b 92deg 124deg,
+    #1d4ed8 124deg 164deg,
+    #05070d 164deg 194deg,
+    #dc2626 194deg 232deg,
+    #ffe066 232deg 264deg,
+    #38bdf8 264deg 304deg,
+    #071323 304deg 332deg,
+    #ef4444 332deg 360deg
+  ) !important;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  opacity: 1 !important;
+  filter:
+    drop-shadow(0 0 5px rgba(7, 19, 35, 0.9))
+    drop-shadow(0 0 12px rgba(56, 189, 248, 0.98))
+    drop-shadow(0 0 16px rgba(239, 68, 68, 0.72)) !important;
+  animation: bmActiveDayEdgeSpin 3.4s linear infinite, bmActiveDayEdgeFlash 1.55s ease-in-out infinite !important;
+}
+
+.day-cell.is-today::after,
+.week-day.is-today::after,
+.week-timetable-day-head.is-today::after,
+.block-head-button.is-today::after {
+  content: "" !important;
+  position: absolute !important;
+  inset: 2px !important;
+  z-index: 79 !important;
+  pointer-events: none !important;
+  border: 0 !important;
+  border-radius: inherit !important;
+  padding: 4px !important;
+  background: conic-gradient(
+    from var(--active-day-ring-angle, 0deg),
+    #071323 0deg 26deg,
+    #38bdf8 26deg 70deg,
+    #ef4444 70deg 112deg,
+    #ffd43b 112deg 150deg,
+    #071323 150deg 184deg,
+    #1d4ed8 184deg 226deg,
+    #ef4444 226deg 270deg,
+    #ffe066 270deg 310deg,
+    #38bdf8 310deg 360deg
+  ) !important;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0) !important;
+  -webkit-mask-composite: xor !important;
+  mask-composite: exclude !important;
+  opacity: 0.98 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.88),
+    0 0 9px rgba(7, 19, 35, 0.38),
+    0 0 14px rgba(56, 189, 248, 0.5),
+    0 0 16px rgba(239, 68, 68, 0.38) !important;
+  animation: bmActiveDayEdgeSpin 4.6s linear infinite reverse, bmActiveDayEdgeFlash 1.65s ease-in-out infinite !important;
+}
+
+.day-cell.is-today,
+.week-day.is-today,
+.week-timetable-day-head.is-today,
+.block-head-button.is-today {
+  border-color: #071323 !important;
+  box-shadow:
+    0 0 0 2px rgba(7, 19, 35, 0.98),
+    0 0 0 5px rgba(56, 189, 248, 0.74),
+    0 0 0 8px rgba(239, 68, 68, 0.42),
+    0 0 22px rgba(56, 189, 248, 0.44),
+    0 0 32px rgba(255, 212, 59, 0.46),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.88) !important;
+  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite !important;
+}
+
+.week-timetable-day-head.is-today,
+.block-head-button.is-today {
+  overflow: hidden !important;
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(var(--day-bg, rgba(255, 255, 255, 0.92)), var(--day-bg, rgba(255, 255, 255, 0.92))) padding-box,
+    conic-gradient(
+      from var(--active-day-ring-angle, 0deg),
+      #38bdf8 0deg 34deg,
+      #071323 34deg 64deg,
+      #ef4444 64deg 104deg,
+      #ffd43b 104deg 150deg,
+      #1d4ed8 150deg 194deg,
+      #05070d 194deg 228deg,
+      #dc2626 228deg 274deg,
+      #ffe066 274deg 316deg,
+      #38bdf8 316deg 360deg
+    ) border-box !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.86),
+    inset 0 0 0 4px rgba(7, 19, 35, 0.36),
+    0 0 16px rgba(56, 189, 248, 0.34),
+    0 0 20px rgba(255, 212, 59, 0.36) !important;
+  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite, bmActiveDayEdgeSpin 5.8s linear infinite !important;
+}
+
+.block-head-button.is-today {
+  z-index: 18 !important;
+}
+
+.week-timetable-day-head.is-today::before,
+.block-head-button.is-today::before {
+  content: none !important;
+  display: none !important;
+}
+
+.week-timetable-day-head.is-today::after,
+.block-head-button.is-today::after {
+  inset: 5px !important;
+  padding: 2px !important;
+  opacity: 0.72 !important;
+  filter:
+    drop-shadow(0 0 4px rgba(56, 189, 248, 0.42))
+    drop-shadow(0 0 6px rgba(239, 68, 68, 0.32)) !important;
+  animation: bmActiveDayEdgeSpin 7.4s linear infinite reverse, bmActiveDayEdgeFlash 2.2s ease-in-out infinite !important;
 }

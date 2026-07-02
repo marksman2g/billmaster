@@ -473,6 +473,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-transaction",
     "save-sub-amount",
     "pay-bill",
+    "undo-bill-payment",
     "pay-subscription",
     "reset-projected",
     "cancel-subscription",
@@ -2081,7 +2082,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function reportableTransactions(type = "") {
-    return data.transactions.filter((tx) => !tx.isTransfer && (!type || tx.type === type));
+    return data.transactions.filter((tx) => !tx.isTransfer && String(tx.status || "").toLowerCase() !== "voided" && (!type || tx.type === type));
   }
 
   function dateLabel(iso) {
@@ -2272,7 +2273,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         app.innerHTML = `<div class="app-shell auth-shell"><main class="main-view">${renderAuth()}</main>${renderModal()}${renderToast()}</div>`;
         return;
       }
-      app.innerHTML = `<div class="app-shell">
+      app.innerHTML = `<div class="app-shell app-view-${esc(ui.view || "dashboard")}">
         ${navMarkup("side")}
         <main class="main-view">${renderView()}</main>
         ${navMarkup("bottom")}
@@ -3241,10 +3242,19 @@ function quickAction(action) {
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Income & Expense Tracking", `<button class="icon-btn" data-action="navigate" data-view="lending" title="Money Lending Tracker">${icon("loan")}</button>`)}
-      <div class="segmented tracking-segmented">
-        <button class="${ui.trackingTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="expenses">Expenses</button>
-        <button class="${ui.trackingTab === "income" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="income">Income</button>
-      </div>
+      <section class="workspace-command-panel workspace-command-panel--money">
+        <div class="workspace-command-row">
+          <div class="segmented tracking-segmented">
+            <button class="${ui.trackingTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="expenses">Expenses</button>
+            <button class="${ui.trackingTab === "income" ? "active" : ""}" data-action="set-tab" data-key="trackingTab" data-value="income">Income</button>
+          </div>
+          <div class="workspace-mini-metrics">
+            <span><strong>${reportableTransactions("income").length}</strong> income</span>
+            <span><strong>${reportableTransactions("expense").length}</strong> expenses</span>
+            <span><strong>${items.length}</strong> shown</span>
+          </div>
+        </div>
+      </section>
       ${incomeExpenseOverview("finance-compare-panel--tracking")}
       <div class="finance-grid tracking-finance-grid tracking-finance-grid--${type === "income" ? "income" : "expenses"}">
         <section class="section-card">
@@ -3502,24 +3512,32 @@ function quickAction(action) {
     const monthlySubscriptions = data.subscriptions.reduce((total, sub) => total + monthlySubAmount(sub), 0);
     return `<section class="screen">
       ${header("Bills", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="navigate" data-view="calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription" title="Add subscription">${icon("playcard")}</button><button class="icon-btn" data-action="open-modal" data-modal="addBill" title="Add bill">${icon("plus")}</button>`)}
-      <section class="section-card hub-note">
-        <span class="round-icon">${icon("receipt")}</span>
-        <div><strong>Bills umbrella</strong><p>Regular bills and subscriptions live together here. Subscription tools stay intact as a smart bill type.</p></div>
-        <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
-      </section>
-      <div class="metrics-grid" style="margin-bottom:12px;">
-        <div class="metric"><label>Regular Bills</label><strong>${data.bills.length}</strong><span class="subtle">${money(monthlyBills)} tracked</span></div>
-        <div class="metric"><label>Subscriptions</label><strong>${data.subscriptions.length}</strong><span class="subtle">${money(monthlySubscriptions)} monthly</span></div>
-      </div>
-      <div class="filter-row bill-hub-tabs">
-        ${["bills", "subscriptions"].map((tab) => `<button class="${activeTab === tab ? "active" : ""}" data-action="set-tab" data-key="billHubTab" data-value="${tab}">${tab === "bills" ? `${icon("receipt")} Bills` : `${icon("playcard")} Subscriptions`}</button>`).join("")}
-      </div>
-      ${activeTab === "subscriptions" ? subscriptionHubContent() : `
-        <div class="toolbar">
-          <label class="search-field">${icon("search")}<input id="billSearch" value="${esc(ui.billQuery)}" data-action="bill-search" placeholder="Search bills..." /></label>
-          <button class="icon-btn primary-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>
-          <button class="icon-btn secondary-filter" data-action="navigate" data-view="inbox" title="Detected bills">${icon("chart")}</button>
+      <section class="workspace-command-panel workspace-command-panel--money">
+        <section class="section-card hub-note">
+          <span class="round-icon">${icon("receipt")}</span>
+          <div><strong>Bills umbrella</strong><p>Regular bills and subscriptions live together here. Subscription tools stay intact as a smart bill type.</p></div>
+          <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
+        </section>
+        <div class="workspace-command-row">
+          <div class="filter-row bill-hub-tabs">
+            ${["bills", "subscriptions"].map((tab) => `<button class="${activeTab === tab ? "active" : ""}" data-action="set-tab" data-key="billHubTab" data-value="${tab}">${tab === "bills" ? `${icon("receipt")} Bills` : `${icon("playcard")} Subscriptions`}</button>`).join("")}
+          </div>
+          <div class="workspace-mini-metrics">
+            <span><strong>${data.bills.length}</strong> bills</span>
+            <span><strong>${money(monthlyBills)}</strong> tracked</span>
+            <span><strong>${data.subscriptions.length}</strong> subscriptions</span>
+            <span><strong>${money(monthlySubscriptions)}</strong> monthly</span>
+          </div>
         </div>
+        ${activeTab === "subscriptions" ? "" : `
+          <div class="toolbar workspace-toolbar">
+            <label class="search-field workspace-search">${icon("search")}<input id="billSearch" value="${esc(ui.billQuery)}" data-action="bill-search" placeholder="Search bills..." /></label>
+            <button class="icon-btn primary-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>
+            <button class="icon-btn secondary-filter" data-action="navigate" data-view="inbox" title="Detected bills">${icon("chart")}</button>
+          </div>
+        `}
+      </section>
+      ${activeTab === "subscriptions" ? subscriptionHubContent() : `
         ${bills.length ? `<div class="bill-grid">${bills.map((bill) => billCard(bill)).join("")}</div>` : emptyState("receipt", "No Bills Found", "Add your first bill to get started with organized payments.", "Add Your First Bill", "addBill")}
       `}
     </section>`;
@@ -4476,8 +4494,9 @@ function quickAction(action) {
     const confidence = clamp(Number(item.confidence || 0), 0, 100);
     const match = inboxMatch(item);
     const approved = item.status === "approved";
+    const filedTarget = inboxFiledTarget(item);
     const filedLabel = item.filedAsType
-      ? `Filed as ${filterLabel(item.filedAsType)}${item.reviewedAt ? ` on ${esc(item.reviewedAt)}` : ""}.`
+      ? `Filed as ${filterLabel(item.filedAsType)} in ${esc(filedTarget.section)}${item.reviewedAt ? ` on ${esc(item.reviewedAt)}` : ""}.`
       : item.reviewedAt
         ? `Reviewed on ${esc(item.reviewedAt)}.`
         : "";
@@ -4500,11 +4519,22 @@ function quickAction(action) {
       <p class="muted">${esc(item.notes || "Ready for review.")}</p>
       <div class="sheet-actions inbox-actions">
         ${approved
-          ? `<button class="outline-btn" data-action="reopen-inbox-item" data-id="${item.id}">${icon("undo")} Reopen Review</button><button class="outline-btn" data-action="navigate" data-view="${isSubscription ? "subscriptions" : "bills"}">${icon(isSubscription ? "playcard" : "receipt")} ${isSubscription ? "Subscriptions" : "Bills"}</button>`
+          ? `<button class="outline-btn" data-action="reopen-inbox-item" data-id="${item.id}">${icon("undo")} Reopen Review</button><button class="outline-btn" data-action="view-filed-inbox-item" data-id="${item.id}">${icon(filedTarget.iconName)} ${esc(filedTarget.label)}</button>`
           : `${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
         <button class="danger-btn" data-action="dismiss-inbox-item" data-id="${item.id}">${icon("trash")}</button>`}
       </div>
     </article>`;
+  }
+
+  function inboxFiledTarget(item) {
+    const type = item?.filedAsType || item?.type || "bill";
+    if (type === "subscription") {
+      return { view: "bills", tab: "subscriptions", section: "Bills > Subscriptions", label: "View Subscription", iconName: "playcard" };
+    }
+    if (type === "cancellation") {
+      return { view: "inbox", tab: "subscriptions", section: "Cancellation Center", label: "View Cancellation", iconName: "close" };
+    }
+    return { view: "bills", tab: "bills", section: "Bills", label: "View Bill", iconName: "receipt" };
   }
 
   function inboxNameCandidates(item) {
@@ -4631,7 +4661,30 @@ function quickAction(action) {
     return Math.max(0, moneyNumber(bill.amount));
   }
 
+  function billPaidToDate(bill) {
+    const amount = Math.max(0, moneyNumber(bill?.amount));
+    const explicit = moneyNumber(bill?.paidToDate);
+    if (explicit > 0) return Math.min(amount || explicit, explicit);
+    const statusKey = String(bill?.status || "").toLowerCase();
+    if (statusKey === "paid") return amount;
+    if (statusKey === "partial") return Math.min(amount || moneyNumber(bill?.lastPaidAmount), moneyNumber(bill?.lastPaidAmount));
+    return 0;
+  }
+
+  function billRemainingAmount(bill) {
+    return Math.max(0, moneyNumber(bill?.amount) - billPaidToDate(bill));
+  }
+
+  function nextBillPaymentAmount(bill) {
+    const statusKey = String(bill?.status || "").toLowerCase();
+    if (statusKey === "partial") return billRemainingAmount(bill);
+    return billPaymentPlanAmount(bill);
+  }
+
   function billPaymentPlanSummary(bill) {
+    const statusKey = String(bill?.status || "").toLowerCase();
+    if (statusKey === "paid") return `Paid total - ${money(billPaidToDate(bill))}`;
+    if (statusKey === "partial") return `Remaining balance - ${money(billRemainingAmount(bill))}`;
     const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
     return `${preference} - ${money(billPaymentPlanAmount(bill))}`;
   }
@@ -4645,6 +4698,8 @@ function quickAction(action) {
     const media = entityImage(bill);
     const scheduledDate = billScheduledPaymentDate(bill);
     const paymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    const paidToDate = billPaidToDate(bill);
+    const remainingAmount = billRemainingAmount(bill);
     const statusLabel = isPaid ? "Paid" : overdue ? "Overdue" : bill.status;
     const dueLabel = isPaid
       ? `Paid ${dateLabel(bill.lastPaidDate || todayIso())}${bill.lastPaidAmount ? ` - ${money(bill.lastPaidAmount)}` : ""}`
@@ -4652,6 +4707,14 @@ function quickAction(action) {
     const payButton = isPaid
       ? `<button class="success-btn bill-paid-button" disabled>${icon("check")} Paid</button>`
       : `<button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} ${isPartial ? "Mark Remaining Paid" : "Mark Paid"}</button>`;
+    const undoButton = (isPaid || isPartial)
+      ? `<button class="outline-btn bill-undo-payment" data-action="undo-bill-payment" data-id="${bill.id}">${icon("undo")} Undo</button>`
+      : "";
+    const paymentSafety = isPaid
+      ? `${icon("check")} Paid locally. This button is locked so it cannot be paid twice.`
+      : isPartial
+        ? `${icon("alert")} Partial payment logged: ${money(paidToDate)} paid, ${money(remainingAmount)} remaining.`
+        : `${icon("wallet")} Simulation only. No real money moves from BillMaster yet.`;
     return `<article class="bill-card compact ${overdue ? "overdue" : ""} ${isPaid ? "paid" : ""} ${isPartial ? "partial" : ""}">
       <div class="card-row">
         <div class="bill-title-pack">
@@ -4667,9 +4730,12 @@ function quickAction(action) {
       <div class="bill-payment-plan">
         <span>${icon("wallet")} <strong>${esc(billPaymentPlanSummary(bill))}</strong></span>
         <span>${icon("calendar")} ${dateLabel(scheduledDate)} <strong class="status ${statusClass(paymentStage)}">${esc(paymentStage)}</strong></span>
+        <span class="bill-payment-safety ${isPaid ? "positive" : isPartial ? "danger-text" : "muted"}">${paymentSafety}</span>
+        ${bill.lastConfirmation ? `<span class="muted">${icon("note")} Confirmation ${esc(bill.lastConfirmation)}</span>` : ""}
       </div>
-      <div class="sheet-actions" style="grid-template-columns:1fr auto auto;">
+      <div class="sheet-actions bill-card-actions ${undoButton ? "has-undo" : ""}">
         ${payButton}
+        ${undoButton}
         <button class="outline-btn" data-action="open-modal" data-modal="addBill" data-id="${bill.id}">${icon("edit")}</button>
         <button class="icon-btn danger-btn" data-action="delete-bill" data-id="${bill.id}" aria-label="Delete bill">${icon("trash")}</button>
       </div>
@@ -4978,6 +5044,70 @@ function quickAction(action) {
     return `${weather.rainStart.replace(":00", "")}-${weather.rainEnd.replace(":00", "")}`;
   }
 
+  function weatherTimeMinutes(value) {
+    if (typeof value === "number" && Number.isFinite(value)) return clamp(Math.round(value), 0, 24 * 60);
+    const text = String(value || "").trim();
+    const match = text.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!match) return null;
+    let hour = Number(match[1]);
+    const minute = Number(match[2] || 0);
+    const meridiem = match[3] ? match[3].toUpperCase() : "";
+    if (meridiem) {
+      if (hour === 12) hour = 0;
+      if (meridiem === "PM") hour += 12;
+    }
+    return clamp(hour * 60 + minute, 0, 24 * 60);
+  }
+
+  function weatherTimelineSegments(weather, range = { start: 0, end: 24 * 60 }) {
+    const rangeStart = Number.isFinite(Number(range?.start)) ? Number(range.start) : 0;
+    const rangeEnd = Number.isFinite(Number(range?.end)) ? Number(range.end) : 24 * 60;
+    const rangeSize = Math.max(1, rangeEnd - rangeStart);
+    const conditionType = weatherIconName(weather);
+    const baseType = weatherIconName({ condition: weather?.baseCondition || weather?.dayCondition || (conditionType === "rain" ? "sun" : conditionType) });
+    const sourceSegments = Array.isArray(weather?.segments) ? weather.segments : (Array.isArray(weather?.timeline) ? weather.timeline : null);
+    const rawSegments = [];
+
+    if (sourceSegments?.length) {
+      sourceSegments.forEach((segment) => {
+        const start = weatherTimeMinutes(segment.start || segment.from || segment.rainStart);
+        const end = weatherTimeMinutes(segment.end || segment.to || segment.rainEnd);
+        if (start === null || end === null) return;
+        rawSegments.push({
+          type: weatherIconName({ condition: segment.condition || segment.type || weather?.condition }),
+          start,
+          end: end <= start ? end + 24 * 60 : end
+        });
+      });
+    } else if (weather?.rainStart && weather?.rainEnd) {
+      const rainStart = weatherTimeMinutes(weather.rainStart);
+      const rainEndRaw = weatherTimeMinutes(weather.rainEnd);
+      if (rainStart !== null && rainEndRaw !== null) {
+        const rainEnd = rainEndRaw <= rainStart ? rainEndRaw + 24 * 60 : rainEndRaw;
+        rawSegments.push({ type: baseType, start: 0, end: rainStart });
+        rawSegments.push({ type: "rain", start: rainStart, end: rainEnd });
+        rawSegments.push({ type: baseType, start: rainEnd, end: 24 * 60 });
+      }
+    }
+
+    if (!rawSegments.length) rawSegments.push({ type: conditionType, start: 0, end: 24 * 60 });
+
+    const expandedSegments = rawSegments.flatMap((segment) => {
+      const segments = [segment];
+      if (rangeEnd > 24 * 60) segments.push({ ...segment, start: segment.start + 24 * 60, end: segment.end + 24 * 60 });
+      return segments;
+    });
+
+    return expandedSegments.map((segment) => {
+      const visibleStart = Math.max(segment.start, rangeStart);
+      const visibleEnd = Math.min(segment.end, rangeEnd);
+      if (visibleEnd <= visibleStart) return "";
+      const top = ((visibleStart - rangeStart) / rangeSize) * 100;
+      const height = ((visibleEnd - visibleStart) / rangeSize) * 100;
+      return `<span class="weather-segment weather-segment-${esc(segment.type)}" style="--weather-start:${top.toFixed(3)}%;--weather-size:${height.toFixed(3)}%;" aria-hidden="true"></span>`;
+    }).filter(Boolean).join("");
+  }
+
   function weatherChip(iso, size = "mini") {
     const weather = weatherForDate(iso);
     const iconName = weatherIconName(weather);
@@ -4992,9 +5122,14 @@ function quickAction(action) {
     return `<span class="weather-chip weather-${esc(iconName)} weather-${esc(size)}" title="${esc(title)}" aria-label="${esc(title)}">${icon(iconName)}<span>${esc(text)}</span></span>`;
   }
 
-  function weatherMotionLayer(iso, extraClass = "") {
-    const type = weatherIconName(weatherForDate(iso));
-    return `<span class="weather-motion-layer weather-motion-${esc(type)} ${extraClass}" aria-hidden="true"></span>`;
+  function weatherMotionLayer(iso, extraClass = "", range = null) {
+    const weather = weatherForDate(iso);
+    const type = weatherIconName(weather);
+    const safeExtraClass = String(extraClass || "").split(/\s+/).filter(Boolean).map(esc).join(" ");
+    if (safeExtraClass.includes("weather-motion-grid")) {
+      return `<span class="weather-motion-layer ${safeExtraClass} weather-motion-timeline" aria-hidden="true">${weatherTimelineSegments(weather, range || { start: 0, end: 24 * 60 })}</span>`;
+    }
+    return `<span class="weather-motion-layer weather-motion-${esc(type)} ${safeExtraClass}" aria-hidden="true"></span>`;
   }
 
   function weekRangeLabel(dates) {
@@ -5282,7 +5417,7 @@ function quickAction(action) {
     const endMinute = 20 * 60;
     const items = tasksForDay(iso).filter((task) => task.start && task.end);
     return `<div class="week-timetable-day weather-motion-host ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}" ${calendarWeekdayAttr(iso)}>
-      ${weatherMotionLayer(iso, "weather-motion-grid")}
+      ${weatherMotionLayer(iso, "weather-motion-grid", { start: startMinute, end: endMinute })}
       ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
       ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
     </div>`;
@@ -5631,7 +5766,7 @@ function quickAction(action) {
     const cols = weekdays.map((iso) => {
       const dayTasks = tasks.filter((task) => task.date === iso);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-col weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${weatherMotionLayer(iso, "weather-motion-grid")}${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
+      return `<div class="block-col weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${weatherMotionLayer(iso, "weather-motion-grid", range)}${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
@@ -6033,43 +6168,47 @@ function quickAction(action) {
     const allSelected = filteredIds.length > 0 && selectedIds.length === filteredIds.length;
     return `<section class="screen">
       ${header("Tasks", `<button class="icon-btn" data-action="navigate" data-view="projects">${icon("folder")}</button>`)}
-      <div class="quick-add">
-        <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
-        <input id="quickTaskInput" placeholder="Quick add task..." />
-        <button class="icon-btn primary-btn" data-action="quick-add-task">${icon("check")}</button>
-      </div>
-      <section class="section-card balance-panel" style="margin-top:16px;">
-        <div class="card-row"><h2 class="panel-title" style="color:#fff;">Task Progress</h2><strong>${done}/${data.tasks.length}</strong></div>
-        <div class="progress teal" style="--value:${pct}%"><span></span></div>
-        <div class="balance-meta"><span>${pct}% complete</span><span>${data.tasks.length - done} remaining</span></div>
+      <section class="workspace-command-panel workspace-command-panel--work">
+        <div class="workspace-command-row">
+          <div class="quick-add workspace-quick-add">
+            <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
+            <input id="quickTaskInput" placeholder="Quick add task..." />
+            <button class="icon-btn primary-btn" data-action="quick-add-task">${icon("check")}</button>
+          </div>
+          <div class="workspace-mini-metrics">
+            <span><strong>${done}/${data.tasks.length}</strong> done</span>
+            <span><strong>${pct}%</strong> complete</span>
+            <span><strong>${data.tasks.length - done}</strong> remaining</span>
+          </div>
+        </div>
+        <div class="task-control-bar" aria-label="Task filters and sorting">
+          <div class="task-control-group">
+            ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
+          </div>
+          <div class="task-control-group">
+            ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+          </div>
+          <div class="task-control-group task-sort-group">
+            <label class="sort-select-label" for="taskSortSelect">Sort</label>
+            <select id="taskSortSelect" class="task-sort-select" aria-label="Sort tasks">
+              ${[
+                ["newest", "Newest"],
+                ["date", "Start date"],
+                ["priority", "Priority"],
+                ["status", "Status"],
+                ["project", "Project"],
+                ["title", "Title"]
+              ].map(([value, label]) => `<option value="${esc(value)}" ${(ui.taskSort || "newest") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <label class="search-field workspace-search">${icon("search")}<input placeholder="Search tasks..." /></label>
+        <div class="project-bulk-toolbar task-list-bulk-toolbar">
+          <button class="outline-btn" data-action="select-visible-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
+          ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+          <span class="muted">${selectedIds.length}/${filtered.length} selected</span>
+        </div>
       </section>
-      <div class="task-control-bar" aria-label="Task filters and sorting">
-        <div class="task-control-group">
-          ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
-        </div>
-        <div class="task-control-group">
-          ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
-        </div>
-        <div class="task-control-group task-sort-group">
-          <label class="sort-select-label" for="taskSortSelect">Sort</label>
-          <select id="taskSortSelect" class="task-sort-select" aria-label="Sort tasks">
-            ${[
-              ["newest", "Newest"],
-              ["date", "Start date"],
-              ["priority", "Priority"],
-              ["status", "Status"],
-              ["project", "Project"],
-              ["title", "Title"]
-            ].map(([value, label]) => `<option value="${esc(value)}" ${(ui.taskSort || "newest") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-      <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input placeholder="Search tasks..." /></label>
-      <div class="project-bulk-toolbar task-list-bulk-toolbar">
-        <button class="outline-btn" data-action="select-visible-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
-        ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
-        <span class="muted">${selectedIds.length}/${filtered.length} selected</span>
-      </div>
       <div class="list tasks-list tasks-${esc(ui.taskView)}">${filtered.map((task) => taskBoardCard(task)).join("")}</div>
     </section>`;
   }
@@ -6123,16 +6262,25 @@ function quickAction(action) {
     const projects = sortedProjects();
     return `<section class="screen">
       ${header("Project Tasks", `<button class="icon-btn">${icon("chart")}</button>`)}
-      <div class="mini-tabs"><button class="active">${icon("folder")} By Project</button><button>${icon("chart")} Timeline</button></div>
-      <div class="filter-row project-sort-row" aria-label="Project sort">
-        <span class="sort-label">Sort projects by</span>
-        ${[
-          ["level", "Level"],
-          ["lastEdited", "Last edited task"],
-          ["tasks", "Task count"],
-          ["name", "Name"]
-        ].map(([value, label]) => `<button class="${(ui.projectSort || "level") === value ? "active" : ""}" data-action="set-tab" data-key="projectSort" data-value="${value}">${esc(label)}</button>`).join("")}
-      </div>
+      <section class="workspace-command-panel workspace-command-panel--work">
+        <div class="workspace-command-row">
+          <div class="mini-tabs workspace-tabs"><button class="active">${icon("folder")} By Project</button><button>${icon("chart")} Timeline</button></div>
+          <div class="workspace-mini-metrics">
+            <span><strong>${projects.length}</strong> projects</span>
+            <span><strong>${unassigned.length}</strong> unassigned</span>
+            <span><strong>${data.tasks.length}</strong> tasks</span>
+          </div>
+        </div>
+        <div class="filter-row project-sort-row" aria-label="Project sort">
+          <span class="sort-label">Sort projects by</span>
+          ${[
+            ["level", "Level"],
+            ["lastEdited", "Last edited task"],
+            ["tasks", "Task count"],
+            ["name", "Name"]
+          ].map(([value, label]) => `<button class="${(ui.projectSort || "level") === value ? "active" : ""}" data-action="set-tab" data-key="projectSort" data-value="${value}">${esc(label)}</button>`).join("")}
+        </div>
+      </section>
       <div class="project-tile-grid">
         ${projects.map((project) => projectTile(project)).join("")}
       </div>
@@ -6696,27 +6844,29 @@ function quickAction(action) {
     const organizedView = ui.notebookView === "organized";
     return `<section class="screen">
       ${header("Notebooks", `<button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
-      <section class="notebook-library-head">
-        <div>
-          <span class="eyebrow">Notebook Library</span>
-          <h2>${notebooks.length} notebooks</h2>
+      <section class="workspace-command-panel workspace-command-panel--notes">
+        <section class="notebook-library-head">
+          <div>
+            <span class="eyebrow">Notebook Library</span>
+            <h2>${notebooks.length} notebooks</h2>
+          </div>
+          <div class="notebook-library-stats">
+            <span><strong>${totalNotes}</strong> notes</span>
+            <span><strong>${unassignedNotes.length}</strong> unassigned</span>
+            <span><strong>${totalSubjects}</strong> subjects</span>
+            <span><strong>${data.notebooks.filter((nb) => entityImage(nb)).length}</strong> covers</span>
+          </div>
+        </section>
+        <label class="search-field notebook-search workspace-search">${icon("search")}<input id="notebookSearch" value="${esc(ui.notebookQuery)}" data-action="notebook-search" placeholder="Search notebooks, subjects, descriptions..." /></label>
+        <div class="filter-row notebook-view-switcher">
+          ${["regular", "compact", "gallery", "organized"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
         </div>
-        <div class="notebook-library-stats">
-          <span><strong>${totalNotes}</strong> notes</span>
-          <span><strong>${unassignedNotes.length}</strong> unassigned</span>
-          <span><strong>${totalSubjects}</strong> subjects</span>
-          <span><strong>${data.notebooks.filter((nb) => entityImage(nb)).length}</strong> covers</span>
-        </div>
+        ${organizedView ? "" : `<div class="note-action-bar notebook-action-bar">
+          <span>${ui.selectedNotebooks.length ? `${ui.selectedNotebooks.length} notebook${ui.selectedNotebooks.length === 1 ? "" : "s"} selected` : "Select notebooks to duplicate the notebook and every note inside it"}</span>
+          <button class="outline-btn" data-action="select-visible-notebooks">${selectedVisibleNotebooks === visibleNotebookIds.length && visibleNotebookIds.length ? "Deselect visible" : "Select visible"}</button>
+          ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="danger-btn" data-action="delete-selected-notebooks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
+        </div>`}
       </section>
-      <label class="search-field notebook-search">${icon("search")}<input id="notebookSearch" value="${esc(ui.notebookQuery)}" data-action="notebook-search" placeholder="Search notebooks, subjects, descriptions..." /></label>
-      <div class="filter-row notebook-view-switcher">
-        ${["regular", "compact", "gallery", "organized"].map((view) => `<button class="${ui.notebookView === view ? "active" : ""}" data-action="set-tab" data-key="notebookView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
-      </div>
-      ${organizedView ? "" : `<div class="note-action-bar notebook-action-bar">
-        <span>${ui.selectedNotebooks.length ? `${ui.selectedNotebooks.length} notebook${ui.selectedNotebooks.length === 1 ? "" : "s"} selected` : "Select notebooks to duplicate the notebook and every note inside it"}</span>
-        <button class="outline-btn" data-action="select-visible-notebooks">${selectedVisibleNotebooks === visibleNotebookIds.length && visibleNotebookIds.length ? "Deselect visible" : "Select visible"}</button>
-        ${ui.selectedNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Duplicate selected</button><button class="danger-btn" data-action="delete-selected-notebooks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notebooks">Clear</button>` : ""}
-      </div>`}
       ${organizedView ? noteNotebookDropStrip({
         compact: true,
         title: "Organized Filing View",
@@ -6809,40 +6959,49 @@ function quickAction(action) {
     return `<section class="screen">
       ${header(nb ? nb.title : "All Notes", `<button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
       ${nb ? notebookDetailHero(nb, baseNotes, unassignedCount, noteCounts) : ""}
-      <label class="search-field" style="margin-bottom:12px;">${icon("search")}<input id="notesSearch" value="${esc(ui.notesQuery)}" data-action="notes-search" placeholder="Search notes, subjects, importance..." /></label>
-      <div class="notes-control-panel">
-        <div class="filter-row">
-          ${["stream", "compact", "gallery"].map((view) => `<button class="${ui.notesView === view ? "active" : ""}" data-action="set-tab" data-key="notesView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+      <section class="workspace-command-panel workspace-command-panel--notes">
+        <div class="workspace-command-row">
+          <label class="search-field workspace-search">${icon("search")}<input id="notesSearch" value="${esc(ui.notesQuery)}" data-action="notes-search" placeholder="Search notes, subjects, importance..." /></label>
+          <div class="workspace-mini-metrics">
+            <span><strong>${notes.length}</strong> shown</span>
+            <span><strong>${selectedNoteCount}</strong> selected</span>
+            <span><strong>${unassignedCount}</strong> no subject</span>
+          </div>
         </div>
-        <div class="filter-row">
-          ${[
-            ["newest", "Newest"],
-            ["oldest", "Oldest"],
-            ["important", "Important"],
-            ["subject", "Subject"],
-            ["title", "Title"]
-          ].map(([sort, label]) => `<button class="${ui.notesSort === sort ? "active" : ""}" data-action="set-tab" data-key="notesSort" data-value="${sort}">${label}</button>`).join("")}
+        <div class="notes-control-panel">
+          <div class="filter-row">
+            ${["stream", "compact", "gallery"].map((view) => `<button class="${ui.notesView === view ? "active" : ""}" data-action="set-tab" data-key="notesView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
+          </div>
+          <div class="filter-row">
+            ${[
+              ["newest", "Newest"],
+              ["oldest", "Oldest"],
+              ["important", "Important"],
+              ["subject", "Subject"],
+              ["title", "Title"]
+            ].map(([sort, label]) => `<button class="${ui.notesSort === sort ? "active" : ""}" data-action="set-tab" data-key="notesSort" data-value="${sort}">${label}</button>`).join("")}
+          </div>
+          <label class="notes-subject-select">
+            <span>Subject</span>
+            <select id="notesSubjectFilter">
+              <option value="all" ${activeSubject === "all" ? "selected" : ""}>All subjects</option>
+              <option value="none" ${activeSubject === "none" ? "selected" : ""}>No subject</option>
+              ${subjects.map((subject) => `<option value="${esc(subject)}" ${activeSubject === subject ? "selected" : ""}>${esc(subject)}</option>`).join("")}
+            </select>
+          </label>
         </div>
-        <label class="notes-subject-select">
-          <span>Subject</span>
-          <select id="notesSubjectFilter">
-            <option value="all" ${activeSubject === "all" ? "selected" : ""}>All subjects</option>
-            <option value="none" ${activeSubject === "none" ? "selected" : ""}>No subject</option>
-            ${subjects.map((subject) => `<option value="${esc(subject)}" ${activeSubject === subject ? "selected" : ""}>${esc(subject)}</option>`).join("")}
-          </select>
-        </label>
-      </div>
+        <div class="filter-row notes-importance-filters">
+          <button class="${ui.notesFilter === "all" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="all">All</button>
+          <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned" title="No Subject">None <span class="filter-count">${unassignedCount}</span></button>
+          ${["Low", "Medium", "High", "Critical"].map((level) => `<button class="${ui.notesFilter === level ? "active" : ""}" style="--importance-color:${noteImportanceColor(level)}" data-action="set-tab" data-key="notesFilter" data-value="${level}" title="${esc(level)}">${esc(noteImportanceShortLabel(level))} <span class="filter-count">${noteCounts[level]}</span></button>`).join("")}
+        </div>
+        <div class="note-action-bar">
+          <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate, move, retag, or delete"}</span>
+          <button class="outline-btn" data-action="select-visible-notes">${selectedVisibleNotes === notes.length && notes.length ? "Deselect visible" : "Select visible"}</button>
+          ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
+        </div>
+      </section>
       ${nb ? "" : `${noteNotebookDropStrip()}${noteProjectDropStrip()}`}
-      <div class="filter-row notes-importance-filters" style="margin-bottom:14px;">
-        <button class="${ui.notesFilter === "all" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="all">All</button>
-        <button class="${ui.notesFilter === "unassigned" ? "active" : ""}" data-action="set-tab" data-key="notesFilter" data-value="unassigned" title="No Subject">None <span class="filter-count">${unassignedCount}</span></button>
-        ${["Low", "Medium", "High", "Critical"].map((level) => `<button class="${ui.notesFilter === level ? "active" : ""}" style="--importance-color:${noteImportanceColor(level)}" data-action="set-tab" data-key="notesFilter" data-value="${level}" title="${esc(level)}">${esc(noteImportanceShortLabel(level))} <span class="filter-count">${noteCounts[level]}</span></button>`).join("")}
-      </div>
-      <div class="note-action-bar">
-        <span>${selectedNoteCount ? `${selectedNoteCount} selected` : "Select notes to duplicate, move, retag, or delete"}</span>
-        <button class="outline-btn" data-action="select-visible-notes">${selectedVisibleNotes === notes.length && notes.length ? "Deselect visible" : "Select visible"}</button>
-        ${selectedNoteCount ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">Clear</button>` : ""}
-      </div>
       <div class="list notes-list notes-${esc(ui.notesView)}">${notes.length ? notes.map((note) => noteCard(note)).join("") : `<section class="section-card"><p class="muted">No notes match this view.</p></section>`}</div>
     </section>`;
   }
@@ -11716,6 +11875,7 @@ function quickAction(action) {
     if (action === "skip-habit-template") return closeModal();
     if (action === "dismiss-alert") return el.closest(".alert-panel")?.remove();
     if (action === "pay-bill") return payBill(el.dataset.id);
+    if (action === "undo-bill-payment") return undoBillPayment(el.dataset.id);
     if (action === "delete-bill") return deleteBill(el.dataset.id);
     if (action === "save-bill") return saveBill(el.dataset.id);
     if (action === "delete-transaction") return deleteTransaction(el.dataset.id);
@@ -11929,6 +12089,7 @@ function quickAction(action) {
     if (action === "add-inbox-subscription") return addInboxAsSubscription(el.dataset.id);
     if (action === "cancel-inbox-subscription") return cancelInboxSubscription(el.dataset.id);
     if (action === "link-inbox-item") return linkInboxItem(el.dataset.id);
+    if (action === "view-filed-inbox-item") return viewFiledInboxItem(el.dataset.id);
     if (action === "dismiss-inbox-item") return dismissInboxItem(el.dataset.id);
     if (action === "reopen-inbox-item") return reopenInboxItem(el.dataset.id);
     if (action === "reopen-approved-inbox") return reopenApprovedInbox();
@@ -13890,14 +14051,25 @@ function quickAction(action) {
       return;
     }
     const confirmation = `BM-${Date.now().toString().slice(-8)}`;
-    const paymentAmount = billPaymentPlanAmount(bill);
     const fullAmount = Math.max(0, moneyNumber(bill.amount));
-    const partialPayment = fullAmount > 0 && paymentAmount > 0 && paymentAmount < fullAmount;
+    const previousStatus = bill.status || "Unpaid";
+    const previousPaymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    const previousPaidToDate = billPaidToDate(bill);
+    const previousLastPaidDate = bill.lastPaidDate || "";
+    const previousLastPaidAmount = moneyNumber(bill.lastPaidAmount);
+    const previousConfirmation = bill.lastConfirmation || "";
+    const paymentAmount = Math.min(Math.max(0, nextBillPaymentAmount(bill)), fullAmount || Number.MAX_SAFE_INTEGER);
+    const nextPaidToDate = fullAmount > 0 ? Math.min(fullAmount, previousPaidToDate + paymentAmount) : paymentAmount;
+    const partialPayment = fullAmount > 0 && nextPaidToDate < fullAmount;
     bill.status = partialPayment ? "Partial" : "Paid";
     bill.paymentStage = "Paid manually";
     bill.lastPaidDate = todayIso();
     bill.lastPaidAmount = paymentAmount;
+    bill.paidToDate = nextPaidToDate;
     bill.lastConfirmation = confirmation;
+    const txId = id("tx");
+    data.payments = safeArray(data.payments);
+    data.transactions = safeArray(data.transactions);
     data.payments.unshift({
       id: id("pay"),
       billId: bill.id,
@@ -13911,10 +14083,17 @@ function quickAction(action) {
       status: bill.status,
       date: todayIso(),
       confirmation,
+      txId,
+      previousStatus,
+      previousPaymentStage,
+      previousPaidToDate,
+      previousLastPaidDate,
+      previousLastPaidAmount,
+      previousConfirmation,
       rail: "Local prototype - no money moved"
     });
     data.transactions.unshift({
-      id: id("tx"),
+      id: txId,
       type: "expense",
       name: bill.name,
       merchant: bill.payee,
@@ -13930,6 +14109,43 @@ function quickAction(action) {
     saveData();
     render();
     showToast(`Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
+  }
+
+  function undoBillPayment(billId) {
+    const bill = data.bills.find((item) => item.id === billId);
+    if (!bill) return;
+    const payment = safeArray(data.payments).find((item) => item.billId === billId && item.status !== "Voided");
+    if (!payment) {
+      bill.status = "Unpaid";
+      bill.paymentStage = bill.autopay ? "Autopay expected" : "Not scheduled";
+      bill.paidToDate = 0;
+      delete bill.lastPaidDate;
+      delete bill.lastPaidAmount;
+      delete bill.lastConfirmation;
+      saveData();
+      render();
+      showToast("Payment state reset. No payment log was found.");
+      return;
+    }
+    bill.status = payment.previousStatus || "Unpaid";
+    bill.paymentStage = payment.previousPaymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    bill.paidToDate = Math.max(0, moneyNumber(payment.previousPaidToDate));
+    if (payment.previousLastPaidDate) bill.lastPaidDate = payment.previousLastPaidDate;
+    else delete bill.lastPaidDate;
+    if (payment.previousLastPaidAmount) bill.lastPaidAmount = payment.previousLastPaidAmount;
+    else delete bill.lastPaidAmount;
+    if (payment.previousConfirmation) bill.lastConfirmation = payment.previousConfirmation;
+    else delete bill.lastConfirmation;
+    payment.status = "Voided";
+    payment.voidedAt = localTimestamp();
+    const tx = data.transactions.find((item) => item.id === payment.txId);
+    if (tx) {
+      tx.status = "Voided";
+      tx.notes = `${tx.notes || ""} Voided by BillMaster undo on ${payment.voidedAt}.`.trim();
+    }
+    saveData();
+    render();
+    showToast(`Payment simulation undone for ${bill.name}.`);
   }
 
   function saveBill(billId) {
@@ -18864,6 +19080,19 @@ Expected safe state:
     saveData();
     render();
     showToast(`Linked to existing ${match.type}.`);
+  }
+
+  function viewFiledInboxItem(itemId) {
+    const item = data.billInbox.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      showToast("I could not find that review item.", "danger");
+      return;
+    }
+    const target = inboxFiledTarget(item);
+    ui.billHubTab = target.tab;
+    if (target.view === "inbox") ui.billInboxFilter = "all";
+    navigate(target.view);
+    showToast(`Showing ${target.section}.`);
   }
 
   function dismissInboxItem(itemId) {
