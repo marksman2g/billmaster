@@ -25,6 +25,7 @@
     subscriptionFilter: "all",
     billHubTab: "bills",
     billQuery: "",
+    billStatusFilter: "all",
     billInboxFilter: "pending",
     taskFilter: "all",
     taskView: "regular",
@@ -101,9 +102,12 @@
   const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Cancelled"];
   const goalScheduleOptions = ["None", "Weekly", "Bi-weekly", "Monthly"];
   const projectLevelOptions = ["Low", "Medium", "High", "Critical"];
-  const billPaymentPreferenceOptions = ["Full balance", "Minimum payment", "Custom amount"];
-  const billPayDateRuleOptions = ["Due date", "3 days before due", "1st of month", "15th of month", "1st and 15th", "Custom date"];
+  const billPaymentPreferenceOptions = ["Full balance", "Minimum payment", "Custom amount", "Percentage payment", "Random until zero"];
+  const billPaymentFrequencyOptions = ["Weekly", "Bi-weekly", "Monthly", "Yearly"];
+  const billPayDateRuleOptions = ["Due date", "3 days before due", "2 days before due", "1st of month", "15th of month", "1st and 15th", "Weekly until zero", "Bi-weekly until zero", "Monthly until zero", "Yearly until zero", "Custom date"];
+  const billStopWhenClearOptions = ["Yes", "No"];
   const billPaymentStageOptions = ["Not scheduled", "Planned", "Ready to pay", "Autopay expected", "Paid manually"];
+  const billPaymentPreviewFieldIds = new Set(["billName", "billPayee", "billAmount", "billProjected", "billDue", "billPaymentMethod", "billAutopay", "billMinimumPayment", "billPaymentPreference", "billPaymentFrequency", "billPaymentPercent", "billCustomPaymentAmount", "billStopWhenBalanceClear", "billPayDateRule", "billScheduledPayDate", "billPaymentStage"]);
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
 const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
@@ -435,6 +439,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let taskAlertAudioContext = null;
   let suppressCardEditUntil = 0;
   let modalInsideInteractionUntil = 0;
+  const modalInsideInteractionGuardMs = 4200;
   let projectDragSelectState = null;
   let habitTimeDragId = "";
   const dayHoldDelay = 520;
@@ -1588,12 +1593,54 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return Math.max(0, moneyNumber(loan?.amount));
   }
 
+  function normalizedBillPaymentPreference(value) {
+    if (value === "Percentage monthly") return "Percentage payment";
+    if (["Random monthly until zero", "Random weekly until zero"].includes(value)) return "Random until zero";
+    return billPaymentPreferenceOptions.includes(value) ? value : "Full balance";
+  }
+
+  function normalizedBillPaymentFrequency(bill, preference = normalizedBillPaymentPreference(bill?.paymentPreference)) {
+    if (billPaymentFrequencyOptions.includes(bill?.paymentFrequency)) return bill.paymentFrequency;
+    if (bill?.paymentPreference === "Random weekly until zero" || bill?.payDateRule === "Weekly until zero") return "Weekly";
+    if (["Percentage monthly", "Random monthly until zero"].includes(bill?.paymentPreference) || bill?.payDateRule === "Monthly until zero") return "Monthly";
+    if (preference === "Percentage payment" || preference === "Random until zero") return "Monthly";
+    return "Monthly";
+  }
+
+  function billFrequencyLabel(bill) {
+    return normalizedBillPaymentFrequency(bill).toLowerCase();
+  }
+
+  function billFrequencyUntilZeroRule(bill) {
+    const frequency = normalizedBillPaymentFrequency(bill);
+    if (frequency === "Weekly") return "Weekly until zero";
+    if (frequency === "Bi-weekly") return "Bi-weekly until zero";
+    if (frequency === "Yearly") return "Yearly until zero";
+    return "Monthly until zero";
+  }
+
+  function billStopsWhenBalanceClear(bill) {
+    return bill?.stopWhenBalanceClear !== false;
+  }
+
+  function recurringBillPaymentPreference(preference) {
+    return ["Minimum payment", "Custom amount", "Percentage payment", "Random until zero"].includes(preference);
+  }
+
   function normalizeBills(nextData) {
     nextData.bills = safeArray(nextData.bills).map((bill) => {
       const amount = Math.max(0, moneyNumber(bill.amount));
       const minimumPayment = Math.max(0, moneyNumber(bill.minimumPayment));
-      const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
-      const dateRule = billPayDateRuleOptions.includes(bill.payDateRule) ? bill.payDateRule : "Due date";
+      const preference = normalizedBillPaymentPreference(bill.paymentPreference);
+      const paymentFrequency = normalizedBillPaymentFrequency(bill, preference);
+      const stopWhenBalanceClear = billStopsWhenBalanceClear(bill);
+      const percentDefault = preference === "Percentage payment" ? 25 : 0;
+      const paymentPercent = clamp(moneyNumber(bill.paymentPercent || percentDefault), 0, 100);
+      const dateRule = billPayDateRuleOptions.includes(bill.payDateRule)
+        ? bill.payDateRule
+        : stopWhenBalanceClear && recurringBillPaymentPreference(preference)
+          ? billFrequencyUntilZeroRule({ ...bill, paymentFrequency })
+            : "Due date";
       const stage = billPaymentStageOptions.includes(bill.paymentStage) ? bill.paymentStage : (bill.autopay ? "Autopay expected" : "Not scheduled");
       return {
         ...bill,
@@ -1602,6 +1649,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         dueDate: bill.dueDate || todayIso(),
         minimumPayment,
         paymentPreference: preference,
+        paymentFrequency,
+        stopWhenBalanceClear,
+        paymentPercent,
         customPaymentAmount: Math.max(0, moneyNumber(bill.customPaymentAmount)),
         payDateRule: dateRule,
         scheduledPayDate: bill.scheduledPayDate || bill.dueDate || todayIso(),
@@ -3013,11 +3063,24 @@ function quickAction(action) {
   }
 
   function weekBillRow(bill) {
-    const urgency = daysBetween(bill.dueDate) <= 3 ? "warn" : "info";
-    return `<div class="week-row">
-      <span class="round-icon" style="color:var(--${urgency === "warn" ? "amber" : "teal"});">${icon(categoryIcon(bill.category))}</span>
-      <div><strong>${esc(bill.name)}</strong><div class="subtle">${esc(bill.payee)} - ${dueText(bill.dueDate)}</div></div>
-      <div style="text-align:right;"><strong class="${urgency === "warn" ? "negative" : "money-blue"}">${money(bill.amount)}</strong><br><button class="primary-btn" style="min-height:30px;padding:0 14px;" data-action="pay-bill" data-id="${bill.id}">Pay</button></div>
+    const statusKey = String(bill.status || "").toLowerCase();
+    const isPaid = statusKey === "paid";
+    const isPartial = statusKey === "partial";
+    const urgency = !isPaid && daysBetween(bill.dueDate) <= 3 ? "warn" : "info";
+    const amountClass = isPaid ? "positive" : urgency === "warn" ? "negative" : "money-blue";
+    const dueLabel = isPaid
+      ? `Paid ${dateLabel(bill.lastPaidDate || todayIso())}${bill.lastPaidAmount ? ` - ${money(bill.lastPaidAmount)}` : ""}`
+      : dueText(bill.dueDate);
+    const payControl = isPaid
+      ? `<button class="success-btn bill-paid-button" disabled>${icon("check")} Paid</button>`
+      : `<button class="primary-btn" data-action="open-modal" data-modal="payBill" data-id="${bill.id}">${icon("wallet")} ${isPartial ? "Pay Rest" : "Pay"}</button>`;
+    const undoControl = (isPaid || isPartial)
+      ? `<button class="outline-btn bill-undo-payment" data-action="undo-bill-payment" data-id="${bill.id}" title="Undo payment">${icon("undo")}</button>`
+      : "";
+    return `<div class="week-row bill-shortcut-row ${isPaid ? "paid" : ""} ${isPartial ? "partial" : ""}">
+      <span class="round-icon" style="color:var(--${isPaid ? "green" : urgency === "warn" ? "amber" : "teal"});background:${isPaid ? "#eafaf1" : urgency === "warn" ? "#fff8df" : "#e8fbfd"}">${icon(isPaid ? "check" : categoryIcon(bill.category))}</span>
+      <div><strong>${esc(bill.name)}</strong><div class="subtle">${esc(bill.payee)} - ${dueLabel}</div></div>
+      <div class="bill-shortcut-pay"><strong class="${amountClass}">${money(isPartial ? billRemainingAmount(bill) : bill.amount)}</strong><span>${payControl}${undoControl}</span></div>
     </div>`;
   }
 
@@ -3504,12 +3567,59 @@ function quickAction(action) {
     </div>`;
   }
 
+  function billPaymentLogPanel() {
+    const payments = safeArray(data.payments).slice(0, 8);
+    if (!payments.length) {
+      return `<section class="section-card bill-payment-log-panel">
+        <div class="section-title"><h2>${icon("wallet")} Payment Log</h2><span class="status info">Simulation</span></div>
+        <p class="muted">Mark a bill paid to see the local payment simulation here. No real money moves from BillMaster yet.</p>
+      </section>`;
+    }
+    return `<section class="section-card bill-payment-log-panel">
+      <div class="section-title"><h2>${icon("wallet")} Payment Log</h2><span class="status info">${payments.length} recent</span></div>
+      <div class="bill-payment-log-list">
+        ${payments.map((payment) => {
+          const voided = payment.status === "Voided";
+          const status = voided ? "Voided" : payment.status || "Logged";
+          return `<article class="bill-payment-log-row ${voided ? "voided" : ""}">
+            <span class="round-icon" style="color:var(--${voided ? "grey" : "green"});background:${voided ? "#eef3f9" : "#eafaf1"}">${icon(voided ? "undo" : "check")}</span>
+            <div>
+              <strong>${esc(payment.name || "Bill payment")}</strong>
+              <div class="subtle">${esc(payment.payee || "Payee")} - ${dateLabel(payment.date || todayIso())} - ${esc(payment.rail || "Local simulation")}</div>
+              <div class="bill-payment-confirmation">Confirmation ${esc(payment.confirmation || "Pending")}${voided && payment.voidedAt ? ` - Voided ${esc(payment.voidedAt)}` : ""}</div>
+              ${payment.memo ? `<div class="bill-payment-confirmation">${icon("note")} ${esc(payment.memo)}</div>` : ""}
+            </div>
+            <div class="bill-payment-log-amount">
+              <strong class="${voided ? "muted" : "positive"}">${money(payment.amount)}</strong>
+              <span class="status ${statusClass(status)}">${esc(status)}</span>
+              ${voided ? "" : `<button class="outline-btn bill-undo-payment" data-action="undo-bill-payment" data-id="${payment.billId}">${icon("undo")} Undo</button>`}
+            </div>
+          </article>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
+  function billMatchesStatusFilter(bill, filter) {
+    const statusKey = String(bill?.status || "").toLowerCase();
+    const paid = statusKey === "paid";
+    const partial = statusKey === "partial";
+    if (filter === "paid") return paid;
+    if (filter === "partial") return partial;
+    if (filter === "unpaid") return !paid && !partial;
+    if (filter === "overdue") return !paid && daysBetween(bill.dueDate) < 0;
+    return true;
+  }
+
   function renderBills(tabOverride = "") {
     const activeTab = tabOverride || ui.billHubTab || "bills";
     const q = ui.billQuery.toLowerCase();
-    const bills = data.bills.filter((bill) => [bill.name, bill.payee, bill.category].join(" ").toLowerCase().includes(q)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const billStatusFilter = ui.billStatusFilter || "all";
+    const searchedBills = data.bills.filter((bill) => [bill.name, bill.payee, bill.category].join(" ").toLowerCase().includes(q));
+    const bills = searchedBills.filter((bill) => billMatchesStatusFilter(bill, billStatusFilter)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
     const monthlyBills = data.bills.reduce((total, bill) => total + Number(bill.amount || 0), 0);
     const monthlySubscriptions = data.subscriptions.reduce((total, sub) => total + monthlySubAmount(sub), 0);
+    const billStatusFilters = ["all", "unpaid", "paid", "partial", "overdue"];
     return `<section class="screen">
       ${header("Bills", `<button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button><button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="navigate" data-view="calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="addSubscription" title="Add subscription">${icon("playcard")}</button><button class="icon-btn" data-action="open-modal" data-modal="addBill" title="Add bill">${icon("plus")}</button>`)}
       <section class="workspace-command-panel workspace-command-panel--money">
@@ -3535,10 +3645,18 @@ function quickAction(action) {
             <button class="icon-btn primary-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>
             <button class="icon-btn secondary-filter" data-action="navigate" data-view="inbox" title="Detected bills">${icon("chart")}</button>
           </div>
+          <div class="filter-row bill-status-tabs">
+            ${billStatusFilters.map((filter) => {
+              const count = searchedBills.filter((bill) => billMatchesStatusFilter(bill, filter)).length;
+              const label = filter === "partial" ? "Partial" : filterLabel(filter);
+              return `<button class="${billStatusFilter === filter ? "active" : ""}" data-action="set-tab" data-key="billStatusFilter" data-value="${filter}">${label} <span class="filter-count">${count}</span></button>`;
+            }).join("")}
+          </div>
         `}
       </section>
       ${activeTab === "subscriptions" ? subscriptionHubContent() : `
-        ${bills.length ? `<div class="bill-grid">${bills.map((bill) => billCard(bill)).join("")}</div>` : emptyState("receipt", "No Bills Found", "Add your first bill to get started with organized payments.", "Add Your First Bill", "addBill")}
+        ${bills.length ? `<div class="bill-grid">${bills.map((bill) => billCard(bill)).join("")}</div>` : emptyState("receipt", data.bills.length ? "No Bills Match" : "No Bills Found", data.bills.length ? "Change the status filter or search to see more bills." : "Add your first bill to get started with organized payments.", data.bills.length ? "Add Bill" : "Add Your First Bill", "addBill")}
+        ${billPaymentLogPanel()}
       `}
     </section>`;
   }
@@ -4641,24 +4759,94 @@ function quickAction(action) {
     return isoDate(base);
   }
 
+  function effectiveBillPayDateRule(bill) {
+    const rule = billPayDateRuleOptions.includes(bill?.payDateRule) ? bill.payDateRule : "Due date";
+    const preference = normalizedBillPaymentPreference(bill?.paymentPreference);
+    if (rule === "Due date" && billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference)) return billFrequencyUntilZeroRule(bill);
+    return rule;
+  }
+
+  function nextBillMonthlyDate(bill) {
+    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
+    const due = parseLocalDate(bill.dueDate || isoDate(SAMPLE_NOW));
+    const day = due.getDate();
+    const candidate = new Date(reference.getFullYear(), reference.getMonth(), 1, 12, 0, 0, 0);
+    const maxDay = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 0).getDate();
+    candidate.setDate(Math.min(day, maxDay));
+    if (candidate < reference) {
+      candidate.setMonth(candidate.getMonth() + 1, 1);
+      const nextMaxDay = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 0).getDate();
+      candidate.setDate(Math.min(day, nextMaxDay));
+    }
+    return isoDate(candidate);
+  }
+
+  function nextBillIntervalDate(bill, intervalDays) {
+    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
+    const anchor = parseLocalDate(bill.scheduledPayDate || bill.dueDate || isoDate(SAMPLE_NOW));
+    const candidate = new Date(anchor);
+    while (candidate < reference) candidate.setDate(candidate.getDate() + intervalDays);
+    return isoDate(candidate);
+  }
+
+  function nextBillYearlyDate(bill) {
+    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
+    const due = parseLocalDate(bill.scheduledPayDate || bill.dueDate || isoDate(SAMPLE_NOW));
+    const candidate = new Date(reference.getFullYear(), due.getMonth(), due.getDate(), 12, 0, 0, 0);
+    if (candidate < reference) candidate.setFullYear(candidate.getFullYear() + 1);
+    return isoDate(candidate);
+  }
+
+  function stableBillFraction(bill, label) {
+    const text = `${bill?.id || bill?.name || "bill"}-${bill?.dueDate || ""}-${label || ""}`;
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = (hash * 31 + text.charCodeAt(index)) % 1000003;
+    }
+    return (hash % 1000) / 1000;
+  }
+
   function billScheduledPaymentDate(bill) {
-    const rule = billPayDateRuleOptions.includes(bill.payDateRule) ? bill.payDateRule : "Due date";
+    const rule = effectiveBillPayDateRule(bill);
     if (rule === "Custom date") return bill.scheduledPayDate || bill.dueDate || todayIso();
     if (rule === "3 days before due") return addDaysIso(bill.dueDate || todayIso(), -3);
+    if (rule === "2 days before due") return addDaysIso(bill.dueDate || todayIso(), -2);
     if (rule === "1st of month") return billDateWithDay(bill, 1);
     if (rule === "15th of month") return billDateWithDay(bill, 15);
     if (rule === "1st and 15th") {
       const due = parseLocalDate(bill.dueDate || todayIso());
       return billDateWithDay(bill, due.getDate() <= 15 ? 1 : 15);
     }
+    if (rule === "Weekly until zero") return nextBillIntervalDate(bill, 7);
+    if (rule === "Bi-weekly until zero") return nextBillIntervalDate(bill, 14);
+    if (rule === "Monthly until zero") return nextBillMonthlyDate(bill);
+    if (rule === "Yearly until zero") return nextBillYearlyDate(bill);
     return bill.dueDate || todayIso();
   }
 
   function billPaymentPlanAmount(bill) {
-    const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
-    if (preference === "Minimum payment") return Math.max(0, moneyNumber(bill.minimumPayment)) || Math.max(0, moneyNumber(bill.amount));
-    if (preference === "Custom amount") return Math.max(0, moneyNumber(bill.customPaymentAmount)) || Math.max(0, moneyNumber(bill.amount));
-    return Math.max(0, moneyNumber(bill.amount));
+    const preference = normalizedBillPaymentPreference(bill.paymentPreference);
+    const amount = Math.max(0, moneyNumber(bill.amount));
+    const remaining = Math.max(0, billRemainingAmount(bill) || amount);
+    if (preference === "Minimum payment") return Math.min(remaining, Math.max(0, moneyNumber(bill.minimumPayment)) || amount);
+    if (preference === "Custom amount") return Math.min(remaining, Math.max(0, moneyNumber(bill.customPaymentAmount)) || amount);
+    if (preference === "Percentage payment") {
+      const percent = clamp(moneyNumber(bill.paymentPercent || 25), 1, 100);
+      return Math.min(remaining, Math.max(0, moneyNumber(amount * (percent / 100))));
+    }
+    if (preference === "Random until zero") {
+      const frequency = normalizedBillPaymentFrequency(bill);
+      const bands = {
+        Weekly: [0.05, 0.15, 5],
+        "Bi-weekly": [0.08, 0.18, 7.5],
+        Monthly: [0.12, 0.23, 10],
+        Yearly: [0.25, 0.35, 25]
+      };
+      const [base, spread, floor] = bands[frequency] || bands.Monthly;
+      const percent = base + stableBillFraction(bill, frequency) * spread;
+      return Math.min(remaining, Math.max(Math.min(remaining, floor), moneyNumber(remaining * percent)));
+    }
+    return remaining || amount;
   }
 
   function billPaidToDate(bill) {
@@ -4677,16 +4865,147 @@ function quickAction(action) {
 
   function nextBillPaymentAmount(bill) {
     const statusKey = String(bill?.status || "").toLowerCase();
-    if (statusKey === "partial") return billRemainingAmount(bill);
-    return billPaymentPlanAmount(bill);
+    const remaining = billRemainingAmount(bill);
+    const planned = billPaymentPlanAmount(bill);
+    if (statusKey === "partial") return Math.min(remaining, planned || remaining);
+    return Math.min(remaining || planned, planned);
+  }
+
+  function billPaymentPlanCount(bill) {
+    const paymentAmount = nextBillPaymentAmount(bill);
+    if (!paymentAmount) return 0;
+    return Math.max(1, Math.ceil((billRemainingAmount(bill) || moneyNumber(bill.amount)) / paymentAmount));
+  }
+
+  function billPaymentScheduleSummary(bill) {
+    const rule = effectiveBillPayDateRule(bill);
+    const count = billPaymentPlanCount(bill);
+    const untilZero = ["Weekly until zero", "Bi-weekly until zero", "Monthly until zero", "Yearly until zero"].includes(rule);
+    const stop = untilZero && billStopsWhenBalanceClear(bill) ? ", auto-stops at $0" : "";
+    const repeat = untilZero ? `${stop}, about ${count} payment${count === 1 ? "" : "s"} left` : "";
+    if (rule === "1st and 15th") return `Pays on the 1st and 15th${repeat}`;
+    if (rule === "Bi-weekly until zero") return `Bi-weekly until balance is zero${repeat}`;
+    if (rule === "Monthly until zero") return `Monthly until balance is zero${repeat}`;
+    if (rule === "Weekly until zero") return `Weekly until balance is zero${repeat}`;
+    if (rule === "Yearly until zero") return `Yearly until balance is zero${repeat}`;
+    return `${rule}${repeat}`;
   }
 
   function billPaymentPlanSummary(bill) {
     const statusKey = String(bill?.status || "").toLowerCase();
     if (statusKey === "paid") return `Paid total - ${money(billPaidToDate(bill))}`;
     if (statusKey === "partial") return `Remaining balance - ${money(billRemainingAmount(bill))}`;
-    const preference = billPaymentPreferenceOptions.includes(bill.paymentPreference) ? bill.paymentPreference : "Full balance";
-    return `${preference} - ${money(billPaymentPlanAmount(bill))}`;
+    const preference = normalizedBillPaymentPreference(bill.paymentPreference);
+    const frequency = billFrequencyLabel(bill);
+    const count = billPaymentPlanCount(bill);
+    const suffix = count > 1 ? ` - about ${count} payments` : "";
+    const untilClear = billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference) ? " until clear" : "";
+    if (preference === "Percentage payment") return `${clamp(moneyNumber(bill.paymentPercent || 25), 1, 100)}% ${frequency} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
+    if (preference === "Random until zero") return `Random ${frequency} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
+    if (preference === "Custom amount") return `Custom ${frequency}${untilClear} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
+    if (preference === "Minimum payment") return `Minimum ${frequency}${untilClear} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
+    return `${preference} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
+  }
+
+  function billPaymentPreviewBody(bill) {
+    const scheduledDate = billScheduledPaymentDate(bill);
+    const nextAmount = nextBillPaymentAmount(bill);
+    const remaining = billRemainingAmount(bill) || moneyNumber(bill.amount);
+    const paid = billPaidToDate(bill);
+    const count = billPaymentPlanCount(bill);
+    const lifecycle = billPaymentLifecycle(bill);
+    const method = bill.autopay ? `Autopay via ${bill.method || "selected account"}` : `Manual via ${bill.method || "selected account"}`;
+    const preference = normalizedBillPaymentPreference(bill.paymentPreference);
+    const frequency = billFrequencyLabel(bill);
+    const percent = preference === "Percentage payment" ? `${clamp(moneyNumber(bill.paymentPercent || 25), 1, 100)}% ${frequency}` : "";
+    const stopNote = billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference) ? "Stops automatically once the remaining balance reaches $0" : "";
+    return `<div class="bill-payment-preview-title">
+        <span>${icon("wallet")} Payment Plan Preview</span>
+        <strong class="status ${statusClass(lifecycle.label)}">${esc(lifecycle.label)}</strong>
+      </div>
+      <div class="bill-payment-preview-grid">
+        <span><small>Next Date</small><strong>${dateLabel(scheduledDate)}</strong></span>
+        <span><small>Next Amount</small><strong>${money(nextAmount)}</strong></span>
+        <span><small>Payments Left</small><strong>${count || 0}</strong></span>
+        <span><small>Remaining</small><strong>${money(remaining)}</strong></span>
+      </div>
+      <div class="bill-payment-preview-note">
+        <span>${icon("calendar")} ${esc(billPaymentScheduleSummary(bill))}</span>
+        <span>${icon(bill.autopay ? "refresh" : "wallet")} ${esc(method)}</span>
+        ${paid ? `<span>${icon("check")} ${money(paid)} already paid</span>` : ""}
+        ${percent ? `<span>${icon("chart")} ${esc(percent)}</span>` : ""}
+        ${stopNote ? `<span>${icon("check")} ${esc(stopNote)}</span>` : ""}
+      </div>
+      <p class="muted">${esc(lifecycle.helper)}</p>`;
+  }
+
+  function billPaymentPreviewPanel(bill) {
+    return `<section id="billPaymentPreview" class="bill-payment-preview" aria-live="polite">${billPaymentPreviewBody(bill)}</section>`;
+  }
+
+  function billPaymentLifecycle(bill) {
+    const statusKey = String(bill?.status || "").toLowerCase();
+    const scheduledDate = billScheduledPaymentDate(bill);
+    const payDays = daysBetween(scheduledDate);
+    const dueDays = daysBetween(bill?.dueDate || todayIso());
+    const storedStage = billPaymentStageOptions.includes(bill?.paymentStage) ? bill.paymentStage : "";
+    const scheduleSummary = billPaymentScheduleSummary(bill);
+    if (statusKey === "paid") {
+      return {
+        label: "Paid manually",
+        iconName: "check",
+        tone: "positive",
+        helper: `Paid locally on ${dateLabel(bill.lastPaidDate || todayIso())}. The pay button is locked.`
+      };
+    }
+    if (statusKey === "partial") {
+      return {
+        label: "Ready to pay",
+        iconName: "alert",
+        tone: "danger-text",
+        helper: `${money(billRemainingAmount(bill))} still remains after the partial payment.`
+      };
+    }
+    if (dueDays < 0) {
+      return {
+        label: "Overdue",
+        iconName: "alert",
+        tone: "negative",
+        helper: `Due date passed ${Math.abs(dueDays)} day${Math.abs(dueDays) === 1 ? "" : "s"} ago. Review before paying.`
+      };
+    }
+    if (bill.autopay) {
+      return {
+        label: "Autopay expected",
+        iconName: "wallet",
+        tone: payDays <= 0 ? "danger-text" : "muted",
+        helper: payDays <= 0
+          ? `${scheduleSummary}: expected from ${bill.method || "autopay"} now. Confirm it cleared before marking paid.`
+          : `${scheduleSummary}: expected from ${bill.method || "autopay"} on ${dateLabel(scheduledDate)}.`
+      };
+    }
+    if (storedStage === "Ready to pay" || payDays <= 0) {
+      return {
+        label: "Ready to pay",
+        iconName: "wallet",
+        tone: "danger-text",
+        helper: `${scheduleSummary}: manual payment is ready for ${money(nextBillPaymentAmount(bill))}.`
+      };
+    }
+    if (storedStage === "Planned" || payDays > 0) {
+      return {
+        label: "Planned",
+        iconName: "calendar",
+        tone: "muted",
+        helper: `${scheduleSummary}: planned for ${dateLabel(scheduledDate)} before the ${dateLabel(bill.dueDate || scheduledDate)} due date.`
+      };
+    }
+    return {
+      label: storedStage || "Not scheduled",
+      iconName: "calendar",
+      tone: "muted",
+      helper: "No payment date is active yet. Set a pay date rule or choose Ready to pay."
+    };
   }
 
   function billCard(bill) {
@@ -4697,7 +5016,8 @@ function quickAction(action) {
     const dueSoon = daysBetween(bill.dueDate) <= 3 && !overdue;
     const media = entityImage(bill);
     const scheduledDate = billScheduledPaymentDate(bill);
-    const paymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    const paymentLifecycle = billPaymentLifecycle(bill);
+    const paymentStage = paymentLifecycle.label;
     const paidToDate = billPaidToDate(bill);
     const remainingAmount = billRemainingAmount(bill);
     const statusLabel = isPaid ? "Paid" : overdue ? "Overdue" : bill.status;
@@ -4706,7 +5026,7 @@ function quickAction(action) {
       : dueText(bill.dueDate);
     const payButton = isPaid
       ? `<button class="success-btn bill-paid-button" disabled>${icon("check")} Paid</button>`
-      : `<button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} ${isPartial ? "Mark Remaining Paid" : "Mark Paid"}</button>`;
+      : `<button class="primary-btn" data-action="open-modal" data-modal="payBill" data-id="${bill.id}">${icon("wallet")} ${isPartial ? "Review Remaining" : "Review Payment"}</button>`;
     const undoButton = (isPaid || isPartial)
       ? `<button class="outline-btn bill-undo-payment" data-action="undo-bill-payment" data-id="${bill.id}">${icon("undo")} Undo</button>`
       : "";
@@ -4730,6 +5050,7 @@ function quickAction(action) {
       <div class="bill-payment-plan">
         <span>${icon("wallet")} <strong>${esc(billPaymentPlanSummary(bill))}</strong></span>
         <span>${icon("calendar")} ${dateLabel(scheduledDate)} <strong class="status ${statusClass(paymentStage)}">${esc(paymentStage)}</strong></span>
+        <span class="bill-payment-stage-note ${paymentLifecycle.tone}">${icon(paymentLifecycle.iconName)} ${paymentLifecycle.helper}</span>
         <span class="bill-payment-safety ${isPaid ? "positive" : isPartial ? "danger-text" : "muted"}">${paymentSafety}</span>
         ${bill.lastConfirmation ? `<span class="muted">${icon("note")} Confirmation ${esc(bill.lastConfirmation)}</span>` : ""}
       </div>
@@ -7573,6 +7894,7 @@ function quickAction(action) {
     const { type, id: modalId } = ui.modal;
     let content = "";
     if (type === "addBill") content = modalBill(modalId);
+    if (type === "payBill") content = modalPayBill(modalId);
     if (type === "addTransaction") content = modalTransaction();
     if (type === "transactionDetail") content = modalTransactionDetail(modalId);
     if (type === "editTransaction") content = modalTransaction(modalId);
@@ -7660,21 +7982,141 @@ function quickAction(action) {
         <button class="outline-btn" data-action="simulate-detect">${icon("search")} Auto-Detect Bills</button>
       </div>
       <div class="field-grid" style="margin-top:16px;">
-        ${field("billName", "Payee Name", bill.name || "", "Enter payee name")}
+        ${field("billName", "Bill Name", bill.name || "", "Electric Bill, Credit Card, Rent")}
+        ${field("billPayee", "Payee / Merchant", bill.payee || bill.name || "", "City Power, Chase, landlord")}
         ${field("billAmount", "Amount", bill.amount || "", "Enter amount", "number")}
         ${field("billProjected", "Projected Amount", bill.projected || bill.amount || "", "Expected amount", "number")}
         ${field("billDue", "Due Date", bill.dueDate || "2026-05-12", "", "date")}
         ${selectField("billCategory", "Category", ["Utilities", "Phone", "Insurance", "Housing", "Subscriptions", "Credit"], bill.category || "Utilities")}
-        ${selectField("billAutopay", "Autopay", ["None", "Chase Checking", "Capital One Credit Card", "Wells Fargo Savings"], bill.autopay ? bill.method : "None")}
+        ${selectField("billPaymentMethod", "Payment Method", ["Manual", "Chase Checking", "Capital One Credit Card", "Wells Fargo Savings"], bill.method || "Manual")}
+        ${selectField("billAutopay", "Autopay", ["No", "Yes"], bill.autopay ? "Yes" : "No")}
         ${field("billMinimumPayment", "Minimum Payment", bill.minimumPayment || "", "Minimum due", "number")}
-        ${selectField("billPaymentPreference", "Pay Preference", billPaymentPreferenceOptions, bill.paymentPreference || "Full balance")}
+        ${selectField("billPaymentPreference", "Pay Preference", billPaymentPreferenceOptions, normalizedBillPaymentPreference(bill.paymentPreference))}
+        ${selectField("billPaymentFrequency", "Payment Frequency", billPaymentFrequencyOptions, normalizedBillPaymentFrequency(bill))}
+        ${field("billPaymentPercent", "Payment Percent", bill.paymentPercent || (normalizedBillPaymentPreference(bill.paymentPreference) === "Percentage payment" ? 25 : ""), "Use 25 for 25%", "number")}
         ${field("billCustomPaymentAmount", "Custom Payment Amount", bill.customPaymentAmount || "", "Optional custom amount", "number")}
+        ${selectField("billStopWhenBalanceClear", "Stop When Balance Is Clear", billStopWhenClearOptions, billStopsWhenBalanceClear(bill) ? "Yes" : "No")}
         ${selectField("billPayDateRule", "Pay Date Rule", billPayDateRuleOptions, bill.payDateRule || "Due date")}
         ${field("billScheduledPayDate", "Scheduled Pay Date", bill.scheduledPayDate || bill.dueDate || "2026-05-12", "", "date")}
         ${selectField("billPaymentStage", "Payment Stage", billPaymentStageOptions, bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled"))}
         ${imageAttachmentField("bill", bill.image || "", "Bill Picture / Graphic", bill.imageZoom, bill.imageX, bill.imageY, bill.imageFit, bill.imageOpacity)}
       </div>
+      ${billPaymentPreviewPanel({
+        ...bill,
+        dueDate: bill.dueDate || "2026-05-12",
+        amount: moneyNumber(bill.amount),
+        projected: moneyNumber(bill.projected || bill.amount),
+        paymentPreference: bill.paymentPreference || "Full balance",
+        paymentFrequency: normalizedBillPaymentFrequency(bill),
+        stopWhenBalanceClear: billStopsWhenBalanceClear(bill),
+        paymentPercent: moneyNumber(bill.paymentPercent),
+        customPaymentAmount: moneyNumber(bill.customPaymentAmount),
+        minimumPayment: moneyNumber(bill.minimumPayment),
+        payDateRule: bill.payDateRule || "Due date",
+        scheduledPayDate: bill.scheduledPayDate || bill.dueDate || "2026-05-12",
+        method: bill.method || "Manual",
+        autopay: Boolean(bill.autopay),
+        paymentStage: bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled")
+      })}
       <div class="sheet-actions"><button class="primary-btn" data-action="save-bill" data-id="${bill.id || ""}">${bill.id ? "Save Changes" : "Add Bill"}</button></div>`;
+  }
+
+  function modalPayBill(billId) {
+    const bill = data.bills.find((item) => item.id === billId);
+    if (!bill) return `${modalHeader("Payment Not Found", "This bill could not be found.")}`;
+    const statusKey = String(bill.status || "").toLowerCase();
+    const isPaid = statusKey === "paid";
+    const paidToDate = billPaidToDate(bill);
+    const remaining = billRemainingAmount(bill);
+    const suggestedAmount = nextBillPaymentAmount(bill);
+    const scheduledDate = billScheduledPaymentDate(bill);
+    if (isPaid) {
+      return `${modalHeader("Payment Locked", "This bill is already marked paid.")}
+        <section class="bill-pay-confirmation paid">
+          <div class="bill-pay-confirmation-title">
+            <span class="round-icon">${icon("check")}</span>
+            <div><h3>${esc(bill.name)}</h3><p class="muted">${esc(bill.payee || bill.category)} - ${money(bill.amount)}</p></div>
+          </div>
+          <div class="bill-pay-review-grid">
+            <span><small>Paid Date</small><strong>${dateLabel(bill.lastPaidDate || todayIso())}</strong></span>
+            <span><small>Paid Amount</small><strong>${money(bill.lastPaidAmount || paidToDate)}</strong></span>
+            <span><small>Confirmation</small><strong>${esc(bill.lastConfirmation || "Local log")}</strong></span>
+          </div>
+          <p class="bill-payment-safety positive">${icon("check")} The pay button is locked to help prevent paying the same bill twice.</p>
+          <div class="sheet-actions">
+            <button class="outline-btn" data-action="undo-bill-payment" data-id="${bill.id}">${icon("undo")} Undo Payment</button>
+            <button class="primary-btn" data-action="close-modal">${icon("check")} Done</button>
+          </div>
+        </section>`;
+    }
+    return `${modalHeader(statusKey === "partial" ? "Review Remaining Payment" : "Review Payment", "Local simulation only. No real money moves from BillMaster yet.")}
+      <section class="bill-pay-confirmation">
+        <div class="bill-pay-confirmation-title">
+          <span class="round-icon">${icon("wallet")}</span>
+          <div><h3>${esc(bill.name)}</h3><p class="muted">${esc(bill.payee || bill.category)} - ${esc(billPaymentPlanSummary(bill))}</p></div>
+        </div>
+        <div class="bill-pay-review-grid">
+          <span><small>Due Date</small><strong>${dateLabel(bill.dueDate)}</strong></span>
+          <span><small>Scheduled Pay</small><strong>${dateLabel(scheduledDate)}</strong></span>
+          <span><small>Remaining</small><strong>${money(remaining || bill.amount)}</strong></span>
+          <span><small>Suggested</small><strong>${money(suggestedAmount)}</strong></span>
+        </div>
+        <div class="field-grid bill-pay-fields">
+          ${field("billPayAmount", "Payment Amount", suggestedAmount || remaining || bill.amount || "", "Amount to log", "number")}
+          ${field("billPayDate", "Payment Date", todayIso(), "", "date")}
+        </div>
+        ${textArea("billPayMemo", "Memo / Confirmation Note", "", "Optional: card, account, confirmation number, or reminder")}
+        <p class="bill-payment-safety danger-text">${icon("alert")} This creates a local payment record and a matching expense transaction. It does not send real money yet.</p>
+        <div class="sheet-actions">
+          <button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} Record Local Payment</button>
+          <button class="outline-btn" data-action="close-modal">Cancel</button>
+        </div>
+      </section>`;
+  }
+
+  function billModalNumber(idValue, fallback = 0) {
+    const el = document.getElementById(idValue);
+    if (!el || String(el.value || "").trim() === "") return fallback;
+    return numberValue(idValue);
+  }
+
+  function billDraftFromModal() {
+    const existing = data.bills.find((item) => item.id === ui.modal?.id) || {};
+    const preference = normalizedBillPaymentPreference(value("billPaymentPreference") || existing.paymentPreference || "Full balance");
+    const paymentFrequency = value("billPaymentFrequency") || normalizedBillPaymentFrequency(existing, preference);
+    const stopWhenBalanceClear = value("billStopWhenBalanceClear") !== "No";
+    let payDateRule = value("billPayDateRule") || existing.payDateRule || "Due date";
+    if (payDateRule === "Due date" && stopWhenBalanceClear && recurringBillPaymentPreference(preference)) payDateRule = billFrequencyUntilZeroRule({ ...existing, paymentFrequency });
+    const draft = {
+      ...existing,
+      name: value("billName") || existing.name || "New Bill",
+      payee: value("billPayee") || value("billName") || existing.payee || "New Payee",
+      category: value("billCategory") || existing.category || "Utilities",
+      amount: billModalNumber("billAmount", moneyNumber(existing.amount)),
+      projected: billModalNumber("billProjected", moneyNumber(existing.projected || existing.amount)),
+      dueDate: value("billDue") || existing.dueDate || todayIso(),
+      status: existing.status || "Unpaid",
+      method: value("billPaymentMethod") || existing.method || "Manual",
+      autopay: value("billAutopay") ? value("billAutopay") === "Yes" : Boolean(existing.autopay),
+      minimumPayment: billModalNumber("billMinimumPayment", moneyNumber(existing.minimumPayment)),
+      paymentPreference: preference,
+      paymentFrequency,
+      stopWhenBalanceClear,
+      paymentPercent: clamp(billModalNumber("billPaymentPercent", preference === "Percentage payment" ? 25 : moneyNumber(existing.paymentPercent)), 0, 100),
+      customPaymentAmount: billModalNumber("billCustomPaymentAmount", moneyNumber(existing.customPaymentAmount)),
+      payDateRule,
+      scheduledPayDate: value("billScheduledPayDate") || value("billDue") || existing.scheduledPayDate || existing.dueDate || todayIso(),
+      paymentStage: value("billPaymentStage") || existing.paymentStage || (value("billAutopay") === "Yes" ? "Autopay expected" : "Not scheduled")
+    };
+    const normalized = { bills: [draft] };
+    normalizeBills(normalized);
+    return normalized.bills[0];
+  }
+
+  function updateBillPaymentPlanPreview() {
+    const preview = document.getElementById("billPaymentPreview");
+    if (!preview) return;
+    preview.innerHTML = billPaymentPreviewBody(billDraftFromModal());
   }
 
   function modalTransaction(txId) {
@@ -11438,7 +11880,7 @@ function quickAction(action) {
 
   document.addEventListener("pointerdown", (event) => {
     if (event.target.closest?.("[data-sheet]")) {
-      modalInsideInteractionUntil = Date.now() + 1400;
+      modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
     }
     const holdEl = event.target.closest?.("[data-hold-action]");
     if (holdEl && event.button !== 2) {
@@ -11479,7 +11921,19 @@ function quickAction(action) {
 
   document.addEventListener("focusin", (event) => {
     if (event.target.closest?.("[data-sheet]")) {
-      modalInsideInteractionUntil = Date.now() + 1400;
+      modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
+    }
+  }, true);
+
+  document.addEventListener("input", (event) => {
+    if (event.target.closest?.("[data-sheet]")) {
+      modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
+    }
+  }, true);
+
+  document.addEventListener("change", (event) => {
+    if (event.target.closest?.("[data-sheet]")) {
+      modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
     }
   }, true);
 
@@ -11489,7 +11943,7 @@ function quickAction(action) {
     const backdropAction = actionEl?.classList?.contains("sheet-backdrop") && actionEl.dataset.action === "close-modal";
     const clickedBackdropSurface = backdropAction && event.target === actionEl;
     if (backdropAction && !clickedBackdropSurface) {
-      if (sheet) modalInsideInteractionUntil = Date.now() + 1400;
+      if (sheet) modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
       return;
     }
     const copyTargetEl = event.target.closest("[data-copy-target-date]");
@@ -11561,6 +12015,9 @@ function quickAction(action) {
 
   document.addEventListener("input", (event) => {
     const target = event.target;
+    if (target && billPaymentPreviewFieldIds.has(target.id)) {
+      updateBillPaymentPlanPreview();
+    }
     if (target && target.dataset.action === "bill-search") {
       ui.billQuery = target.value;
       renderPreservingInput(target);
@@ -11644,6 +12101,9 @@ function quickAction(action) {
 
   document.addEventListener("change", (event) => {
     const target = event.target;
+    if (target && billPaymentPreviewFieldIds.has(target.id)) {
+      updateBillPaymentPlanPreview();
+    }
     if (target && target.dataset.calendarDayColor !== undefined) {
       setCalendarDayColor(target.dataset.calendarDayColor, target.value, { quiet: true });
       return;
@@ -14052,18 +14512,27 @@ function quickAction(action) {
     }
     const confirmation = `BM-${Date.now().toString().slice(-8)}`;
     const fullAmount = Math.max(0, moneyNumber(bill.amount));
+    const remainingBeforePayment = billRemainingAmount(bill) || fullAmount;
     const previousStatus = bill.status || "Unpaid";
     const previousPaymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
     const previousPaidToDate = billPaidToDate(bill);
     const previousLastPaidDate = bill.lastPaidDate || "";
     const previousLastPaidAmount = moneyNumber(bill.lastPaidAmount);
     const previousConfirmation = bill.lastConfirmation || "";
-    const paymentAmount = Math.min(Math.max(0, nextBillPaymentAmount(bill)), fullAmount || Number.MAX_SAFE_INTEGER);
+    const modalAmount = typeof document !== "undefined" && document.getElementById("billPayAmount") ? numberValue("billPayAmount") : 0;
+    const paymentDate = value("billPayDate") || todayIso();
+    const memo = value("billPayMemo");
+    const requestedAmount = modalAmount > 0 ? modalAmount : nextBillPaymentAmount(bill);
+    const paymentAmount = Math.min(Math.max(0, moneyNumber(requestedAmount)), remainingBeforePayment || Number.MAX_SAFE_INTEGER);
+    if (!paymentAmount) {
+      showToast("Enter a payment amount before recording this bill.", "danger");
+      return;
+    }
     const nextPaidToDate = fullAmount > 0 ? Math.min(fullAmount, previousPaidToDate + paymentAmount) : paymentAmount;
     const partialPayment = fullAmount > 0 && nextPaidToDate < fullAmount;
     bill.status = partialPayment ? "Partial" : "Paid";
     bill.paymentStage = "Paid manually";
-    bill.lastPaidDate = todayIso();
+    bill.lastPaidDate = paymentDate;
     bill.lastPaidAmount = paymentAmount;
     bill.paidToDate = nextPaidToDate;
     bill.lastConfirmation = confirmation;
@@ -14078,11 +14547,14 @@ function quickAction(action) {
       amount: paymentAmount,
       plannedAmount: paymentAmount,
       preference: bill.paymentPreference || "Full balance",
+      frequency: normalizedBillPaymentFrequency(bill),
+      stopWhenBalanceClear: billStopsWhenBalanceClear(bill),
       scheduledPayDate: billScheduledPaymentDate(bill),
       method: bill.method,
       status: bill.status,
-      date: todayIso(),
+      date: paymentDate,
       confirmation,
+      memo,
       txId,
       previousStatus,
       previousPaymentStage,
@@ -14100,14 +14572,14 @@ function quickAction(action) {
       category: bill.category,
       amount: paymentAmount,
       projected: bill.projected,
-      date: todayIso(),
+      date: paymentDate,
       frequency: "Monthly",
       method: bill.method,
       status: bill.status,
-      notes: `Local payment log only. Confirmation ${confirmation}.`
+      notes: `Local payment log only. Confirmation ${confirmation}.${memo ? ` ${memo}` : ""}`
     });
     saveData();
-    render();
+    if (ui.modal?.type === "payBill") ui.modal = null;
     showToast(`Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
   }
 
@@ -14150,22 +14622,32 @@ function quickAction(action) {
 
   function saveBill(billId) {
     const bill = data.bills.find((item) => item.id === billId);
+    const selectedPreference = normalizedBillPaymentPreference(value("billPaymentPreference") || "Full balance");
+    const selectedPaymentFrequency = value("billPaymentFrequency") || normalizedBillPaymentFrequency(bill, selectedPreference);
+    const selectedStopWhenBalanceClear = value("billStopWhenBalanceClear") !== "No";
+    let selectedPayDateRule = value("billPayDateRule") || "Due date";
+    if (selectedPayDateRule === "Due date" && selectedStopWhenBalanceClear && recurringBillPaymentPreference(selectedPreference)) {
+      selectedPayDateRule = billFrequencyUntilZeroRule({ paymentPreference: selectedPreference, paymentFrequency: selectedPaymentFrequency });
+    }
     const payload = {
       name: value("billName") || "New Bill",
-      payee: value("billName") || "New Payee",
+      payee: value("billPayee") || value("billName") || "New Payee",
       category: value("billCategory") || "Utilities",
       amount: numberValue("billAmount"),
       projected: numberValue("billProjected") || numberValue("billAmount"),
       dueDate: value("billDue") || "2026-05-12",
       status: bill ? bill.status || "Unpaid" : "Unpaid",
-      method: value("billAutopay") === "None" ? "Manual" : value("billAutopay"),
-      autopay: value("billAutopay") !== "None",
+      method: value("billPaymentMethod") || bill?.method || "Manual",
+      autopay: value("billAutopay") === "Yes",
       minimumPayment: numberValue("billMinimumPayment"),
-      paymentPreference: value("billPaymentPreference") || "Full balance",
+      paymentPreference: selectedPreference,
+      paymentFrequency: selectedPaymentFrequency,
+      stopWhenBalanceClear: selectedStopWhenBalanceClear,
+      paymentPercent: clamp(numberValue("billPaymentPercent") || (selectedPreference === "Percentage payment" ? 25 : 0), 0, 100),
       customPaymentAmount: numberValue("billCustomPaymentAmount"),
-      payDateRule: value("billPayDateRule") || "Due date",
+      payDateRule: selectedPayDateRule,
       scheduledPayDate: value("billScheduledPayDate") || value("billDue") || todayIso(),
-      paymentStage: value("billPaymentStage") || (value("billAutopay") === "None" ? "Not scheduled" : "Autopay expected"),
+      paymentStage: value("billPaymentStage") || (value("billAutopay") === "Yes" ? "Autopay expected" : "Not scheduled"),
       addressId: bill ? bill.addressId : null,
       image: imageValue("bill"),
       imageZoom: imageZoomValue("bill"),

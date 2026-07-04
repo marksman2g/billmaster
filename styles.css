@@ -19,6 +19,11 @@
   --shadow: 0 10px 30px rgba(26, 31, 54, 0.08);
   --radius: 8px;
   --nav-height: 70px;
+  /* Single source of truth for the current-day date-square animation across Month, Week, Day, and Block. */
+  --calendar-current-day-edge-speed: 5.8s;
+  --calendar-current-day-flash-speed: 1.7s;
+  --calendar-current-day-pulse-speed: 1.28s;
+  --calendar-current-day-corner-speed: 1.25s;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -3692,6 +3697,51 @@ button.round-icon {
   border-bottom: 0;
 }
 
+.bill-shortcut-row {
+  margin: 4px 0;
+  padding: 10px;
+  border: 1px solid rgba(223, 230, 238, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.bill-shortcut-row.paid {
+  border-color: #8ee0ad;
+  background: linear-gradient(135deg, #f7fffb, #eefaf3);
+  box-shadow: inset 4px 0 0 #1aae69;
+}
+
+.bill-shortcut-row.partial {
+  border-color: #ffe49a;
+  background: linear-gradient(135deg, #fffdf4, #fff8df);
+  box-shadow: inset 4px 0 0 #f0a400;
+}
+
+.bill-shortcut-pay {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  text-align: right;
+}
+
+.bill-shortcut-pay span {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.bill-shortcut-pay .primary-btn,
+.bill-shortcut-pay .success-btn,
+.bill-shortcut-pay .outline-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 0.74rem;
+}
+
+.bill-shortcut-pay .bill-undo-payment {
+  width: 32px;
+  padding: 0;
+}
+
 .dot {
   width: 8px;
   height: 8px;
@@ -4490,6 +4540,7 @@ button.round-icon {
 .filter-row.project-sort-row,
 .filter-row.notebook-view-switcher,
 .filter-row.bill-hub-tabs,
+.filter-row.bill-status-tabs,
 .filter-row.goal-view-row {
   background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
   border: 1px solid var(--workspace-border);
@@ -4506,6 +4557,7 @@ button.round-icon {
 .filter-row.project-sort-row,
 .filter-row.notebook-view-switcher,
 .filter-row.bill-hub-tabs,
+.filter-row.bill-status-tabs,
 .filter-row.goal-view-row {
   padding: 7px;
 }
@@ -4527,6 +4579,7 @@ button.round-icon {
 .filter-row.project-sort-row button,
 .filter-row.notebook-view-switcher button,
 .filter-row.bill-hub-tabs button,
+.filter-row.bill-status-tabs button,
 .filter-row.goal-view-row button {
   min-height: 32px;
   color: var(--workspace-accent-2);
@@ -4549,6 +4602,7 @@ button.round-icon {
 .filter-row.project-sort-row button.active,
 .filter-row.notebook-view-switcher button.active,
 .filter-row.bill-hub-tabs button.active,
+.filter-row.bill-status-tabs button.active,
 .filter-row.goal-view-row button.active {
   color: #ffffff;
   background: var(--workspace-accent);
@@ -4918,6 +4972,51 @@ button.round-icon {
   align-items: start;
 }
 
+.bill-payment-log-panel {
+  margin-top: 12px;
+}
+
+.bill-payment-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.bill-payment-log-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d8e8f8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fbfdff, #f4fbff);
+}
+
+.bill-payment-log-row.voided {
+  opacity: 0.76;
+  background: linear-gradient(135deg, #f8fafc, #eef3f9);
+}
+
+.bill-payment-confirmation {
+  margin-top: 3px;
+  color: var(--navy-2);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.bill-payment-log-amount {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  text-align: right;
+}
+
+.bill-payment-log-amount .outline-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.72rem;
+}
+
 .bill-card.compact {
   display: grid;
   gap: 8px;
@@ -5024,6 +5123,30 @@ button.round-icon {
   margin-left: auto;
 }
 
+.bill-payment-stage-note {
+  width: 100%;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(26, 31, 54, 0.14);
+  color: #204366;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.bill-payment-stage-note.positive {
+  color: #168a46;
+}
+
+.bill-payment-stage-note.negative,
+.bill-payment-stage-note.danger-text {
+  color: #e53935;
+}
+
+.bill-payment-stage-note.muted {
+  color: #5f7287;
+}
+
 .bill-payment-safety {
   display: flex;
   width: 100%;
@@ -5031,6 +5154,143 @@ button.round-icon {
   border-top: 1px solid rgba(26, 31, 54, 0.08);
   font-size: 0.72rem;
   font-weight: 850;
+}
+
+.bill-pay-confirmation {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #d5e7f8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fbfdff, #f4fbff);
+}
+
+.bill-pay-confirmation.paid {
+  border-color: #9be2b8;
+  background: linear-gradient(135deg, #fbfffd, #edf9f2);
+}
+
+.bill-pay-confirmation-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bill-pay-confirmation-title .round-icon {
+  color: var(--navy);
+  background: #eaf4ff;
+}
+
+.bill-pay-confirmation-title h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+
+.bill-pay-review-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bill-pay-review-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #dbe9f6;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.bill-pay-review-grid small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.bill-pay-review-grid strong {
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+
+.bill-pay-fields {
+  margin-top: 0;
+}
+
+.bill-payment-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #bde0ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fcff, #edf8ff);
+  box-shadow: 0 12px 24px rgba(30, 100, 180, 0.08);
+}
+
+.bill-payment-preview-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--navy);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.bill-payment-preview-title > span,
+.bill-payment-preview-note span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bill-payment-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bill-payment-preview-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #d6e9fb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.bill-payment-preview-grid small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.bill-payment-preview-grid strong {
+  color: var(--navy);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.bill-payment-preview-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #204366;
+  font-size: 0.74rem;
+  font-weight: 820;
+}
+
+@media (max-width: 700px) {
+  .bill-payment-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bill-pay-review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .bill-paid-button:disabled {
@@ -18509,7 +18769,7 @@ canvas {
     0 0 18px rgba(255, 211, 77, 0.28),
     0 0 28px rgba(239, 68, 68, 0.18),
     inset 0 0 0 1px rgba(255, 247, 209, 0.92) !important;
-  animation: bmTodayBoxAttention 1.35s ease-in-out infinite;
+  animation: bmTodayBoxAttention var(--calendar-current-day-pulse-speed) ease-in-out infinite;
 }
 
 .day-cell.is-today::before,
@@ -18542,8 +18802,8 @@ canvas {
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
   animation:
-    bmTodayBoxLightOrbit 1.25s linear infinite,
-    bmTodayBoxEdgeBlink 1.05s ease-in-out infinite;
+    bmTodayBoxLightOrbit var(--calendar-current-day-edge-speed) linear infinite,
+    bmTodayBoxEdgeBlink var(--calendar-current-day-flash-speed) ease-in-out infinite;
 }
 
 .day-cell.is-today::after,
@@ -18562,7 +18822,7 @@ canvas {
     0 0 14px rgba(56, 189, 248, 0.44),
     0 0 18px rgba(239, 68, 68, 0.28);
   opacity: 0.68;
-  animation: bmTodayInnerBlink 1.15s ease-in-out infinite;
+  animation: bmTodayInnerBlink var(--calendar-current-day-flash-speed) ease-in-out infinite;
 }
 
 .day-cell.is-today .date-cell-content,
@@ -18587,7 +18847,7 @@ canvas {
 .week-timetable-day-head.is-today .date-zone-label,
 .block-head-button.is-today .date-zone-label {
   z-index: 12;
-  animation: bmTodayCornerPulse 1.25s ease-in-out infinite;
+  animation: bmTodayCornerPulse var(--calendar-current-day-corner-speed) ease-in-out infinite;
 }
 
 .day-cell.is-today .date-zone.top-right .date-zone-label,
@@ -18767,6 +19027,7 @@ canvas {
 .app-shell .filter-row.project-sort-row,
 .app-shell .filter-row.notebook-view-switcher,
 .app-shell .filter-row.bill-hub-tabs,
+.app-shell .filter-row.bill-status-tabs,
 .app-shell .filter-row.goal-view-row {
   background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
   border: 1px solid var(--workspace-border);
@@ -18786,6 +19047,7 @@ canvas {
 .app-shell .filter-row.project-sort-row button,
 .app-shell .filter-row.notebook-view-switcher button,
 .app-shell .filter-row.bill-hub-tabs button,
+.app-shell .filter-row.bill-status-tabs button,
 .app-shell .filter-row.goal-view-row button {
   color: var(--workspace-accent-2);
   border-color: color-mix(in srgb, var(--workspace-border) 80%, #ffffff 20%);
@@ -18803,6 +19065,7 @@ canvas {
 .app-shell .filter-row.project-sort-row button.active,
 .app-shell .filter-row.notebook-view-switcher button.active,
 .app-shell .filter-row.bill-hub-tabs button.active,
+.app-shell .filter-row.bill-status-tabs button.active,
 .app-shell .filter-row.goal-view-row button.active {
   color: #ffffff;
   background: var(--workspace-accent);
@@ -18846,7 +19109,7 @@ canvas {
     0 0 22px rgba(56, 189, 248, 0.44),
     0 0 32px rgba(255, 212, 59, 0.46),
     inset 0 0 0 2px rgba(255, 255, 255, 0.88) !important;
-  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite !important;
+  animation: bmActiveDayPowerPulse var(--calendar-current-day-pulse-speed) ease-in-out infinite !important;
 }
 
 :where(
@@ -18902,7 +19165,7 @@ canvas {
   filter:
     drop-shadow(0 0 9px rgba(56, 189, 248, 0.86))
     drop-shadow(0 0 14px rgba(220, 38, 38, 0.54));
-  animation: bmActiveDayEdgeSpin 1.6s linear infinite, bmActiveDayEdgeFlash 1.28s ease-in-out infinite;
+  animation: bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite, bmActiveDayEdgeFlash var(--calendar-current-day-flash-speed) ease-in-out infinite;
 }
 
 :where(
@@ -19071,7 +19334,7 @@ canvas {
     drop-shadow(0 0 5px rgba(7, 19, 35, 0.9))
     drop-shadow(0 0 12px rgba(56, 189, 248, 0.98))
     drop-shadow(0 0 16px rgba(239, 68, 68, 0.72)) !important;
-  animation: bmActiveDayEdgeSpin 3.4s linear infinite, bmActiveDayEdgeFlash 1.55s ease-in-out infinite !important;
+  animation: bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite, bmActiveDayEdgeFlash var(--calendar-current-day-flash-speed) ease-in-out infinite !important;
 }
 
 .day-cell.is-today::after,
@@ -19109,7 +19372,7 @@ canvas {
     0 0 9px rgba(7, 19, 35, 0.38),
     0 0 14px rgba(56, 189, 248, 0.5),
     0 0 16px rgba(239, 68, 68, 0.38) !important;
-  animation: bmActiveDayEdgeSpin 4.6s linear infinite reverse, bmActiveDayEdgeFlash 1.65s ease-in-out infinite !important;
+  animation: bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite reverse, bmActiveDayEdgeFlash var(--calendar-current-day-flash-speed) ease-in-out infinite !important;
 }
 
 .day-cell.is-today,
@@ -19124,12 +19387,13 @@ canvas {
     0 0 22px rgba(56, 189, 248, 0.44),
     0 0 32px rgba(255, 212, 59, 0.46),
     inset 0 0 0 2px rgba(255, 255, 255, 0.88) !important;
-  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite !important;
+  animation: bmActiveDayPowerPulse var(--calendar-current-day-pulse-speed) ease-in-out infinite !important;
 }
 
 .week-timetable-day-head.is-today,
 .block-head-button.is-today {
   overflow: hidden !important;
+  border-radius: 9px !important;
   border: 3px solid transparent !important;
   background:
     linear-gradient(var(--day-bg, rgba(255, 255, 255, 0.92)), var(--day-bg, rgba(255, 255, 255, 0.92))) padding-box,
@@ -19150,11 +19414,23 @@ canvas {
     inset 0 0 0 4px rgba(7, 19, 35, 0.36),
     0 0 16px rgba(56, 189, 248, 0.34),
     0 0 20px rgba(255, 212, 59, 0.36) !important;
-  animation: bmActiveDayPowerPulse 1.28s ease-in-out infinite, bmActiveDayEdgeSpin 5.8s linear infinite !important;
+  animation: bmActiveDayPowerPulse var(--calendar-current-day-pulse-speed) ease-in-out infinite, bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite !important;
 }
 
 .block-head-button.is-today {
   z-index: 18 !important;
+}
+
+.week-timetable-day-head,
+.block-head-button {
+  border-radius: 9px !important;
+}
+
+.week-timetable-day-head .date-view-zones,
+.block-head-button .date-view-zones,
+.week-timetable-day-head .date-cell-content,
+.block-head-button .date-cell-content {
+  border-radius: inherit !important;
 }
 
 .week-timetable-day-head.is-today::before,
@@ -19171,5 +19447,5 @@ canvas {
   filter:
     drop-shadow(0 0 4px rgba(56, 189, 248, 0.42))
     drop-shadow(0 0 6px rgba(239, 68, 68, 0.32)) !important;
-  animation: bmActiveDayEdgeSpin 7.4s linear infinite reverse, bmActiveDayEdgeFlash 2.2s ease-in-out infinite !important;
+  animation: bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite reverse, bmActiveDayEdgeFlash var(--calendar-current-day-flash-speed) ease-in-out infinite !important;
 }
