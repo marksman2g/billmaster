@@ -3715,6 +3715,36 @@ function quickAction(action) {
     </section>`;
   }
 
+  function billPaymentsForBill(billId, options = {}) {
+    const includeVoided = options.includeVoided !== false;
+    return safeArray(data.payments)
+      .filter((payment) => payment.billId === billId && (includeVoided || payment.status !== "Voided"))
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.id || "").localeCompare(String(a.id || "")));
+  }
+
+  function billPaymentHistoryPanel(billId) {
+    const payments = billPaymentsForBill(billId).slice(0, 5);
+    if (!payments.length) {
+      return `<section class="bill-payment-history">
+        <div class="section-title compact-title"><h3>${icon("wallet")} Payment History</h3><span class="status info">None yet</span></div>
+        <p class="muted">No local payment has been logged for this bill yet.</p>
+      </section>`;
+    }
+    return `<section class="bill-payment-history">
+      <div class="section-title compact-title"><h3>${icon("wallet")} Payment History</h3><span class="status info">${payments.length} shown</span></div>
+      <div class="bill-payment-history-list">
+        ${payments.map((payment) => {
+          const voided = payment.status === "Voided";
+          return `<div class="bill-payment-history-row ${voided ? "voided" : ""}">
+            <span>${icon(voided ? "undo" : "check")}</span>
+            <div><strong>${money(payment.amount)}</strong><small>${dateLabel(payment.date || todayIso())} - ${esc(payment.confirmation || "Local log")}</small></div>
+            <em class="status ${statusClass(voided ? "Voided" : payment.status || "Logged")}">${esc(voided ? "Voided" : payment.status || "Logged")}</em>
+          </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
   function billMatchesStatusFilter(bill, filter) {
     const statusKey = String(bill?.status || "").toLowerCase();
     const paid = statusKey === "paid";
@@ -8237,6 +8267,10 @@ function quickAction(action) {
     const remaining = billRemainingAmount(bill);
     const suggestedAmount = nextBillPaymentAmount(bill);
     const scheduledDate = billScheduledPaymentDate(bill);
+    const clearanceTarget = billClearanceTargetAmount(bill);
+    const afterSuggestedPaid = moneyNumber(Math.min(clearanceTarget || suggestedAmount, paidToDate + suggestedAmount));
+    const afterSuggestedRemaining = moneyNumber(Math.max(0, (remaining || clearanceTarget) - suggestedAmount));
+    const lastPayment = billPaymentsForBill(bill.id, { includeVoided: false })[0];
     if (isPaid) {
       return `${modalHeader("Payment Locked", "This bill is already marked paid.")}
         <section class="bill-pay-confirmation paid">
@@ -8250,6 +8284,7 @@ function quickAction(action) {
             <span><small>Confirmation</small><strong>${esc(bill.lastConfirmation || "Local log")}</strong></span>
           </div>
           <p class="bill-payment-safety positive">${icon("check")} The pay button is locked to help prevent paying the same bill twice.</p>
+          ${billPaymentHistoryPanel(bill.id)}
           <div class="sheet-actions">
             <button class="outline-btn" data-action="undo-bill-payment" data-id="${bill.id}">${icon("undo")} Undo Payment</button>
             <button class="primary-btn" data-action="close-modal">${icon("check")} Done</button>
@@ -8267,6 +8302,13 @@ function quickAction(action) {
           <span><small>Scheduled Pay</small><strong>${dateLabel(scheduledDate)}</strong></span>
           <span><small>Remaining</small><strong>${money(remaining || billClearanceTargetAmount(bill))}</strong></span>
           <span><small>Suggested</small><strong>${money(suggestedAmount)}</strong></span>
+          <span><small>Already Paid</small><strong>${money(paidToDate)}</strong></span>
+          <span><small>If Suggested</small><strong>${money(afterSuggestedRemaining)} left</strong></span>
+        </div>
+        <div class="bill-payment-snapshot">
+          <span>${icon("check")} Suggested payment would make paid-to-date ${money(afterSuggestedPaid)}.</span>
+          <span>${icon("wallet")} ${bill.autopay ? "Autopay switches to manual after this local log." : "Manual payment log stays manual."}</span>
+          ${lastPayment ? `<span>${icon("alert")} Last local payment: ${money(lastPayment.amount)} on ${dateLabel(lastPayment.date)}.</span>` : ""}
         </div>
         <div class="field-grid bill-pay-fields">
           ${field("billPayAmount", "Payment Amount", suggestedAmount || remaining || billClearanceTargetAmount(bill) || "", "Amount to log", "number")}
@@ -8274,6 +8316,7 @@ function quickAction(action) {
         </div>
         ${textArea("billPayMemo", "Memo / Confirmation Note", "", "Optional: card, account, confirmation number, or reminder")}
         <p class="bill-payment-safety danger-text">${icon("alert")} This creates a local payment record and a matching expense transaction. It does not send real money yet.</p>
+        ${billPaymentHistoryPanel(bill.id)}
         <div class="sheet-actions">
           <button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} Record Local Payment</button>
           <button class="outline-btn" data-action="close-modal">Cancel</button>

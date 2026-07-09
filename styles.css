@@ -5156,6 +5156,82 @@ button.round-icon {
   font-weight: 850;
 }
 
+.bill-payment-snapshot {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid #cfe3f8;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: var(--navy-2);
+  font-size: 0.78rem;
+  font-weight: 830;
+}
+
+.bill-payment-snapshot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bill-payment-history {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #d8e8f8;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.bill-payment-history .section-title {
+  margin: 0;
+}
+
+.bill-payment-history h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 0.9rem;
+}
+
+.bill-payment-history-list {
+  display: grid;
+  gap: 6px;
+}
+
+.bill-payment-history-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid #e1edf9;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.bill-payment-history-row.voided {
+  opacity: 0.72;
+  background: #f3f6fa;
+}
+
+.bill-payment-history-row strong,
+.bill-payment-history-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bill-payment-history-row small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bill-payment-history-row em {
+  font-style: normal;
+}
+
 .bill-pay-confirmation {
   display: grid;
   gap: 12px;
