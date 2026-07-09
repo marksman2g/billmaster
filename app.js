@@ -578,6 +578,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "check-plaid-backend",
     "start-plaid-link",
     "sync-plaid-transactions",
+    "sync-plaid-liabilities",
     "simulate-detect",
     "simulate-import",
     "run-smart-sync",
@@ -9823,6 +9824,11 @@ function quickAction(action) {
       ? `${data.settings.plaidLastLinkedInstitution || "Plaid item"} at ${data.settings.plaidLastLinkedAt}`
       : "Not linked yet";
     const plaidLastBackendSync = data.settings.plaidLastBackendSyncAt || "Not synced yet";
+    const plaidLiabilityCount = safeArray(data.settings.plaidLiabilities).length;
+    const plaidLiabilityStatus = data.settings.plaidLiabilityStatus
+      || (data.settings.plaidLastLiabilitySyncAt
+        ? `${plaidLiabilityCount} minimum/APR detail${plaidLiabilityCount === 1 ? "" : "s"}`
+        : "Minimums/APR not synced yet");
     const plaidNextStep = !connected
       ? "Run Sandbox Import"
       : !backendOk
@@ -9867,6 +9873,7 @@ function quickAction(action) {
           <span><strong>${esc(plaidLinkStatus)}</strong><small>Plaid Link status</small></span>
           <span><strong>${esc(plaidLastLinked)}</strong><small>last Plaid Link</small></span>
           <span><strong>${esc(plaidLastBackendSync)}</strong><small>last backend sync</small></span>
+          <span><strong>${esc(plaidLiabilityStatus)}</strong><small>minimums / APR</small></span>
         </div>
         <div class="sync-step ${backendClass}" style="margin-top:12px;">
           <span>${icon(backendOk ? "check" : "settings")}</span>
@@ -9892,6 +9899,7 @@ function quickAction(action) {
           ${signedIn ? "" : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in to BillMaster" : "Setup BillMaster Cloud"}</button>`}
           <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} Open Plaid Link</button>
           <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("refresh")} Sync Transactions</button>
+          <button class="outline-btn" data-action="sync-plaid-liabilities" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("chart")} Sync Minimums / APR</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
           <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
           <button class="outline-btn" data-action="copy-plaid-backend-setup">${icon("note")} Copy Backend Setup</button>
@@ -12723,6 +12731,7 @@ function quickAction(action) {
     if (action === "check-plaid-backend") return checkPlaidBackend();
     if (action === "start-plaid-link") return startPlaidLink();
     if (action === "sync-plaid-transactions") return syncPlaidTransactions();
+    if (action === "sync-plaid-liabilities") return syncPlaidLiabilities();
     if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
     if (action === "copy-plaid-backend-setup") return copyPlaidBackendSetup();
     if (action === "copy-plaid-auto-sync-sql") return copyPlaidAutoSyncSql();
@@ -19384,6 +19393,48 @@ function quickAction(action) {
     }
   }
 
+  async function syncPlaidLiabilities(options = {}) {
+    if (!cloudConfigured()) {
+      showToast("Finish Supabase setup before syncing Plaid.", "danger");
+      return;
+    }
+    if (!cloudSignedIn()) {
+      showToast("Sign in to Supabase before syncing Plaid.", "danger");
+      openModal("cloudAuth");
+      return;
+    }
+    try {
+      data.settings.plaidLiabilityStatus = "Syncing minimums/APR";
+      if (!options.silent) render();
+      const result = await plaidFunctionFetch("sync_liabilities");
+      const summary = applyPlaidLiabilityResult(result);
+      data.settings.plaidLastLiabilitySyncAt = localTimestamp();
+      data.settings.plaidLiabilityStatus = `${summary.liabilities} minimum/APR detail${summary.liabilities === 1 ? "" : "s"}`;
+      saveData();
+      if (!options.silent) {
+        render();
+        const updateText = summary.billUpdates
+          ? ` ${summary.billUpdates} bill${summary.billUpdates === 1 ? "" : "s"} updated.`
+          : " No matching local bills were changed yet.";
+        showToast(`Plaid synced ${summary.liabilities} liability detail${summary.liabilities === 1 ? "" : "s"}.${updateText}`);
+      }
+      return summary;
+    } catch (error) {
+      data.settings.plaidLiabilityStatus = "Minimums/APR sync failed";
+      render();
+      showToast(plaidLiabilityFriendlyError(error), "danger");
+      return { liabilities: 0, billUpdates: 0, accountUpdates: 0 };
+    }
+  }
+
+  function plaidLiabilityFriendlyError(error) {
+    const message = error?.message || "Plaid minimum/APR sync failed.";
+    if (/PRODUCT_NOT_READY|PRODUCTS_NOT_SUPPORTED|liabilities|product/i.test(message)) {
+      return "Plaid did not return liability details yet. Reopen Plaid Link after setting PLAID_PRODUCTS to transactions,liabilities, then try Sync Minimums / APR again.";
+    }
+    return message;
+  }
+
   function plaidStableId(prefix, value) {
     const safe = String(value || "").replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "");
     return `${prefix}_${safe || id("plaid")}`;
@@ -19542,6 +19593,107 @@ function quickAction(action) {
     return { accounts: accountCount, transactions: transactionCount, reviewCandidates: reviewCount };
   }
 
+  function applyPlaidLiabilityResult(result) {
+    let liabilityCount = 0;
+    let billUpdates = 0;
+    let accountUpdates = 0;
+    const liabilities = [];
+    safeArray(result.items).forEach((item) => {
+      safeArray(item.liabilities).forEach((liability) => {
+        if (!liability?.account_id) return;
+        liabilityCount += 1;
+        const normalized = {
+          ...liability,
+          item_id: liability.item_id || item.item_id || "",
+          syncedAt: result.synced_at || localTimestamp()
+        };
+        liabilities.push(normalized);
+        const account = findPlaidLiabilityAccount(normalized);
+        if (account) {
+          account.plaidLiabilityLinked = true;
+          account.plaidLiabilityType = normalized.liability_type || "";
+          account.minimumPayment = moneyNumber(normalized.minimum_payment_amount);
+          account.nextPaymentDueDate = normalized.next_payment_due_date || "";
+          account.estimatedApr = moneyNumber(normalized.apr_percentage || normalized.interest_rate_percentage);
+          account.creditLimit = moneyNumber(normalized.credit_limit);
+          if (Number.isFinite(Number(normalized.current_balance))) account.balance = moneyNumber(normalized.current_balance);
+          account.updatedAt = todayIso();
+          accountUpdates += 1;
+        }
+        const bill = findPlaidLiabilityBill(normalized, account);
+        if (bill) {
+          applyPlaidLiabilityToBill(bill, normalized);
+          billUpdates += 1;
+        }
+      });
+    });
+    data.settings.plaidLiabilities = liabilities.slice(0, 75);
+    return { liabilities: liabilityCount, billUpdates, accountUpdates };
+  }
+
+  function findPlaidLiabilityAccount(liability) {
+    return data.accounts.find((account) => account.plaidAccountId === liability.account_id)
+      || data.accounts.find((account) => plaidLooseMatch(account.name, liability.account_name));
+  }
+
+  function findPlaidLiabilityBill(liability, account) {
+    const accountName = account?.name || liability.account_name || "";
+    const liabilityType = String(liability.liability_type || "").toLowerCase();
+    return data.bills.find((bill) => bill.plaidAccountId === liability.account_id)
+      || data.bills.find((bill) => plaidLooseMatch(bill.payee, accountName) || plaidLooseMatch(bill.name, accountName))
+      || data.bills.find((bill) => {
+        const billText = `${bill.name || ""} ${bill.payee || ""} ${bill.category || ""}`;
+        if (liabilityType === "credit") return /\b(credit|card|sapphire|capital one|visa|mastercard|amex)\b/i.test(billText);
+        if (liabilityType === "mortgage") return /\b(mortgage|home|housing)\b/i.test(billText);
+        if (liabilityType === "student") return /\b(student|loan)\b/i.test(billText);
+        return false;
+      });
+  }
+
+  function applyPlaidLiabilityToBill(bill, liability) {
+    bill.plaidLiabilityLinked = true;
+    bill.plaidAccountId = liability.account_id || bill.plaidAccountId || "";
+    bill.plaidLiabilityType = liability.liability_type || bill.plaidLiabilityType || "";
+    bill.plaidLiabilitySyncedAt = localTimestamp();
+    const balance = moneyNumber(liability.current_balance);
+    const minimum = moneyNumber(liability.minimum_payment_amount || liability.next_monthly_payment);
+    const statementBalance = moneyNumber(liability.last_statement_balance);
+    const apr = moneyNumber(liability.apr_percentage || liability.interest_rate_percentage);
+    if (balance > 0) bill.amount = balance;
+    if (statementBalance > 0) bill.projected = statementBalance;
+    if (minimum > 0) bill.minimumPayment = minimum;
+    if (liability.next_payment_due_date) bill.dueDate = liability.next_payment_due_date;
+    if (apr > 0) bill.estimatedApr = apr;
+    if (bill.paymentPreference === "Full balance" && minimum > 0) bill.paymentPreference = "Minimum payment";
+    if (liability.is_overdue === true && String(bill.status || "").toLowerCase() !== "paid") bill.status = "Urgent";
+    const note = plaidLiabilityBillNote(liability);
+    if (!String(bill.notes || "").includes(note)) {
+      bill.notes = [bill.notes || "", note].filter(Boolean).join("\n").trim();
+    }
+  }
+
+  function plaidLiabilityBillNote(liability) {
+    const pieces = [];
+    if (liability.minimum_payment_amount || liability.next_monthly_payment) pieces.push(`Plaid minimum ${money(liability.minimum_payment_amount || liability.next_monthly_payment)}.`);
+    if (liability.next_payment_due_date) pieces.push(`Plaid due ${dateLabel(liability.next_payment_due_date)}.`);
+    if (liability.apr_percentage || liability.interest_rate_percentage) pieces.push(`Plaid APR ${moneyNumber(liability.apr_percentage || liability.interest_rate_percentage)}%.`);
+    return pieces.length ? `Synced liability details: ${pieces.join(" ")}` : "Synced Plaid liability details.";
+  }
+
+  function plaidLooseMatch(left, right) {
+    const a = plaidMatchText(left);
+    const b = plaidMatchText(right);
+    return Boolean(a && b && (a.includes(b) || b.includes(a)));
+  }
+
+  function plaidMatchText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/\b(plaid|test|bank|checking|savings|credit|card|account)\b/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
   function plaidBackendSetupText() {
     return `BillMaster Plaid Backend Setup
 
@@ -19561,7 +19713,7 @@ Important:
    npx supabase secrets set PLAID_CLIENT_ID="YOUR_PLAID_CLIENT_ID"
    npx supabase secrets set PLAID_SECRET="YOUR_PLAID_SANDBOX_SECRET"
    npx supabase secrets set PLAID_ENV="sandbox"
-   npx supabase secrets set PLAID_PRODUCTS="transactions"
+   npx supabase secrets set PLAID_PRODUCTS="transactions,liabilities"
    npx supabase secrets set PLAID_COUNTRY_CODES="US"
    npx supabase secrets set PLAID_CLIENT_NAME="BillMaster"
    npx supabase secrets set BILLMASTER_SYNC_SECRET="A_LONG_RANDOM_SYNC_SECRET"
@@ -19578,12 +19730,14 @@ Important:
    Accounts > Manage > Check Backend
    When ready: Open Plaid Link
    Then: Sync Transactions
+   Then: Sync Minimums / APR for minimum payments, due dates, and APR.
 
 Expected safe state:
 - Plaid access tokens stay in billmaster_plaid_tokens.
 - Browser can only read billmaster_plaid_connections metadata.
 - Automatic sync uses BILLMASTER_SYNC_SECRET, not a browser session.
-- Imported charges still land in Review Inbox before becoming bills/subscriptions.`;
+- Imported charges still land in Review Inbox before becoming bills/subscriptions.
+- Liability details update matching accounts/bills, but existing Plaid items may need relinking after adding the liabilities product.`;
   }
 
   async function copyPlaidBackendSetup() {

@@ -37,11 +37,14 @@ The next sync step lives in `supabase/functions/plaid-sync/index.ts`. It keeps P
 - `create_link_token`
 - `exchange_public_token`
 - `sync_transactions`
+- `sync_liabilities`
 - `sync_all_transactions` for protected scheduled pull-downs
+- `sync_all_liabilities` for protected scheduled minimum-payment/APR pull-downs
 
 Run `supabase/schema.sql` first. It creates:
 
 - `billmaster_plaid_connections`: user-visible metadata for linked Plaid items.
+- `billmaster_plaid_liabilities`: user-visible minimum payment, due date, APR, and loan liability details.
 - `billmaster_plaid_tokens`: service-role-only access tokens and sync cursors. Browser clients do not get grants or RLS policies for this table.
 
 Set these Supabase function secrets before deploying:
@@ -50,7 +53,7 @@ Set these Supabase function secrets before deploying:
 supabase secrets set PLAID_CLIENT_ID="your_client_id"
 supabase secrets set PLAID_SECRET="your_sandbox_or_development_secret"
 supabase secrets set PLAID_ENV="sandbox"
-supabase secrets set PLAID_PRODUCTS="transactions"
+supabase secrets set PLAID_PRODUCTS="transactions,liabilities"
 supabase secrets set PLAID_COUNTRY_CODES="US"
 supabase secrets set PLAID_CLIENT_NAME="BillMaster"
 supabase secrets set BILLMASTER_SYNC_SECRET="a-long-random-string"
@@ -67,6 +70,7 @@ In BillMaster, go to `Accounts > Manage`:
 1. Click `Check Backend`.
 2. After it reports ready, click `Open Plaid Link`.
 3. After linking, click `Sync Transactions` whenever you want to pull the latest Plaid transaction changes.
+4. Click `Sync Minimums / APR` to pull credit-card and loan liability details for payment planning. Existing linked items may need to be relinked after `PLAID_PRODUCTS` includes `liabilities`.
 
 For automatic transaction pull-downs, run `supabase/plaid-auto-sync.sql` after storing the required Vault secrets listed at the top of that file. The scheduled job calls `sync_all_transactions` with a server-only sync secret and keeps browser users away from Plaid access tokens.
 

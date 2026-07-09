@@ -133,6 +133,48 @@ for delete
 to authenticated
 using (auth.uid() = user_id);
 
+create table if not exists public.billmaster_plaid_liabilities (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_id text not null,
+  account_id text not null,
+  account_name text,
+  account_type text,
+  account_subtype text,
+  liability_type text not null,
+  current_balance numeric,
+  credit_limit numeric,
+  minimum_payment_amount numeric,
+  next_payment_due_date date,
+  next_monthly_payment numeric,
+  last_statement_balance numeric,
+  last_statement_issue_date date,
+  last_payment_amount numeric,
+  last_payment_date date,
+  apr_percentage numeric,
+  apr_type text,
+  interest_rate_percentage numeric,
+  origination_principal_amount numeric,
+  outstanding_interest_amount numeric,
+  is_overdue boolean,
+  raw jsonb not null default '{}'::jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, account_id)
+);
+
+alter table public.billmaster_plaid_liabilities enable row level security;
+
+grant select on table public.billmaster_plaid_liabilities to authenticated;
+grant select, insert, update, delete on table public.billmaster_plaid_liabilities to service_role;
+
+drop policy if exists "Users can read their own Plaid liabilities" on public.billmaster_plaid_liabilities;
+create policy "Users can read their own Plaid liabilities"
+on public.billmaster_plaid_liabilities
+for select
+to authenticated
+using (auth.uid() = user_id);
+
 create table if not exists public.billmaster_plaid_tokens (
   user_id uuid not null references auth.users(id) on delete cascade,
   item_id text not null,
