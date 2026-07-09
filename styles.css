@@ -5672,6 +5672,42 @@ button.round-icon {
   border-color: #9cc9f6;
 }
 
+.plaid-next-action-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #b8dcff;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef8ff, #f3fff7);
+}
+
+.plaid-next-action-strip div {
+  min-width: 0;
+}
+
+.plaid-next-action-strip small,
+.plaid-next-action-strip strong {
+  display: block;
+}
+
+.plaid-next-action-strip small {
+  color: var(--muted);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.plaid-next-action-strip strong {
+  color: var(--navy-2);
+}
+
+.plaid-next-action-strip button {
+  flex: 0 0 auto;
+}
+
 .plaid-stage-grid small,
 .plaid-flow-step small {
   color: var(--muted);

@@ -3924,6 +3924,29 @@ function quickAction(action) {
     return `<div class="plaid-flow-step"><span>${esc(number)}</span><strong>${esc(title)}</strong><small>${esc(copy)}</small></div>`;
   }
 
+  function plaidNextActionButton(state) {
+    if (!state.connected) {
+      return `<button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>`;
+    }
+    if (!state.backendOk) {
+      return `<button class="primary-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>`;
+    }
+    if (!state.signedIn) {
+      const modal = cloudConfigured() ? "cloudAuth" : "cloudSetup";
+      return `<button class="primary-btn" data-action="open-modal" data-modal="${modal}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in" : "Setup Cloud"}</button>`;
+    }
+    if (!state.linked) {
+      return `<button class="primary-btn" data-action="start-plaid-link">${icon("wallet")} Open Plaid Link</button>`;
+    }
+    if (!state.transactionsSynced) {
+      return `<button class="primary-btn" data-action="sync-plaid-transactions">${icon("refresh")} Sync Transactions</button>`;
+    }
+    if (!state.liabilitiesSynced) {
+      return `<button class="primary-btn" data-action="sync-plaid-liabilities">${icon("chart")} Sync Minimums / APR</button>`;
+    }
+    return `<button class="primary-btn" data-action="navigate" data-view="bills">${icon("receipt")} Review Bills</button>`;
+  }
+
   function notificationFoundationPanel(context = "sync") {
     const queued = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued");
     const opened = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "opened");
@@ -9829,16 +9852,31 @@ function quickAction(action) {
       || (data.settings.plaidLastLiabilitySyncAt
         ? `${plaidLiabilityCount} minimum/APR detail${plaidLiabilityCount === 1 ? "" : "s"}`
         : "Minimums/APR not synced yet");
+    const plaidTransactionsSynced = Boolean(data.settings.plaidLastBackendSyncAt);
+    const plaidLiabilitiesSynced = Boolean(data.settings.plaidLastLiabilitySyncAt || plaidLiabilityCount);
     const plaidNextStep = !connected
       ? "Run Sandbox Import"
       : !backendOk
         ? "Check Backend"
         : !signedIn
           ? "Sign in to BillMaster"
-          : data.settings.plaidLastLinkedAt
-            ? "Sync Transactions"
-            : "Open Plaid Link";
+          : !data.settings.plaidLastLinkedAt
+            ? "Open Plaid Link"
+            : !plaidTransactionsSynced
+              ? "Sync Transactions"
+              : !plaidLiabilitiesSynced
+                ? "Sync Minimums / APR"
+                : "Review Bills";
     const plaidNextClass = plaidLinkReady ? "ready" : backendOk || connected ? "warn" : "info";
+    const plaidNextButton = plaidNextActionButton({
+      connected,
+      backendOk,
+      signedIn,
+      linked: Boolean(data.settings.plaidLastLinkedAt),
+      transactionsSynced: plaidTransactionsSynced,
+      liabilitiesSynced: plaidLiabilitiesSynced,
+      blocker: plaidLinkBlocker
+    });
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
       const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
@@ -9874,6 +9912,13 @@ function quickAction(action) {
           <span><strong>${esc(plaidLastLinked)}</strong><small>last Plaid Link</small></span>
           <span><strong>${esc(plaidLastBackendSync)}</strong><small>last backend sync</small></span>
           <span><strong>${esc(plaidLiabilityStatus)}</strong><small>minimums / APR</small></span>
+        </div>
+        <div class="plaid-next-action-strip">
+          <div>
+            <small>Next best step</small>
+            <strong>${esc(plaidNextStep)}</strong>
+          </div>
+          ${plaidNextButton}
         </div>
         <div class="sync-step ${backendClass}" style="margin-top:12px;">
           <span>${icon(backendOk ? "check" : "settings")}</span>
