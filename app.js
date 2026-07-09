@@ -107,7 +107,7 @@
   const billPayDateRuleOptions = ["Due date", "3 days before due", "2 days before due", "1st of month", "15th of month", "1st and 15th", "Weekly until zero", "Bi-weekly until zero", "Monthly until zero", "Yearly until zero", "Custom date"];
   const billStopWhenClearOptions = ["Yes", "No"];
   const billPaymentStageOptions = ["Not scheduled", "Planned", "Ready to pay", "Autopay expected", "Paid manually"];
-  const billPaymentPreviewFieldIds = new Set(["billName", "billPayee", "billAmount", "billProjected", "billDue", "billPaymentMethod", "billAutopay", "billMinimumPayment", "billPaymentPreference", "billPaymentFrequency", "billPaymentPercent", "billCustomPaymentAmount", "billStopWhenBalanceClear", "billPayDateRule", "billScheduledPayDate", "billPaymentStage"]);
+  const billPaymentPreviewFieldIds = new Set(["billName", "billPayee", "billAmount", "billProjected", "billDue", "billPaymentMethod", "billAutopay", "billMinimumPayment", "billPaymentPreference", "billPaymentFrequency", "billPaymentPercent", "billCustomPaymentAmount", "billEstimatedApr", "billEstimatedInterestToClear", "billStopWhenBalanceClear", "billPayDateRule", "billScheduledPayDate", "billPaymentStage"]);
   const baseTaskCategories = ["General", "Habit", "Finance", "Project", "Personal"];
   const taskCategories = [...baseTaskCategories];
 const habitTypeOptions = ["Health", "Fitness", "Finance", "Learning", "Work", "Home", "Personal", "Custom"];
@@ -583,6 +583,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "run-smart-sync",
     "sync-connection",
     "copy-plaid-backend-setup",
+    "copy-plaid-auto-sync-sql",
     "add-inbox-bill",
     "add-inbox-subscription",
     "cancel-inbox-subscription",
@@ -1627,9 +1628,120 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return ["Minimum payment", "Custom amount", "Percentage payment", "Random until zero"].includes(preference);
   }
 
+  function billBaseAmount(bill) {
+    return Math.max(0, moneyNumber(bill?.amount));
+  }
+
+  function billEstimatedInterestToClear(bill) {
+    return Math.max(0, moneyNumber(bill?.estimatedInterestToClear || bill?.finalInterestBuffer || bill?.interestBuffer));
+  }
+
+  function billEstimatedApr(bill) {
+    return clamp(moneyNumber(bill?.estimatedApr || bill?.interestRate || bill?.apr), 0, 99.99);
+  }
+
+  function billPaymentIntervalYears(bill) {
+    const frequency = normalizedBillPaymentFrequency(bill);
+    if (frequency === "Weekly") return 7 / 365;
+    if (frequency === "Bi-weekly") return 14 / 365;
+    if (frequency === "Yearly") return 1;
+    return 30.4375 / 365;
+  }
+
+  function billPlannedBasePaymentAmount(bill, startingBalance = billBaseAmount(bill)) {
+    const preference = normalizedBillPaymentPreference(bill?.paymentPreference);
+    const amount = Math.max(0, moneyNumber(startingBalance || billBaseAmount(bill)));
+    if (preference === "Minimum payment") return Math.min(amount, Math.max(0, moneyNumber(bill?.minimumPayment)) || amount);
+    if (preference === "Custom amount") return Math.min(amount, Math.max(0, moneyNumber(bill?.customPaymentAmount)) || amount);
+    if (preference === "Percentage payment") {
+      const percent = clamp(moneyNumber(bill?.paymentPercent || 25), 1, 100);
+      return Math.min(amount, Math.max(0, moneyNumber(billBaseAmount(bill) * (percent / 100))));
+    }
+    if (preference === "Random until zero") {
+      const frequency = normalizedBillPaymentFrequency(bill);
+      const bands = {
+        Weekly: [0.05, 0.15, 5],
+        "Bi-weekly": [0.08, 0.18, 7.5],
+        Monthly: [0.12, 0.23, 10],
+        Yearly: [0.25, 0.35, 25]
+      };
+      const [base, spread, floor] = bands[frequency] || bands.Monthly;
+      const percent = base + stableBillFraction(bill, frequency) * spread;
+      return Math.min(amount, Math.max(Math.min(amount, floor), moneyNumber(amount * percent)));
+    }
+    return amount;
+  }
+
+  function billProjectionPaidToDate(bill) {
+    const explicit = Math.max(0, moneyNumber(bill?.paidToDate));
+    if (explicit > 0) return explicit;
+    const statusKey = String(bill?.status || "").toLowerCase();
+    if (statusKey === "paid") return billBaseAmount(bill);
+    if (statusKey === "partial") return Math.max(0, moneyNumber(bill?.lastPaidAmount));
+    return 0;
+  }
+
+  function billPaymentProjection(bill) {
+    const preference = normalizedBillPaymentPreference(bill?.paymentPreference);
+    const base = billBaseAmount(bill);
+    const paidTowardPrincipal = Math.min(base, billProjectionPaidToDate(bill));
+    const principal = Math.max(0, base - paidTowardPrincipal);
+    const manualInterest = billStopsWhenBalanceClear(bill) ? billEstimatedInterestToClear(bill) : 0;
+    const apr = billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference) ? billEstimatedApr(bill) : 0;
+    const regularPayment = billPlannedBasePaymentAmount(bill, principal || manualInterest);
+    let balance = moneyNumber(principal + manualInterest);
+    let aprInterest = 0;
+    let payments = 0;
+    let finalPayment = 0;
+    let canClear = true;
+    if (balance > 0 && regularPayment > 0 && apr > 0) {
+      const ratePerPeriod = apr / 100 * billPaymentIntervalYears(bill);
+      for (let index = 0; index < 600 && balance > 0.004; index += 1) {
+        const interest = moneyNumber(balance * ratePerPeriod);
+        aprInterest = moneyNumber(aprInterest + interest);
+        balance = moneyNumber(balance + interest);
+        const payment = Math.min(regularPayment, balance);
+        finalPayment = moneyNumber(payment);
+        balance = moneyNumber(balance - payment);
+        payments += 1;
+        if (interest >= regularPayment && balance > regularPayment) {
+          canClear = false;
+          break;
+        }
+      }
+      if (balance > 0.004) canClear = false;
+    } else if (balance > 0 && regularPayment > 0) {
+      payments = Math.max(1, Math.ceil(balance / regularPayment));
+      const lastRemainder = moneyNumber(balance - regularPayment * Math.max(0, payments - 1));
+      finalPayment = moneyNumber(Math.min(regularPayment, Math.max(0, lastRemainder || regularPayment)));
+    }
+    return {
+      principal,
+      manualInterest,
+      apr,
+      aprInterest,
+      totalInterest: moneyNumber(manualInterest + aprInterest),
+      clearanceTarget: moneyNumber(principal + manualInterest + aprInterest),
+      regularPayment,
+      payments,
+      finalPayment,
+      canClear
+    };
+  }
+
+  function billClearanceTargetAmount(bill) {
+    const base = billBaseAmount(bill);
+    if (!billStopsWhenBalanceClear(bill)) return base;
+    const paidTowardPrincipal = Math.min(base, billProjectionPaidToDate(bill));
+    const remainingTarget = billPaymentProjection(bill).clearanceTarget || Math.max(0, base - paidTowardPrincipal);
+    return moneyNumber(paidTowardPrincipal + remainingTarget);
+  }
+
   function normalizeBills(nextData) {
     nextData.bills = safeArray(nextData.bills).map((bill) => {
       const amount = Math.max(0, moneyNumber(bill.amount));
+      const estimatedApr = billEstimatedApr(bill);
+      const estimatedInterestToClear = billEstimatedInterestToClear(bill);
       const minimumPayment = Math.max(0, moneyNumber(bill.minimumPayment));
       const preference = normalizedBillPaymentPreference(bill.paymentPreference);
       const paymentFrequency = normalizedBillPaymentFrequency(bill, preference);
@@ -1651,6 +1763,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         paymentPreference: preference,
         paymentFrequency,
         stopWhenBalanceClear,
+        estimatedApr,
+        estimatedInterestToClear,
         paymentPercent,
         customPaymentAmount: Math.max(0, moneyNumber(bill.customPaymentAmount)),
         payDateRule: dateRule,
@@ -4826,8 +4940,8 @@ function quickAction(action) {
 
   function billPaymentPlanAmount(bill) {
     const preference = normalizedBillPaymentPreference(bill.paymentPreference);
-    const amount = Math.max(0, moneyNumber(bill.amount));
-    const remaining = Math.max(0, billRemainingAmount(bill) || amount);
+    const amount = billBaseAmount(bill);
+    const remaining = Math.max(0, billRemainingAmount(bill) || billClearanceTargetAmount(bill) || amount);
     if (preference === "Minimum payment") return Math.min(remaining, Math.max(0, moneyNumber(bill.minimumPayment)) || amount);
     if (preference === "Custom amount") return Math.min(remaining, Math.max(0, moneyNumber(bill.customPaymentAmount)) || amount);
     if (preference === "Percentage payment") {
@@ -4850,17 +4964,18 @@ function quickAction(action) {
   }
 
   function billPaidToDate(bill) {
-    const amount = Math.max(0, moneyNumber(bill?.amount));
+    const amount = billBaseAmount(bill);
+    const clearanceTarget = billClearanceTargetAmount(bill) || amount;
     const explicit = moneyNumber(bill?.paidToDate);
-    if (explicit > 0) return Math.min(amount || explicit, explicit);
+    if (explicit > 0) return Math.min(clearanceTarget || explicit, explicit);
     const statusKey = String(bill?.status || "").toLowerCase();
-    if (statusKey === "paid") return amount;
-    if (statusKey === "partial") return Math.min(amount || moneyNumber(bill?.lastPaidAmount), moneyNumber(bill?.lastPaidAmount));
+    if (statusKey === "paid") return clearanceTarget;
+    if (statusKey === "partial") return Math.min(clearanceTarget || moneyNumber(bill?.lastPaidAmount), moneyNumber(bill?.lastPaidAmount));
     return 0;
   }
 
   function billRemainingAmount(bill) {
-    return Math.max(0, moneyNumber(bill?.amount) - billPaidToDate(bill));
+    return Math.max(0, billClearanceTargetAmount(bill) - billPaidToDate(bill));
   }
 
   function nextBillPaymentAmount(bill) {
@@ -4872,9 +4987,41 @@ function quickAction(action) {
   }
 
   function billPaymentPlanCount(bill) {
+    const projection = billPaymentProjection(bill);
+    if (projection.payments) return projection.payments;
     const paymentAmount = nextBillPaymentAmount(bill);
     if (!paymentAmount) return 0;
-    return Math.max(1, Math.ceil((billRemainingAmount(bill) || moneyNumber(bill.amount)) / paymentAmount));
+    return Math.max(1, Math.ceil((billRemainingAmount(bill) || billClearanceTargetAmount(bill)) / paymentAmount));
+  }
+
+  function billFinalSweepNote(bill) {
+    const preference = normalizedBillPaymentPreference(bill?.paymentPreference);
+    if (!billStopsWhenBalanceClear(bill) || !recurringBillPaymentPreference(preference)) return "";
+    const projection = billPaymentProjection(bill);
+    const interest = projection.totalInterest;
+    if (interest) return `Includes ${money(interest)} estimated interest/fees, then stops at $0.`;
+    return "If interest or fees leave a small balance, BillMaster keeps one smaller final sweep before stopping.";
+  }
+
+  function billInterestBreakdownNote(bill) {
+    const preference = normalizedBillPaymentPreference(bill?.paymentPreference);
+    if (!billStopsWhenBalanceClear(bill) || !recurringBillPaymentPreference(preference)) return "";
+    const projection = billPaymentProjection(bill);
+    if (!projection.totalInterest) return `${money(projection.principal)} balance + ${money(0)} interest = ${money(projection.clearanceTarget)} to clear.`;
+    const aprText = projection.apr ? ` at ${projection.apr}% APR` : "";
+    return `${money(projection.principal)} balance + ${money(projection.totalInterest)} interest/fees${aprText} = ${money(projection.clearanceTarget)} to clear.`;
+  }
+
+  function billPaymentAmountBreakdown(amountLeft, regularPayment) {
+    const amount = moneyNumber(Math.max(0, amountLeft));
+    const regular = moneyNumber(Math.max(0, regularPayment));
+    if (!amount || !regular) return "";
+    const fullPayments = Math.floor((amount + 0.004) / regular);
+    const remainder = moneyNumber(amount - fullPayments * regular);
+    const fullTotal = moneyNumber(regular * fullPayments);
+    if (fullPayments > 0 && remainder > 0) return `${money(regular)} x ${fullPayments} = ${money(fullTotal)} + ${money(remainder)}`;
+    if (fullPayments > 0) return `${money(regular)} x ${fullPayments} = ${money(fullTotal)}`;
+    return `${money(amount)} final`;
   }
 
   function billPaymentScheduleSummary(bill) {
@@ -4882,7 +5029,8 @@ function quickAction(action) {
     const count = billPaymentPlanCount(bill);
     const untilZero = ["Weekly until zero", "Bi-weekly until zero", "Monthly until zero", "Yearly until zero"].includes(rule);
     const stop = untilZero && billStopsWhenBalanceClear(bill) ? ", auto-stops at $0" : "";
-    const repeat = untilZero ? `${stop}, about ${count} payment${count === 1 ? "" : "s"} left` : "";
+    const sweep = untilZero && billFinalSweepNote(bill) ? ", final payment may be smaller" : "";
+    const repeat = untilZero ? `${stop}, about ${count} payment${count === 1 ? "" : "s"} left${sweep}` : "";
     if (rule === "1st and 15th") return `Pays on the 1st and 15th${repeat}`;
     if (rule === "Bi-weekly until zero") return `Bi-weekly until balance is zero${repeat}`;
     if (rule === "Monthly until zero") return `Monthly until balance is zero${repeat}`;
@@ -4898,7 +5046,8 @@ function quickAction(action) {
     const preference = normalizedBillPaymentPreference(bill.paymentPreference);
     const frequency = billFrequencyLabel(bill);
     const count = billPaymentPlanCount(bill);
-    const suffix = count > 1 ? ` - about ${count} payments` : "";
+    const finalSweep = billFinalSweepNote(bill) ? ", final may be smaller" : "";
+    const suffix = count > 1 ? ` - about ${count} payments${finalSweep}` : finalSweep ? ` - ${finalSweep.slice(2)}` : "";
     const untilClear = billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference) ? " until clear" : "";
     if (preference === "Percentage payment") return `${clamp(moneyNumber(bill.paymentPercent || 25), 1, 100)}% ${frequency} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
     if (preference === "Random until zero") return `Random ${frequency} - ${money(billPaymentPlanAmount(bill))}${suffix}`;
@@ -4909,8 +5058,9 @@ function quickAction(action) {
 
   function billPaymentPreviewBody(bill) {
     const scheduledDate = billScheduledPaymentDate(bill);
+    const projection = billPaymentProjection(bill);
     const nextAmount = nextBillPaymentAmount(bill);
-    const remaining = billRemainingAmount(bill) || moneyNumber(bill.amount);
+    const remaining = billRemainingAmount(bill) || billClearanceTargetAmount(bill);
     const paid = billPaidToDate(bill);
     const count = billPaymentPlanCount(bill);
     const lifecycle = billPaymentLifecycle(bill);
@@ -4919,6 +5069,12 @@ function quickAction(action) {
     const frequency = billFrequencyLabel(bill);
     const percent = preference === "Percentage payment" ? `${clamp(moneyNumber(bill.paymentPercent || 25), 1, 100)}% ${frequency}` : "";
     const stopNote = billStopsWhenBalanceClear(bill) && recurringBillPaymentPreference(preference) ? "Stops automatically once the remaining balance reaches $0" : "";
+    const sweepNote = billFinalSweepNote(bill);
+    const interestNote = billInterestBreakdownNote(bill);
+    const finalPaymentNote = projection.finalPayment && projection.finalPayment < projection.regularPayment ? `Final sweep estimate: ${money(projection.finalPayment)} instead of another full ${money(projection.regularPayment)} payment.` : "";
+    const afterNext = moneyNumber(Math.max(0, remaining - nextAmount));
+    const afterNextBreakdown = billPaymentAmountBreakdown(afterNext, projection.regularPayment || nextAmount);
+    const finishText = projection.finalPayment && projection.finalPayment < projection.regularPayment ? `${money(projection.finalPayment)} final` : "$0 stop";
     return `<div class="bill-payment-preview-title">
         <span>${icon("wallet")} Payment Plan Preview</span>
         <strong class="status ${statusClass(lifecycle.label)}">${esc(lifecycle.label)}</strong>
@@ -4928,13 +5084,28 @@ function quickAction(action) {
         <span><small>Next Amount</small><strong>${money(nextAmount)}</strong></span>
         <span><small>Payments Left</small><strong>${count || 0}</strong></span>
         <span><small>Remaining</small><strong>${money(remaining)}</strong></span>
+        <span><small>Interest / Fees</small><strong>${money(projection.totalInterest)}</strong></span>
+        <span><small>To Clear</small><strong>${money(projection.clearanceTarget)}</strong></span>
+      </div>
+      <div class="bill-payment-flow" aria-label="Projected payment flow">
+        <span><small>Now</small><strong>${paid ? `${money(paid)} paid / ${money(remaining)} left` : `${money(remaining)} left`}</strong></span>
+        <b aria-hidden="true">→</b>
+        <span><small>Next</small><strong>${money(nextAmount)} on ${dateLabel(scheduledDate)}</strong></span>
+        <b aria-hidden="true">→</b>
+        <span><small>After Next</small><strong>${money(afterNext)} left</strong>${afterNextBreakdown ? `<em>${esc(afterNextBreakdown)}</em>` : ""}</span>
+        <b aria-hidden="true">→</b>
+        <span><small>Finish</small><strong>${esc(finishText)}</strong></span>
       </div>
       <div class="bill-payment-preview-note">
-        <span>${icon("calendar")} ${esc(billPaymentScheduleSummary(bill))}</span>
+        <span>${icon("calendar")} ${esc(effectiveBillPayDateRule(bill))}</span>
         <span>${icon(bill.autopay ? "refresh" : "wallet")} ${esc(method)}</span>
         ${paid ? `<span>${icon("check")} ${money(paid)} already paid</span>` : ""}
         ${percent ? `<span>${icon("chart")} ${esc(percent)}</span>` : ""}
-        ${stopNote ? `<span>${icon("check")} ${esc(stopNote)}</span>` : ""}
+        ${stopNote ? `<span>${icon("check")} Stop at $0</span>` : ""}
+        ${interestNote ? `<span class="bill-payment-wide-note">${icon("chart")} ${esc(interestNote)}</span>` : ""}
+        ${sweepNote && projection.totalInterest ? `<span>${icon("wallet")} ${esc(sweepNote)}</span>` : ""}
+        ${finalPaymentNote ? `<span>${icon("wallet")} ${esc(finalPaymentNote)}</span>` : ""}
+        ${projection.canClear ? "" : `<span class="danger-text">${icon("alert")} Payment is too small to clear at this APR. Increase the payment or lower the APR.</span>`}
       </div>
       <p class="muted">${esc(lifecycle.helper)}</p>`;
   }
@@ -7976,12 +8147,16 @@ function quickAction(action) {
 
   function modalBill(billId) {
     const bill = data.bills.find((item) => item.id === billId) || {};
-    return `${modalHeader(bill.id ? "Edit Bill" : "Add New Bill", "Enter bill details manually, scan a photo, or detect automatically.")}
-      <div class="sheet-actions">
-        <button class="primary-btn" data-action="simulate-scan">${icon("camera")} Scan Bill Photo (AI)</button>
-        <button class="outline-btn" data-action="simulate-detect">${icon("search")} Auto-Detect Bills</button>
-      </div>
-      <div class="field-grid" style="margin-top:16px;">
+    return `${modalHeader(bill.id ? "Edit Bill" : "Add New Bill", "Edit the core bill details and payment plan.")}
+      <details class="bill-tools-disclosure">
+        <summary>${icon("camera")} Scan / photo tools</summary>
+        <div class="sheet-actions bill-editor-actions">
+          <button class="primary-btn" data-action="simulate-scan">${icon("camera")} Scan Bill Photo</button>
+          <button class="outline-btn" data-action="simulate-detect">${icon("search")} Auto-Detect</button>
+        </div>
+        ${imageAttachmentField("bill", bill.image || "", "Bill Picture / Graphic", bill.imageZoom, bill.imageX, bill.imageY, bill.imageFit, bill.imageOpacity)}
+      </details>
+      <div class="field-grid bill-editor-grid">
         ${field("billName", "Bill Name", bill.name || "", "Electric Bill, Credit Card, Rent")}
         ${field("billPayee", "Payee / Merchant", bill.payee || bill.name || "", "City Power, Chase, landlord")}
         ${field("billAmount", "Amount", bill.amount || "", "Enter amount", "number")}
@@ -7990,17 +8165,23 @@ function quickAction(action) {
         ${selectField("billCategory", "Category", ["Utilities", "Phone", "Insurance", "Housing", "Subscriptions", "Credit"], bill.category || "Utilities")}
         ${selectField("billPaymentMethod", "Payment Method", ["Manual", "Chase Checking", "Capital One Credit Card", "Wells Fargo Savings"], bill.method || "Manual")}
         ${selectField("billAutopay", "Autopay", ["No", "Yes"], bill.autopay ? "Yes" : "No")}
-        ${field("billMinimumPayment", "Minimum Payment", bill.minimumPayment || "", "Minimum due", "number")}
         ${selectField("billPaymentPreference", "Pay Preference", billPaymentPreferenceOptions, normalizedBillPaymentPreference(bill.paymentPreference))}
         ${selectField("billPaymentFrequency", "Payment Frequency", billPaymentFrequencyOptions, normalizedBillPaymentFrequency(bill))}
-        ${field("billPaymentPercent", "Payment Percent", bill.paymentPercent || (normalizedBillPaymentPreference(bill.paymentPreference) === "Percentage payment" ? 25 : ""), "Use 25 for 25%", "number")}
-        ${field("billCustomPaymentAmount", "Custom Payment Amount", bill.customPaymentAmount || "", "Optional custom amount", "number")}
-        ${selectField("billStopWhenBalanceClear", "Stop When Balance Is Clear", billStopWhenClearOptions, billStopsWhenBalanceClear(bill) ? "Yes" : "No")}
-        ${selectField("billPayDateRule", "Pay Date Rule", billPayDateRuleOptions, bill.payDateRule || "Due date")}
-        ${field("billScheduledPayDate", "Scheduled Pay Date", bill.scheduledPayDate || bill.dueDate || "2026-05-12", "", "date")}
-        ${selectField("billPaymentStage", "Payment Stage", billPaymentStageOptions, bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled"))}
-        ${imageAttachmentField("bill", bill.image || "", "Bill Picture / Graphic", bill.imageZoom, bill.imageX, bill.imageY, bill.imageFit, bill.imageOpacity)}
+        ${field("billCustomPaymentAmount", "Custom $", bill.customPaymentAmount || "", "Optional custom amount", "number")}
+        ${field("billPaymentPercent", "Payment %", bill.paymentPercent || (normalizedBillPaymentPreference(bill.paymentPreference) === "Percentage payment" ? 25 : ""), "Use 25 for 25%", "number")}
       </div>
+      <details class="bill-advanced-disclosure">
+        <summary>${icon("settings")} Advanced payoff settings</summary>
+        <div class="field-grid bill-editor-grid bill-editor-advanced-grid">
+          ${field("billMinimumPayment", "Minimum Payment", bill.minimumPayment || "", "Minimum due", "number")}
+          ${field("billEstimatedApr", "APR %", bill.estimatedApr || "", "Optional interest rate", "number")}
+          ${field("billEstimatedInterestToClear", "Interest / Fees To Clear", bill.estimatedInterestToClear || "", "Optional final sweep amount", "number")}
+          ${selectField("billStopWhenBalanceClear", "Stop At $0", billStopWhenClearOptions, billStopsWhenBalanceClear(bill) ? "Yes" : "No")}
+          ${selectField("billPayDateRule", "Pay Date Rule", billPayDateRuleOptions, bill.payDateRule || "Due date")}
+          ${field("billScheduledPayDate", "Scheduled Pay Date", bill.scheduledPayDate || bill.dueDate || "2026-05-12", "", "date")}
+          ${selectField("billPaymentStage", "Payment Stage", billPaymentStageOptions, bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled"))}
+        </div>
+      </details>
       ${billPaymentPreviewPanel({
         ...bill,
         dueDate: bill.dueDate || "2026-05-12",
@@ -8009,6 +8190,8 @@ function quickAction(action) {
         paymentPreference: bill.paymentPreference || "Full balance",
         paymentFrequency: normalizedBillPaymentFrequency(bill),
         stopWhenBalanceClear: billStopsWhenBalanceClear(bill),
+        estimatedApr: billEstimatedApr(bill),
+        estimatedInterestToClear: billEstimatedInterestToClear(bill),
         paymentPercent: moneyNumber(bill.paymentPercent),
         customPaymentAmount: moneyNumber(bill.customPaymentAmount),
         minimumPayment: moneyNumber(bill.minimumPayment),
@@ -8058,11 +8241,11 @@ function quickAction(action) {
         <div class="bill-pay-review-grid">
           <span><small>Due Date</small><strong>${dateLabel(bill.dueDate)}</strong></span>
           <span><small>Scheduled Pay</small><strong>${dateLabel(scheduledDate)}</strong></span>
-          <span><small>Remaining</small><strong>${money(remaining || bill.amount)}</strong></span>
+          <span><small>Remaining</small><strong>${money(remaining || billClearanceTargetAmount(bill))}</strong></span>
           <span><small>Suggested</small><strong>${money(suggestedAmount)}</strong></span>
         </div>
         <div class="field-grid bill-pay-fields">
-          ${field("billPayAmount", "Payment Amount", suggestedAmount || remaining || bill.amount || "", "Amount to log", "number")}
+          ${field("billPayAmount", "Payment Amount", suggestedAmount || remaining || billClearanceTargetAmount(bill) || "", "Amount to log", "number")}
           ${field("billPayDate", "Payment Date", todayIso(), "", "date")}
         </div>
         ${textArea("billPayMemo", "Memo / Confirmation Note", "", "Optional: card, account, confirmation number, or reminder")}
@@ -8104,6 +8287,8 @@ function quickAction(action) {
       stopWhenBalanceClear,
       paymentPercent: clamp(billModalNumber("billPaymentPercent", preference === "Percentage payment" ? 25 : moneyNumber(existing.paymentPercent)), 0, 100),
       customPaymentAmount: billModalNumber("billCustomPaymentAmount", moneyNumber(existing.customPaymentAmount)),
+      estimatedApr: billModalNumber("billEstimatedApr", billEstimatedApr(existing)),
+      estimatedInterestToClear: billModalNumber("billEstimatedInterestToClear", billEstimatedInterestToClear(existing)),
       payDateRule,
       scheduledPayDate: value("billScheduledPayDate") || value("billDue") || existing.scheduledPayDate || existing.dueDate || todayIso(),
       paymentStage: value("billPaymentStage") || existing.paymentStage || (value("billAutopay") === "Yes" ? "Autopay expected" : "Not scheduled")
@@ -9710,6 +9895,7 @@ function quickAction(action) {
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
           <button class="outline-btn" data-action="navigate" data-view="sync">${icon("filter")} Sync Center</button>
           <button class="outline-btn" data-action="copy-plaid-backend-setup">${icon("note")} Copy Backend Setup</button>
+          <button class="outline-btn" data-action="copy-plaid-auto-sync-sql">${icon("cloud")} Copy Auto-Sync SQL</button>
           <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy Plan</button>
         </div>
       </section>
@@ -12539,6 +12725,7 @@ function quickAction(action) {
     if (action === "sync-plaid-transactions") return syncPlaidTransactions();
     if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
     if (action === "copy-plaid-backend-setup") return copyPlaidBackendSetup();
+    if (action === "copy-plaid-auto-sync-sql") return copyPlaidAutoSyncSql();
     if (action === "copy-plaid-production-plan") return copyPlaidProductionPlan();
     if (action === "simulate-scan") return simulateBillScan();
     if (action === "simulate-detect") return simulateBillDetect();
@@ -14511,10 +14698,11 @@ function quickAction(action) {
       return;
     }
     const confirmation = `BM-${Date.now().toString().slice(-8)}`;
-    const fullAmount = Math.max(0, moneyNumber(bill.amount));
+    const fullAmount = billClearanceTargetAmount(bill);
     const remainingBeforePayment = billRemainingAmount(bill) || fullAmount;
     const previousStatus = bill.status || "Unpaid";
     const previousPaymentStage = bill.paymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
+    const previousAutopay = Boolean(bill.autopay);
     const previousPaidToDate = billPaidToDate(bill);
     const previousLastPaidDate = bill.lastPaidDate || "";
     const previousLastPaidAmount = moneyNumber(bill.lastPaidAmount);
@@ -14532,6 +14720,7 @@ function quickAction(action) {
     const partialPayment = fullAmount > 0 && nextPaidToDate < fullAmount;
     bill.status = partialPayment ? "Partial" : "Paid";
     bill.paymentStage = "Paid manually";
+    bill.autopay = false;
     bill.lastPaidDate = paymentDate;
     bill.lastPaidAmount = paymentAmount;
     bill.paidToDate = nextPaidToDate;
@@ -14549,6 +14738,8 @@ function quickAction(action) {
       preference: bill.paymentPreference || "Full balance",
       frequency: normalizedBillPaymentFrequency(bill),
       stopWhenBalanceClear: billStopsWhenBalanceClear(bill),
+      estimatedApr: billEstimatedApr(bill),
+      estimatedInterestToClear: billEstimatedInterestToClear(bill),
       scheduledPayDate: billScheduledPaymentDate(bill),
       method: bill.method,
       status: bill.status,
@@ -14558,6 +14749,7 @@ function quickAction(action) {
       txId,
       previousStatus,
       previousPaymentStage,
+      previousAutopay,
       previousPaidToDate,
       previousLastPaidDate,
       previousLastPaidAmount,
@@ -14580,7 +14772,7 @@ function quickAction(action) {
     });
     saveData();
     if (ui.modal?.type === "payBill") ui.modal = null;
-    showToast(`Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
+    showToast(`${previousAutopay ? "Autopay switched to manual. " : ""}Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
   }
 
   function undoBillPayment(billId) {
@@ -14600,6 +14792,7 @@ function quickAction(action) {
       return;
     }
     bill.status = payment.previousStatus || "Unpaid";
+    if (Object.prototype.hasOwnProperty.call(payment, "previousAutopay")) bill.autopay = Boolean(payment.previousAutopay);
     bill.paymentStage = payment.previousPaymentStage || (bill.autopay ? "Autopay expected" : "Not scheduled");
     bill.paidToDate = Math.max(0, moneyNumber(payment.previousPaidToDate));
     if (payment.previousLastPaidDate) bill.lastPaidDate = payment.previousLastPaidDate;
@@ -14643,6 +14836,8 @@ function quickAction(action) {
       paymentPreference: selectedPreference,
       paymentFrequency: selectedPaymentFrequency,
       stopWhenBalanceClear: selectedStopWhenBalanceClear,
+      estimatedApr: numberValue("billEstimatedApr"),
+      estimatedInterestToClear: numberValue("billEstimatedInterestToClear"),
       paymentPercent: clamp(numberValue("billPaymentPercent") || (selectedPreference === "Percentage payment" ? 25 : 0), 0, 100),
       customPaymentAmount: numberValue("billCustomPaymentAmount"),
       payDateRule: selectedPayDateRule,
@@ -19052,8 +19247,12 @@ function quickAction(action) {
         database.connection_error ? `Connection table: ${database.connection_error}` : ""
       ].filter(Boolean).join(" ");
       const ok = Boolean(result.ok && !missing.length && !databaseIssues.length);
+      const autoSyncReady = Boolean(configured.billmaster_sync_secret);
+      const autoSyncNote = autoSyncReady
+        ? " Automatic pull-down secret is set."
+        : " Manual sync is ready; add BILLMASTER_SYNC_SECRET when you want scheduled pull-downs.";
       const message = ok
-        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode, and Plaid tables are reachable.`
+        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode, and Plaid tables are reachable.${autoSyncNote}`
         : `plaid-sync needs attention: ${[...missing, ...databaseIssues].join(", ") || "required setup"}.${databaseDetail ? ` ${databaseDetail}` : ""}`;
       recordPlaidBackendStatus(ok, message, result);
       render();
@@ -19365,11 +19564,17 @@ Important:
    npx supabase secrets set PLAID_PRODUCTS="transactions"
    npx supabase secrets set PLAID_COUNTRY_CODES="US"
    npx supabase secrets set PLAID_CLIENT_NAME="BillMaster"
+   npx supabase secrets set BILLMASTER_SYNC_SECRET="A_LONG_RANDOM_SYNC_SECRET"
 
 4. Deploy the Edge Function:
    npx supabase functions deploy plaid-sync
 
-5. Back in BillMaster:
+5. Optional automatic pull-downs:
+   Store the Vault secrets listed in supabase/plaid-auto-sync.sql
+   Then run supabase/plaid-auto-sync.sql in Supabase SQL Editor
+   Default schedule: every 6 hours
+
+6. Back in BillMaster:
    Accounts > Manage > Check Backend
    When ready: Open Plaid Link
    Then: Sync Transactions
@@ -19377,6 +19582,7 @@ Important:
 Expected safe state:
 - Plaid access tokens stay in billmaster_plaid_tokens.
 - Browser can only read billmaster_plaid_connections metadata.
+- Automatic sync uses BILLMASTER_SYNC_SECRET, not a browser session.
 - Imported charges still land in Review Inbox before becoming bills/subscriptions.`;
   }
 
@@ -19398,6 +19604,74 @@ Expected safe state:
     showToast(copied ? "Plaid backend setup steps copied and shown." : "Select and copy the backend setup steps.", copied ? "success" : "danger");
   }
 
+  function plaidAutoSyncSqlText() {
+    const functionUrl = cloudConfig.url ? `${cloudConfig.url}/functions/v1/plaid-sync` : "https://YOUR_PROJECT_REF.supabase.co/functions/v1/plaid-sync";
+    return `-- BillMaster Plaid automatic transaction pull-downs.
+-- Run this in Supabase SQL Editor after schema.sql, after deploying plaid-sync,
+-- and after setting Edge Function secrets including BILLMASTER_SYNC_SECRET.
+--
+-- Required Vault secrets:
+--   billmaster_function_url        ${functionUrl}
+--   billmaster_function_auth_key   Your Supabase anon/publishable key for Edge Function JWT verification
+--   billmaster_sync_secret         Same value as BILLMASTER_SYNC_SECRET
+
+create extension if not exists pg_cron with schema extensions;
+create extension if not exists pg_net with schema extensions;
+
+-- Create these Vault secrets one time, replacing placeholder values first.
+-- Delete visible secret values from editor history afterward if desired.
+--
+-- select vault.create_secret('${functionUrl}', 'billmaster_function_url');
+-- select vault.create_secret('YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY', 'billmaster_function_auth_key');
+-- select vault.create_secret('A_LONG_RANDOM_SYNC_SECRET', 'billmaster_sync_secret');
+
+select cron.unschedule('billmaster-plaid-auto-sync')
+where exists (
+  select 1
+  from cron.job
+  where jobname = 'billmaster-plaid-auto-sync'
+);
+
+select cron.schedule(
+  'billmaster-plaid-auto-sync',
+  '0 */6 * * *',
+  $$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'billmaster_function_url'),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'billmaster_function_auth_key'),
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'billmaster_function_auth_key'),
+      'x-billmaster-sync-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'billmaster_sync_secret')
+    ),
+    body := jsonb_build_object(
+      'action', 'sync_all_transactions',
+      'max_items', 25
+    ),
+    timeout_milliseconds := 30000
+  );
+  $$
+);`;
+  }
+
+  async function copyPlaidAutoSyncSql() {
+    const text = plaidAutoSyncSqlText();
+    let copied = true;
+    try {
+      await copyText(text);
+    } catch (error) {
+      copied = false;
+    }
+    ui.modal = {
+      type: "copyFallback",
+      title: "Plaid Auto-Sync SQL",
+      text,
+      helper: copied ? "Automatic pull-down SQL was copied if this browser allows it. Review the placeholder secrets before running it." : "Clipboard access was blocked. Select this SQL, copy it manually, and replace placeholders before running it."
+    };
+    render();
+    showToast(copied ? "Plaid auto-sync SQL copied and shown." : "Select and copy the auto-sync SQL.", copied ? "success" : "danger");
+  }
+
   function copyPlaidProductionPlan() {
     copyText(`BillMaster Plaid Production Plan
 
@@ -19408,9 +19682,10 @@ Expected safe state:
 5. Backend exchanges public_token for access_token; the browser never sees Plaid secrets.
 6. Store visible connection metadata separately from service-role-only access tokens.
 7. Pull accounts, balances, and transactions with sync_transactions.
-8. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
-9. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
-10. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
+8. Add sync_all_transactions plus pg_cron/pg_net for automatic pull-downs.
+9. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
+10. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
+11. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
     showToast("Plaid production plan copied.");
   }
 

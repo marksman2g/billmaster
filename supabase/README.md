@@ -37,6 +37,7 @@ The next sync step lives in `supabase/functions/plaid-sync/index.ts`. It keeps P
 - `create_link_token`
 - `exchange_public_token`
 - `sync_transactions`
+- `sync_all_transactions` for protected scheduled pull-downs
 
 Run `supabase/schema.sql` first. It creates:
 
@@ -52,6 +53,7 @@ supabase secrets set PLAID_ENV="sandbox"
 supabase secrets set PLAID_PRODUCTS="transactions"
 supabase secrets set PLAID_COUNTRY_CODES="US"
 supabase secrets set PLAID_CLIENT_NAME="BillMaster"
+supabase secrets set BILLMASTER_SYNC_SECRET="a-long-random-string"
 ```
 
 Then deploy:
@@ -65,6 +67,8 @@ In BillMaster, go to `Accounts > Manage`:
 1. Click `Check Backend`.
 2. After it reports ready, click `Open Plaid Link`.
 3. After linking, click `Sync Transactions` whenever you want to pull the latest Plaid transaction changes.
+
+For automatic transaction pull-downs, run `supabase/plaid-auto-sync.sql` after storing the required Vault secrets listed at the top of that file. The scheduled job calls `sync_all_transactions` with a server-only sync secret and keeps browser users away from Plaid access tokens.
 
 The browser should call the function with the signed-in Supabase user's `Authorization: Bearer <access_token>` header. Do not paste bank usernames, passwords, card numbers, or Plaid secrets into BillMaster.
 

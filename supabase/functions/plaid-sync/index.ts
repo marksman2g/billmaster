@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
     const body = await readJson(req);
     const action = String(body.action || "health");
     if (action === "health") return json(await plaidHealth());
+    if (action === "sync_all_transactions") return json(await syncAllTransactions(req, body));
 
     const { user, admin } = await requireUser(req);
     if (action === "create_link_token") return json(await createLinkToken(user.id));
@@ -66,10 +67,11 @@ async function plaidHealth() {
       plaid_secret: Boolean(Deno.env.get("PLAID_SECRET")),
       supabase_url: Boolean(Deno.env.get("SUPABASE_URL")),
       supabase_anon_key: Boolean(publicSupabaseKey()),
-      supabase_service_role_key: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))
+      supabase_service_role_key: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+      billmaster_sync_secret: Boolean(Deno.env.get("BILLMASTER_SYNC_SECRET"))
     },
     database: await plaidDatabaseHealth(),
-    actions: ["create_link_token", "exchange_public_token", "sync_transactions"]
+    actions: ["create_link_token", "exchange_public_token", "sync_transactions", "sync_all_transactions"]
   };
 }
 
@@ -108,10 +110,22 @@ async function requireUser(req: Request) {
   const { data, error } = await userClient.auth.getUser();
   if (error || !data.user) throw new HttpError(401, "BillMaster could not verify the signed-in user.");
 
-  const admin = createClient(supabaseUrl, requiredEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+  const admin = adminClient();
+  return { user: data.user, admin };
+}
+
+function adminClient() {
+  return createClient(requiredEnv("SUPABASE_URL"), requiredEnv("SUPABASE_SERVICE_ROLE_KEY"), {
     auth: { autoRefreshToken: false, persistSession: false }
   });
-  return { user: data.user, admin };
+}
+
+function requireSyncSecret(req: Request) {
+  const expected = Deno.env.get("BILLMASTER_SYNC_SECRET") || "";
+  if (!expected) throw new HttpError(500, "Missing required secret: BILLMASTER_SYNC_SECRET");
+  const provided = req.headers.get("x-billmaster-sync-secret")
+    || (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (provided !== expected) throw new HttpError(401, "Invalid BillMaster scheduled sync secret.");
 }
 
 function publicSupabaseKey() {
@@ -252,6 +266,57 @@ async function syncTransactions(admin: ReturnType<typeof createClient>, userId: 
   return { synced_at: syncedAt, items };
 }
 
+async function syncAllTransactions(req: Request, body: JsonRecord) {
+  requireSyncSecret(req);
+  const admin = adminClient();
+  const maxItems = clampInt(numberValue(body.max_items), 1, 25, 25);
+  const { data: tokens, error } = await admin
+    .from("billmaster_plaid_tokens")
+    .select("user_id, item_id, access_token, cursor")
+    .limit(maxItems);
+  assertDb(error, "Reading Plaid tokens for scheduled sync");
+
+  const syncedAt = new Date().toISOString();
+  const items = [];
+  const errors = [];
+  const users = new Set<string>();
+  for (const token of tokens || []) {
+    const userId = stringValue(token.user_id);
+    if (!userId) continue;
+    users.add(userId);
+    try {
+      const item = await syncOnePlaidItem(admin, userId, token, syncedAt);
+      items.push(item);
+    } catch (error) {
+      errors.push({
+        user_id: userId,
+        item_id: stringValue(token.item_id),
+        error: error instanceof Error ? error.message : "Scheduled sync failed for this Plaid item."
+      });
+    }
+  }
+
+  const totals = items.reduce((summary, item) => {
+    summary.accounts += Array.isArray(item.accounts) ? item.accounts.length : 0;
+    summary.added += Array.isArray(item.added) ? item.added.length : 0;
+    summary.modified += Array.isArray(item.modified) ? item.modified.length : 0;
+    summary.removed += Array.isArray(item.removed) ? item.removed.length : 0;
+    return summary;
+  }, { accounts: 0, added: 0, modified: 0, removed: 0 });
+
+  return {
+    synced_at: syncedAt,
+    mode: "scheduled",
+    max_items: maxItems,
+    users_count: users.size,
+    items_count: items.length,
+    errors_count: errors.length,
+    totals,
+    items,
+    errors
+  };
+}
+
 async function syncOnePlaidItem(admin: ReturnType<typeof createClient>, userId: string, token: JsonRecord, syncedAt: string) {
   let cursor = typeof token.cursor === "string" && token.cursor ? token.cursor : null;
   let hasMore = false;
@@ -352,6 +417,11 @@ function stringValue(value: unknown) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function clampInt(value: number, min: number, max: number, fallback: number) {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function firstString(value: unknown) {

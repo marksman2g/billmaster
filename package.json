@@ -1,0 +1,7 @@
+{
+  "name": "billmaster",
+  "private": true,
+  "devDependencies": {
+    "supabase": "latest"
+  }
+}
