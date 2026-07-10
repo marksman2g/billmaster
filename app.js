@@ -5188,7 +5188,7 @@ function quickAction(action) {
         label: "Ready to pay",
         iconName: "alert",
         tone: "danger-text",
-        helper: `${money(billRemainingAmount(bill))} still remains after the partial payment.`
+        helper: `${money(billRemainingAmount(bill))} still remains after the partial payment.${bill.autopay ? " Autopay/minimum settings remain active unless you turn them off." : ""}`
       };
     }
     if (dueDays < 0) {
@@ -8307,7 +8307,7 @@ function quickAction(action) {
         </div>
         <div class="bill-payment-snapshot">
           <span>${icon("check")} Suggested payment would make paid-to-date ${money(afterSuggestedPaid)}.</span>
-          <span>${icon("wallet")} ${bill.autopay ? "Autopay switches to manual after this local log." : "Manual payment log stays manual."}</span>
+          <span>${icon("wallet")} ${bill.autopay ? "Autopay stays on unless you turn it off in Edit Bill." : "Payment plan stays unchanged unless you edit it."}</span>
           ${lastPayment ? `<span>${icon("alert")} Last local payment: ${money(lastPayment.amount)} on ${dateLabel(lastPayment.date)}.</span>` : ""}
         </div>
         <div class="field-grid bill-pay-fields">
@@ -8315,7 +8315,7 @@ function quickAction(action) {
           ${field("billPayDate", "Payment Date", todayIso(), "", "date")}
         </div>
         ${textArea("billPayMemo", "Memo / Confirmation Note", "", "Optional: card, account, confirmation number, or reminder")}
-        <p class="bill-payment-safety danger-text">${icon("alert")} This creates a local payment record and a matching expense transaction. It does not send real money yet.</p>
+        <p class="bill-payment-safety danger-text">${icon("alert")} This creates a local payment record and matching expense transaction. It does not send real money, turn off autopay, or stop minimum-payment rules.</p>
         ${billPaymentHistoryPanel(bill.id)}
         <div class="sheet-actions">
           <button class="primary-btn" data-action="pay-bill" data-id="${bill.id}">${icon("wallet")} Record Local Payment</button>
@@ -14817,7 +14817,6 @@ function quickAction(action) {
     const partialPayment = fullAmount > 0 && nextPaidToDate < fullAmount;
     bill.status = partialPayment ? "Partial" : "Paid";
     bill.paymentStage = "Paid manually";
-    bill.autopay = false;
     bill.lastPaidDate = paymentDate;
     bill.lastPaidAmount = paymentAmount;
     bill.paidToDate = nextPaidToDate;
@@ -14869,7 +14868,7 @@ function quickAction(action) {
     });
     saveData();
     if (ui.modal?.type === "payBill") ui.modal = null;
-    showToast(`${previousAutopay ? "Autopay switched to manual. " : ""}Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
+    showToast(`${previousAutopay ? "Autopay remains on. " : ""}Bill logged locally for ${money(paymentAmount)}. Confirmation ${confirmation}.`);
   }
 
   function undoBillPayment(billId) {
