@@ -2793,9 +2793,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         { view: "lending", iconName: "loan", label: "Loans", color: "teal", tone: "loans", detail: "Owed + repaid" }
       ]],
       ["Notes", [
+        { view: "projects", iconName: "folder", label: "Projects", color: "amber", tone: "projects", detail: "Tasks + notes" },
         { view: "notebooks", iconName: "book", label: "Notebooks", color: "purple", tone: "notes", detail: "Visual library" },
-        { view: "notes", iconName: "note", label: "Notes", color: "purple", tone: "notes", detail: "Capture fast" },
-        { view: "projects", iconName: "folder", label: "Projects", color: "amber", tone: "projects", detail: "Tasks + notes" }
+        { view: "notes", iconName: "note", label: "Notes", color: "purple", tone: "notes", detail: "Capture fast" }
       ]],
       ["People & Places", [
         { view: "contacts", iconName: "home", label: "Contacts", color: "blue", tone: "people", detail: "People + groups" },
