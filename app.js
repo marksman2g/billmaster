@@ -20,6 +20,7 @@
     chartType: "pie",
     calendarView: "day",
     calendarColorsOpen: false,
+    calendarStickyDates: false,
     dashboardPanel: "today",
     selectedDate: todayIso(),
     subscriptionFilter: "all",
@@ -27,6 +28,7 @@
     billQuery: "",
     billStatusFilter: "all",
     billInboxFilter: "pending",
+    billInboxSort: "date",
     taskFilter: "all",
     taskView: "regular",
     dayTaskView: "regular",
@@ -34,6 +36,8 @@
     projectId: null,
     projectSort: "level",
     projectTaskView: "regular",
+    projectOrganizerKind: "tasks",
+    projectOrganizerScope: "unassigned",
     projectDragSelectMode: false,
     notesFilter: "all",
     notesSubjectFilter: "all",
@@ -434,6 +438,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let voiceRecognition = null;
   let voiceStopRequested = false;
   let quickHoldState = null;
+  let noteActionHoldState = null;
+  let noteActionMenuEl = null;
   let quickHoldClickSuppressUntil = 0;
   let taskAlertSchedulerStarted = false;
   let taskAlertAudioContext = null;
@@ -447,6 +453,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   const blockSelectHoldDelay = 520;
   const blockHoldMoveTolerance = 8;
   const quickHoldDelay = 560;
+  const noteActionHoldDelay = 560;
   const aiVoiceProfiles = {
     femaleWarm: {
       label: "Female 1",
@@ -1867,6 +1874,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   function normalizeTasks(nextData) {
     (nextData.tasks || []).forEach((task) => {
       task.endDate = task.endDate || task.date;
+      task.start = task.start ? normalizeClockTime(task.start, task.start) : "";
+      task.end = task.end ? normalizeClockTime(task.end, task.end) : "";
       if (!taskPriorityOptions.includes(task.priority)) task.priority = "Medium";
       if (!taskStatusOptions.includes(task.status)) task.status = "Not Started";
       task.category = taskCategory(task);
@@ -1958,8 +1967,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       if (!habitScheduleOptions.includes(habit.schedule)) habit.schedule = "Daily";
       habit.startDate = habit.startDate || habit.date || "2026-05-06";
       habit.endDate = habit.endDate || "";
-      habit.start = habit.start || "08:00";
-      habit.end = habit.end || timeFromMinutes(Math.min(minutes(habit.start) + 30, 23 * 60 + 59));
+      habit.start = normalizeClockTime(habit.start, "08:00");
+      habit.end = normalizeClockTime(habit.end, timeFromMinutes(Math.min(minutes(habit.start) + 30, 23 * 60 + 59)));
       if (minutes(habit.end) <= minutes(habit.start)) habit.end = timeFromMinutes(Math.min(minutes(habit.start) + 30, 23 * 60 + 59));
       if (!taskPriorityOptions.includes(habit.priority)) habit.priority = "Medium";
       if (!["Active", "Paused", "Archived"].includes(habit.status)) habit.status = "Active";
@@ -2001,8 +2010,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     if (!habitScheduleOptions.includes(next.schedule)) next.schedule = "Daily";
     next.days = Array.isArray(next.days) ? next.days.map(Number).filter((day) => day >= 0 && day <= 6) : [fallbackDay];
     if (!next.days.length) next.days = [fallbackDay];
-    next.start = next.start || "08:00";
-    next.end = next.end || timeFromMinutes(Math.min(minutes(next.start) + 30, 23 * 60 + 59));
+    next.start = normalizeClockTime(next.start, "08:00");
+    next.end = normalizeClockTime(next.end, timeFromMinutes(Math.min(minutes(next.start) + 30, 23 * 60 + 59)));
     if (minutes(next.end) <= minutes(next.start)) next.end = timeFromMinutes(Math.min(minutes(next.start) + 30, 23 * 60 + 59));
     if (!taskPriorityOptions.includes(next.priority)) next.priority = "Medium";
     next.status = "Active";
@@ -2433,6 +2442,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function render() {
     try {
+      hideSelectedNoteActionMenu();
       syncGestureLocks();
       if (!currentProfileId) {
         app.innerHTML = `<div class="app-shell auth-shell"><main class="main-view">${renderAuth()}</main>${renderModal()}${renderToast()}</div>`;
@@ -3811,7 +3821,8 @@ function quickAction(action) {
     const pendingCount = items.filter((item) => item.status === "pending").length;
     const detectedCount = items.filter((item) => item.source === "Recurring detector").length;
     const queuedAlerts = safeArray(data.notificationLog).filter((notice) => notice.deliveryStatus === "queued").length;
-    const filtered = items.filter((item) => ui.billInboxFilter === "all" || item.status === ui.billInboxFilter || item.type === ui.billInboxFilter);
+    const inboxSort = ui.billInboxSort || "date";
+    const filtered = sortBillInboxItems(items.filter((item) => ui.billInboxFilter === "all" || item.status === ui.billInboxFilter || item.type === ui.billInboxFilter), inboxSort);
     return `<section class="screen">
       ${header("Review Inbox", `<button class="icon-btn" data-action="navigate" data-view="sync" title="Sync Center">${icon("settings")}</button><button class="icon-btn" data-action="open-modal" data-modal="importStatement" title="Import statement">${icon("note")}</button><button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button>`)}
       <section class="section-card prism-hero">
@@ -3833,11 +3844,15 @@ function quickAction(action) {
       <div class="filter-row">
         ${["pending", "subscription", "bill", "approved", "all"].map((filter) => `<button class="${ui.billInboxFilter === filter ? "active" : ""}" data-action="set-tab" data-key="billInboxFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
       </div>
+      <div class="filter-row inbox-sort-row" aria-label="Review Inbox sorting">
+        <span class="sort-label">Sort by</span>
+        ${[
+          ["date", "Closest date"],
+          ["dateDesc", "Farthest date"],
+          ["status", "Review status"]
+        ].map(([value, label]) => `<button class="${inboxSort === value ? "active" : ""}" data-action="set-tab" data-key="billInboxSort" data-value="${value}">${label}</button>`).join("")}
+      </div>
       <div class="inbox-grid">${filtered.length ? filtered.map((item) => billInboxCard(item)).join("") : `<section class="section-card"><p class="muted">No inbox items in this filter.</p></section>`}</div>
-      <section class="section-card">
-        <div class="section-title"><h2>Cancellation Center</h2><button class="text-btn" data-action="navigate" data-view="subscriptions">Subscriptions</button></div>
-        ${cancellationRows()}
-      </section>
     </section>`;
   }
 
@@ -4786,6 +4801,9 @@ function quickAction(action) {
       : item.reviewedAt
         ? `Reviewed on ${esc(item.reviewedAt)}.`
         : "";
+    const cancellationButton = isSubscription
+      ? `<button class="danger-btn inbox-cancel-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancellation</button>`
+      : "";
     return `<article class="inbox-card ${item.status}">
       <div class="card-row">
         <div style="display:flex;gap:10px;align-items:center;min-width:0;">
@@ -4803,10 +4821,10 @@ function quickAction(action) {
       ${match ? `<div class="match-banner">${icon("alert")} Possible match: <strong>${esc(match.label)}</strong><button class="text-btn" data-action="link-inbox-item" data-id="${item.id}">Link</button></div>` : ""}
       ${filedLabel ? `<div class="review-decision-banner">${icon("check")} ${filedLabel}</div>` : ""}
       <p class="muted">${esc(item.notes || "Ready for review.")}</p>
-      <div class="sheet-actions inbox-actions">
+      <div class="sheet-actions inbox-actions ${isSubscription ? "has-cancellation" : ""} ${approved ? "approved-actions" : ""}">
         ${approved
-          ? `<button class="outline-btn" data-action="reopen-inbox-item" data-id="${item.id}">${icon("undo")} Reopen Review</button><button class="outline-btn" data-action="view-filed-inbox-item" data-id="${item.id}">${icon(filedTarget.iconName)} ${esc(filedTarget.label)}</button>`
-          : `${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button><button class="outline-btn" data-action="cancel-inbox-subscription" data-id="${item.id}">${icon("close")} Cancel</button>` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
+          ? `<button class="outline-btn" data-action="reopen-inbox-item" data-id="${item.id}">${icon("undo")} Reopen Review</button><button class="outline-btn" data-action="view-filed-inbox-item" data-id="${item.id}">${icon(filedTarget.iconName)} ${esc(filedTarget.label)}</button>${cancellationButton}`
+          : `${isSubscription ? `<button class="primary-btn" data-action="add-inbox-subscription" data-id="${item.id}">${icon("plus")} Add Subscription</button>${cancellationButton}` : `<button class="primary-btn" data-action="add-inbox-bill" data-id="${item.id}">${icon("plus")} Add Bill</button><button class="outline-btn" data-action="open-modal" data-modal="addBill">${icon("edit")} Manual</button>`}
         <button class="danger-btn" data-action="dismiss-inbox-item" data-id="${item.id}">${icon("trash")}</button>`}
       </div>
     </article>`;
@@ -4818,7 +4836,7 @@ function quickAction(action) {
       return { view: "bills", tab: "subscriptions", section: "Bills > Subscriptions", label: "View Subscription", iconName: "playcard" };
     }
     if (type === "cancellation") {
-      return { view: "inbox", tab: "subscriptions", section: "Cancellation Center", label: "View Cancellation", iconName: "close" };
+      return { view: "bills", tab: "subscriptions", section: "Bills > Subscriptions", label: "View Subscriptions", iconName: "playcard" };
     }
     return { view: "bills", tab: "bills", section: "Bills", label: "View Bill", iconName: "receipt" };
   }
@@ -4855,10 +4873,28 @@ function quickAction(action) {
     const stored = safeArray(data.billInbox).filter((item) => !dismissed.has(item.id));
     const storedIds = new Set(stored.map((item) => item.id));
     const detected = recurringInboxCandidates().filter((item) => !dismissed.has(item.id) && !storedIds.has(item.id));
-    return [...stored, ...detected].sort((a, b) => {
-      const statusSort = (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1);
-      if (statusSort) return statusSort;
-      return String(a.dueDate || "").localeCompare(String(b.dueDate || ""));
+    return sortBillInboxItems([...stored, ...detected], ui.billInboxSort || "date");
+  }
+
+  function billInboxDateKey(item) {
+    return String(item?.dueDate || "9999-12-31");
+  }
+
+  function billInboxStatusRank(item) {
+    if (item?.status === "pending") return 0;
+    if (item?.status === "approved") return 1;
+    return 2;
+  }
+
+  function sortBillInboxItems(items, sort = "date") {
+    return [...safeArray(items)].sort((a, b) => {
+      const dateCompare = billInboxDateKey(a).localeCompare(billInboxDateKey(b));
+      if (sort === "dateDesc") return -dateCompare || billInboxStatusRank(a) - billInboxStatusRank(b) || String(a.title || "").localeCompare(String(b.title || ""));
+      if (sort === "status") {
+        const statusCompare = billInboxStatusRank(a) - billInboxStatusRank(b);
+        if (statusCompare) return statusCompare;
+      }
+      return dateCompare || billInboxStatusRank(a) - billInboxStatusRank(b) || String(a.title || "").localeCompare(String(b.title || ""));
     });
   }
 
@@ -5406,7 +5442,7 @@ function quickAction(action) {
         </div>
         ${calendarTopTools(view)}
       </div>
-      <div class="calendar-controls">
+      <div class="calendar-controls ${view === "week" || view === "block" ? "calendar-controls--guided" : ""}">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
           <button class="today-jump" data-action="go-calendar-today" data-view="${view}" title="Jump to today">${icon("calendar")} Today</button>
@@ -5740,6 +5776,9 @@ function quickAction(action) {
   }
 
   function habitInstance(habit, iso) {
+    const start = normalizeClockTime(habit.start, "08:00");
+    const fallbackEnd = timeFromMinutes(Math.min(minutes(start) + 30, 23 * 60 + 59));
+    const end = normalizeClockTime(habit.end, fallbackEnd);
     return {
       id: habitInstanceId(habit.id, iso),
       isHabit: true,
@@ -5748,8 +5787,8 @@ function quickAction(action) {
       description: habit.description,
       date: iso,
       endDate: iso,
-      start: habit.start,
-      end: habit.end,
+      start,
+      end,
       priority: habit.priority || "Medium",
       status: habitCompletedOn(habit, iso) ? "Completed" : "Not Started",
       repeat: habit.schedule || "Daily",
@@ -5928,13 +5967,16 @@ function quickAction(action) {
   function calendarWeek() {
     const dates = weekDates();
     const timetableDates = dates;
+    const range = weekTimetableRange();
+    const hours = weekTimetableHours(range);
     const weekTasks = calendarItemsForRange(timetableDates[0], timetableDates[6]);
-    return `<div class="week-timetable" aria-label="Weekly time grid">
-        <div class="week-timetable-grid">
-          <div class="week-timetable-head week-timetable-time-head">Time</div>
+    const lockedRail = ui.calendarStickyDates ? calendarLockedDateRail(timetableDates, "week") : "";
+    return `${lockedRail}<div class="week-timetable ${ui.calendarStickyDates ? "calendar-dates-locked" : ""}" aria-label="Weekly time grid">
+        <div class="week-timetable-grid" style="--week-hour-count:${hours.length};">
+          ${calendarTimeHead()}
           ${timetableDates.map((iso) => weekTimetableHeader(iso)).join("")}
-          <div class="week-time-scale">${weekTimetableHours().map((hour) => `<div class="week-time-row">${String(hour).padStart(2, "0")}:00</div>`).join("")}</div>
-          ${timetableDates.map((iso, index) => weekTimetableColumn(iso, index)).join("")}
+          <div class="week-time-scale">${hours.map((hour) => `<div class="week-time-row">${ampmHourLabel(hour)}</div>`).join("")}</div>
+          ${timetableDates.map((iso, index) => weekTimetableColumn(iso, index, range)).join("")}
         </div>
       </div>
       <div class="calendar-summary">${icon("bell")} Week Total: <strong class="duration-total">${durationHoursLabel(totalTaskHours(weekTasks))}</strong></div>`;
@@ -5944,8 +5986,28 @@ function quickAction(action) {
     return weekDates(ui.selectedDate);
   }
 
-  function weekTimetableHours() {
-    return Array.from({ length: 13 }, (_, index) => index + 7);
+  function weekTimetableRange() {
+    return { start: 0, end: 24 * 60 };
+  }
+
+  function weekTimetableHours(range = weekTimetableRange()) {
+    const startHour = Math.floor(range.start / 60);
+    const count = Math.max(1, Math.ceil((range.end - range.start) / 60));
+    return Array.from({ length: count }, (_, index) => (startHour + index) % 24);
+  }
+
+  function calendarTimeHead(extraClass = "") {
+    const sticky = Boolean(ui.calendarStickyDates);
+    const controlClasses = sticky ? "calendar-time-control is-active" : "calendar-time-control";
+    return `<div class="${extraClass ? `${esc(extraClass)} ` : ""}week-timetable-head week-timetable-time-head calendar-time-head ${sticky ? "is-locked" : ""}">
+      <span class="calendar-time-head-label">Time</span>
+      <div class="calendar-time-controls" aria-label="Time controls">
+        <button class="${controlClasses}" data-label="L" data-action="toggle-calendar-sticky-dates" aria-pressed="${sticky ? "true" : "false"}" title="Lock Screen" aria-label="${sticky ? "Unlock calendar dates" : "Lock calendar dates"}">L</button>
+        <button class="calendar-time-control is-reserved" data-label="2" data-action="calendar-time-control-reserved" title="Reserved time control" aria-label="Reserved time control 2">2</button>
+        <button class="calendar-time-control is-reserved" data-label="3" data-action="calendar-time-control-reserved" title="Reserved time control" aria-label="Reserved time control 3">3</button>
+        <button class="calendar-time-control is-reserved" data-label="4" data-action="calendar-time-control-reserved" title="Reserved time control" aria-label="Reserved time control 4">4</button>
+      </div>
+    </div>`;
   }
 
   function weekTimetableHeader(iso) {
@@ -5958,13 +6020,24 @@ function quickAction(action) {
     </div>`;
   }
 
-  function weekTimetableColumn(iso, index) {
-    const startMinute = 7 * 60;
-    const endMinute = 20 * 60;
+  function calendarLockedDateRail(dates, variant = "week") {
+    const isBlock = variant === "block";
+    const timeHead = calendarTimeHead(isBlock ? "block-head time-head" : "");
+    const heads = dates.map((iso) => (isBlock ? blockDateHead(iso) : weekTimetableHeader(iso))).join("");
+    return `<div class="calendar-locked-date-rail calendar-locked-date-rail--${isBlock ? "block" : "week"}" aria-label="Locked calendar date row">
+      <div class="calendar-locked-date-grid ${isBlock ? "calendar-locked-date-grid--block" : "calendar-locked-date-grid--week"}">
+        ${timeHead}${heads}
+      </div>
+    </div>`;
+  }
+
+  function weekTimetableColumn(iso, index, range = weekTimetableRange()) {
+    const startMinute = range.start;
+    const endMinute = range.end;
     const items = tasksForDay(iso).filter((task) => task.start && task.end);
     return `<div class="week-timetable-day weather-motion-host ${calendarToneClass(iso)}" style="--week-day-index:${index};${calendarDateColorStyle(iso)}" ${calendarWeekdayAttr(iso)}>
       ${weatherMotionLayer(iso, "weather-motion-grid", { start: startMinute, end: endMinute })}
-      ${weekTimetableHours().map(() => `<span class="week-grid-line"></span>`).join("")}
+      ${weekTimetableHours(range).map(() => `<span class="week-grid-line"></span>`).join("")}
       ${items.map((task) => weekTimetableEvent(task, startMinute, endMinute)).join("")}
     </div>`;
   }
@@ -6060,6 +6133,11 @@ function quickAction(action) {
     } catch (error) {
       return "bold";
     }
+  }
+
+  function toggleCalendarStickyDates() {
+    ui.calendarStickyDates = !ui.calendarStickyDates;
+    showToast(ui.calendarStickyDates ? "Calendar dates will stay visible while you scroll." : "Calendar dates unlocked.");
   }
 
   function setCalendarPalette(key) {
@@ -6196,7 +6274,25 @@ function quickAction(action) {
   }
 
   function visibleCalendarTasks(tasks) {
-    return tasks.filter((task) => isTaskCategoryEnabled(taskCategory(task)));
+    return tasks
+      .map(normalizeCalendarItemTime)
+      .filter((task) => isTaskCategoryEnabled(taskCategory(task)));
+  }
+
+  function normalizeCalendarItemTime(task) {
+    if (!task) return task;
+    const start = normalizeClockTime(task.start, task.start || "");
+    const end = normalizeClockTime(task.end, task.end || "");
+    if (start === task.start && end === task.end) return task;
+    return { ...task, start, end };
+  }
+
+  function calendarItemStartSort(a, b) {
+    const startDiff = minutes(a?.start || "") - minutes(b?.start || "");
+    if (startDiff) return startDiff;
+    const endDiff = minutes(a?.end || "") - minutes(b?.end || "");
+    if (endDiff) return endDiff;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
   }
 
   function taskCategory(task) {
@@ -6299,18 +6395,10 @@ function quickAction(action) {
     const range = blockFocusRange();
     const style = blockRangeStyle(range);
     const selectedCount = tasks.filter((task) => ui.selectedTasks.includes(task.id)).length;
-    const heads = `<div class="block-head time-head week-timetable-head week-timetable-time-head">${week2 ? "Time" : "AM/PM"}</div>${weekdays.map((iso) => {
-      const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
-      return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
-        ${dateViewZones(iso)}
-        ${weatherMotionLayer(iso)}
-        ${calendarDateCardContent(iso)}
-      </div>`;
-    }).join("")}<div class="block-head time-head time-head-right week-timetable-head week-timetable-time-head">24H</div>`;
+    const heads = `${calendarTimeHead("block-head time-head")}${weekdays.map((iso) => blockDateHead(iso)).join("")}`;
     const leftLabels = blockHourLabels(range, "left");
-    const rightLabels = blockHourLabels(range, "right");
     const cols = weekdays.map((iso) => {
-      const dayTasks = tasks.filter((task) => task.date === iso);
+      const dayTasks = tasks.filter((task) => task.date === iso).sort(calendarItemStartSort);
       const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
       return `<div class="block-col weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-date="${iso}" ${calendarWeekdayAttr(iso)}>${weatherMotionLayer(iso, "weather-motion-grid", range)}${dayTasks.map((task) => blockEvent(task, dayTasks)).join("")}</div>`;
     }).join("");
@@ -6321,9 +6409,19 @@ function quickAction(action) {
     const helperText = week2
       ? "Week 2 keeps the clean week grid while preserving block drag, draw, select, repeat, and timed-task controls."
       : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space.";
+    const lockedRail = ui.calendarStickyDates ? calendarLockedDateRail(weekdays, "block") : "";
     return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText}</span>${selectedActionButton}<span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
-      <div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}<div class="time-col-right">${rightLabels}</div></div></div>`;
+      ${lockedRail}<div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""} ${ui.calendarStickyDates ? "calendar-dates-locked" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}</div></div>`;
+  }
+
+  function blockDateHead(iso) {
+    const stateClass = `${iso === todayIso() ? "is-today" : ""} ${iso === ui.selectedDate ? "is-selected-day" : ""}`;
+    return `<div class="block-head block-head-button week-timetable-head week-timetable-day-head weather-motion-host ${calendarToneClass(iso)} ${stateClass}" style="${calendarDateColorStyle(iso)}" data-double-date="${iso}" ${calendarWeekdayAttr(iso)} title="Open ${dateFull(iso)}">
+      ${dateViewZones(iso)}
+      ${weatherMotionLayer(iso)}
+      ${calendarDateCardContent(iso)}
+    </div>`;
   }
 
   function blockEvent(task, dayTasks = []) {
@@ -6484,9 +6582,46 @@ function quickAction(action) {
   }
 
   function minutes(time) {
-    if (!time) return 0;
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
+    const parsed = parseClockMinutes(time);
+    return parsed === null ? 0 : parsed;
+  }
+
+  function parseClockMinutes(time) {
+    if (time === null || time === undefined || time === "") return null;
+    if (typeof time === "number" && Number.isFinite(time)) {
+      return ((Math.round(time) % (24 * 60)) + 24 * 60) % (24 * 60);
+    }
+    const text = String(time).trim();
+    if (!text) return null;
+    const match = /^(\d{1,2})(?::(\d{1,2}))?(?::\d{1,2})?\s*([ap])\.?\s*m?\.?$/i.exec(text)
+      || /^(\d{1,2})(?::(\d{1,2}))(?::\d{1,2})?$/.exec(text)
+      || /^(\d{1,2})\s*([ap])\.?\s*m?\.?$/i.exec(text);
+    if (match) {
+      let hour = Number(match[1]);
+      const minute = Number(match[2] && /^\d+$/.test(match[2]) ? match[2] : 0);
+      const meridian = /[ap]/i.test(match[3] || match[2] || "") && !/^\d+$/.test(match[2] || "") ? (match[3] || match[2]) : match[3];
+      if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+      if (meridian) {
+        if (hour < 1 || hour > 12) return null;
+        hour = hour % 12;
+        if (/p/i.test(meridian)) hour += 12;
+      }
+      else if (hour === 24 && minute === 0) {
+        hour = 0;
+      }
+      else if (hour < 0 || hour > 23) {
+        return null;
+      }
+      return hour * 60 + minute;
+    }
+    const parsedDate = new Date(text);
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate.getHours() * 60 + parsedDate.getMinutes();
+    return null;
+  }
+
+  function normalizeClockTime(time, fallback = "") {
+    const parsed = parseClockMinutes(time);
+    return parsed === null ? fallback : timeFromMinutes(parsed);
   }
 
   function addMinutesToTime(time, deltaMinutes) {
@@ -6804,8 +6939,9 @@ function quickAction(action) {
   function renderProjects() {
     const activeProject = data.projects.find((project) => project.id === ui.projectId);
     if (activeProject) return renderProjectDetail(activeProject);
-    const unassigned = data.tasks.filter((task) => !task.projectId);
+    const unassignedTasks = data.tasks.filter((task) => !task.projectId);
     const projects = sortedProjects();
+    const organizerItems = projectOrganizerItems();
     return `<section class="screen">
       ${header("Project Tasks", `<button class="icon-btn">${icon("chart")}</button>`)}
       <section class="workspace-command-panel workspace-command-panel--work">
@@ -6813,7 +6949,8 @@ function quickAction(action) {
           <div class="mini-tabs workspace-tabs"><button class="active">${icon("folder")} By Project</button><button>${icon("chart")} Timeline</button></div>
           <div class="workspace-mini-metrics">
             <span><strong>${projects.length}</strong> projects</span>
-            <span><strong>${unassigned.length}</strong> unassigned</span>
+            <span><strong>${unassignedTasks.length}</strong> unassigned tasks</span>
+            <span><strong>${organizerItems.length}</strong> showing</span>
             <span><strong>${data.tasks.length}</strong> tasks</span>
           </div>
         </div>
@@ -6830,9 +6967,7 @@ function quickAction(action) {
       <div class="project-tile-grid">
         ${projects.map((project) => projectTile(project)).join("")}
       </div>
-      <div class="list">
-        ${projectGroup({ id: null, name: "Unassigned", color: "#607d8b" }, unassigned)}
-      </div>
+      ${projectOrganizerPanel()}
     </section>`;
   }
 
@@ -6894,7 +7029,7 @@ function quickAction(action) {
     const notes = projectNotes(project);
     const completed = tasks.filter((task) => task.status === "Completed").length;
     const lastTask = projectLastEditedTask(project);
-    return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" data-project-note-drop="${project.id}" title="Open project or drop tasks/notes here">
+    return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" data-project-note-drop="${project.id}" data-project-notebook-drop="${project.id}" title="Open project or drop tasks, notebooks, or notes here">
       <span class="project-tile-cover" ${imageStyleAttr(project)}>
         ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
       </span>
@@ -6903,8 +7038,233 @@ function quickAction(action) {
       <span class="project-tile-meta">${tasks.length} tasks - ${completed} done</span>
       <span class="project-tile-meta">${notes.length} project note${notes.length === 1 ? "" : "s"}</span>
       <span class="project-tile-last" title="${esc(projectLastTaskText(lastTask))}">${esc(projectLastTaskText(lastTask))}</span>
-      <span class="project-drop-hint">${icon("task")} Drop task or note here</span>
+      <span class="project-drop-hint">${icon("task")} Drop item here</span>
     </button>`;
+  }
+
+  function projectOrganizerKind() {
+    return ["tasks", "notebooks", "notes"].includes(ui.projectOrganizerKind) ? ui.projectOrganizerKind : "tasks";
+  }
+
+  function projectOrganizerScope() {
+    return ["unassigned", "all"].includes(ui.projectOrganizerScope) ? ui.projectOrganizerScope : "unassigned";
+  }
+
+  function projectOrganizerItems(kind = projectOrganizerKind(), scope = projectOrganizerScope()) {
+    if (kind === "notebooks") {
+      const notebooks = [...data.notebooks].sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
+      return scope === "all" ? notebooks : notebooks.filter((notebook) => !notebook.projectId);
+    }
+    if (kind === "notes") {
+      const notes = [...data.notes].sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || "") || String(a.title || "").localeCompare(String(b.title || "")));
+      return scope === "all" ? notes : notes.filter((note) => !note.projectId || !note.notebookId);
+    }
+    const tasks = [...data.tasks].sort((a, b) => taskEditedStamp(b) - taskEditedStamp(a) || String(a.title || "").localeCompare(String(b.title || "")));
+    return scope === "all" ? tasks : tasks.filter((task) => !task.projectId);
+  }
+
+  function projectOrganizerTitle(kind, scope) {
+    if (kind === "notebooks") return scope === "all" ? "Reassign notebooks" : "Unassigned notebooks";
+    if (kind === "notes") return scope === "all" ? "Reassign notes" : "Notes needing a notebook or project";
+    return scope === "all" ? "Reassign tasks" : "Unassigned tasks";
+  }
+
+  function projectOrganizerSubcopy(kind, scope) {
+    if (kind === "notebooks") {
+      return scope === "all"
+        ? "Drag any notebook to a project tile or target below to change where it lives."
+        : "Drag a loose notebook to a project so project notes, notebooks, and tasks stay together.";
+    }
+    if (kind === "notes") {
+      return scope === "all"
+        ? "Drag notes to a project or notebook target. Selected notes move together."
+        : "Drag loose notes to the right notebook or project without opening each note.";
+    }
+    return scope === "all"
+      ? "Drag any task to another project or back to Unassigned."
+      : "Drag any task card onto a project tile above, or use the targets below.";
+  }
+
+  function projectOrganizerPanel() {
+    const kind = projectOrganizerKind();
+    const scope = projectOrganizerScope();
+    const items = projectOrganizerItems(kind, scope);
+    const selectAction = kind === "notebooks" ? "select-visible-project-notebooks" : kind === "notes" ? "select-visible-project-organizer-notes" : "select-visible-project-tasks";
+    const selectedCount = kind === "notebooks"
+      ? selectedProjectOrganizerNotebookIds().length
+      : kind === "notes"
+        ? selectedProjectOrganizerNoteIds().length
+        : selectedProjectOrganizerTaskIds().length;
+    return `<section class="project-card project-organizer-panel">
+      <div class="project-organizer-head">
+        <div>
+          <div class="section-title compact-title"><h2>${icon(kind === "notebooks" ? "book" : kind === "notes" ? "note" : "folder")} ${esc(projectOrganizerTitle(kind, scope))}</h2><span class="status muted">${items.length}</span></div>
+          <p class="subtle project-drag-note">${esc(projectOrganizerSubcopy(kind, scope))}</p>
+        </div>
+        <div class="project-organizer-controls">
+          <div class="mini-tabs project-organizer-tabs" aria-label="Organizer item type">
+            ${[["tasks", "Tasks"], ["notebooks", "Notebooks"], ["notes", "Notes"]].map(([value, label]) => `<button class="${kind === value ? "active" : ""}" data-action="set-tab" data-key="projectOrganizerKind" data-value="${value}">${esc(label)}</button>`).join("")}
+          </div>
+          <div class="mini-tabs project-organizer-tabs" aria-label="Organizer scope">
+            ${[["unassigned", kind === "notes" ? "Needs filing" : "Unassigned"], ["all", "All / Reassign"]].map(([value, label]) => `<button class="${scope === value ? "active" : ""}" data-action="set-tab" data-key="projectOrganizerScope" data-value="${value}">${esc(label)}</button>`).join("")}
+          </div>
+        </div>
+      </div>
+      ${projectOrganizerDropTargets(kind)}
+      <div class="project-bulk-toolbar">
+        <button class="outline-btn" data-action="${selectAction}">${icon("check")} ${selectedCount ? "Update selection" : "Select visible"}</button>
+        ${kind === "tasks" ? `<button class="${ui.projectDragSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-project-drag-select">${icon("edit")} ${ui.projectDragSelectMode ? "Drag select on" : "Drag select"}</button>` : ""}
+        ${selectedCount ? projectOrganizerBulkTools(kind) : ""}
+        <span class="muted">${selectedCount}/${items.length} selected</span>
+      </div>
+      <div class="unassigned-task-grid project-organizer-grid ${kind === "tasks" && ui.projectDragSelectMode ? "drag-select-mode" : ""}" ${kind === "tasks" ? "data-project-task-select-grid" : ""}>
+        ${items.map((item) => projectOrganizerCard(item, kind)).join("") || `<p class="muted">${esc(projectOrganizerEmptyText(kind, scope))}</p>`}
+      </div>
+    </section>`;
+  }
+
+  function projectOrganizerBulkTools(kind) {
+    if (kind === "notebooks") {
+      return `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Copy selected</button><button class="danger-btn" data-action="delete-selected-notebooks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notebooks">${icon("close")} Clear</button>`;
+    }
+    if (kind === "notes") {
+      return `<button class="outline-btn" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button><button class="outline-btn" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button><button class="danger-btn" data-action="delete-selected-notes">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-notes">${icon("close")} Clear</button>`;
+    }
+    const firstTaskId = selectedProjectOrganizerTaskIds()[0] || "";
+    return `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${firstTaskId}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>`;
+  }
+
+  function projectOrganizerEmptyText(kind, scope) {
+    if (kind === "notebooks") return scope === "all" ? "No notebooks yet." : "No unassigned notebooks right now.";
+    if (kind === "notes") return scope === "all" ? "No notes yet." : "No loose notes need filing right now.";
+    return scope === "all" ? "No tasks yet." : "No unassigned tasks.";
+  }
+
+  function projectOrganizerDropTargets(kind) {
+    if (kind === "notes") {
+      const moverNotebooks = projectOrganizerItems("notebooks");
+      const selectedMoverNotebooks = selectedProjectOrganizerNotebookIds();
+      return `<div class="project-organizer-target-stack">
+        <section class="notes-notebook-strip organizer-drop-strip project-organizer-target-strip" aria-label="Project drop targets">
+          <div class="section-title compact-title"><h2>${icon("folder")} Project targets</h2><span class="status info">${data.projects.length} projects</span></div>
+          <p class="subtle project-drag-note">Drop notes or notebooks onto a project, or onto No Project to remove the project link.</p>
+          <div class="project-organizer-targets">
+            ${projectOrganizerTargetTile({ kind: "notes-and-notebooks", id: "", title: "No Project", meta: "Remove project link", iconName: "close", color: "#607d8b" })}
+            ${data.projects.map((project) => projectOrganizerTargetTile({ kind: "notes-and-notebooks", id: project.id, title: project.name, meta: `${projectNotes(project).length} notes / ${data.notebooks.filter((notebook) => notebook.projectId === project.id).length} notebooks`, iconName: "folder", color: project.color || "#2196f3", imageEntity: project })).join("")}
+          </div>
+        </section>
+        <section class="notes-notebook-strip organizer-drop-strip project-organizer-target-strip" aria-label="Notebook movers">
+          <div class="section-title compact-title"><h2>${icon("book")} Notebook movers</h2><span class="status info">${moverNotebooks.length} shown</span></div>
+          <p class="subtle project-drag-note">Drag one notebook, or select several notebooks and drag one selected notebook, onto a project target above.</p>
+          <div class="project-organizer-notebook-movers">
+            ${moverNotebooks.map((notebook) => projectOrganizerNotebookMoverTile(notebook)).join("") || `<p class="muted">No notebooks match this view.</p>`}
+          </div>
+          <div class="project-bulk-toolbar project-organizer-inline-tools">
+            <button class="outline-btn" data-action="select-visible-project-notebooks">${icon("check")} ${selectedMoverNotebooks.length ? "Update notebooks" : "Select notebooks"}</button>
+            ${selectedMoverNotebooks.length ? `<button class="outline-btn" data-action="duplicate-selected-notebooks">${icon("note")} Copy selected notebooks</button><button class="outline-btn" data-action="clear-selected-notebooks">${icon("close")} Clear notebooks</button>` : ""}
+            <span class="muted">${selectedMoverNotebooks.length}/${moverNotebooks.length} notebooks selected</span>
+          </div>
+        </section>
+        <section class="notes-notebook-strip organizer-drop-strip project-organizer-target-strip" aria-label="Notebook drop targets">
+          <div class="section-title compact-title"><h2>${icon("book")} Notebook targets</h2><span class="status info">${data.notebooks.length} notebooks</span></div>
+          <p class="subtle project-drag-note">Drop notes onto a notebook, or onto No Notebook to leave them loose.</p>
+          <div class="project-organizer-targets">
+            ${projectOrganizerTargetTile({ kind: "note-notebook", id: "", title: "No Notebook", meta: "Leave note loose", iconName: "close", color: "#607d8b" })}
+            ${data.notebooks.map((notebook) => projectOrganizerTargetTile({ kind: "note-notebook", id: notebook.id, title: notebook.title, meta: `${data.notes.filter((note) => note.notebookId === notebook.id).length} notes`, iconName: notebook.icon || "book", color: notebook.color || "#6c63ff", imageEntity: notebook })).join("")}
+          </div>
+        </section>
+      </div>`;
+    }
+    return `<section class="notes-notebook-strip organizer-drop-strip project-organizer-target-strip" aria-label="${kind === "notebooks" ? "Notebook" : "Task"} project targets">
+      <div class="section-title compact-title"><h2>${icon("folder")} Drop targets</h2><span class="status info">${data.projects.length} projects</span></div>
+      <p class="subtle project-drag-note">Drop ${kind === "notebooks" ? "notebooks" : "tasks"} here when the top project cards are out of reach.</p>
+      <div class="project-organizer-targets">
+        ${projectOrganizerTargetTile({ kind, id: "", title: "Unassigned", meta: "No project", iconName: "close", color: "#607d8b" })}
+        ${data.projects.map((project) => projectOrganizerTargetTile({ kind, id: project.id, title: project.name, meta: kind === "notebooks" ? `${data.notebooks.filter((notebook) => notebook.projectId === project.id).length} notebooks` : `${projectTasks(project).length} tasks`, iconName: "folder", color: project.color || "#2196f3", imageEntity: project })).join("")}
+      </div>
+    </section>`;
+  }
+
+  function projectOrganizerTargetTile({ kind, id: targetId, title, meta, iconName, color, imageEntity }) {
+    const attr = kind === "notebooks"
+      ? `data-project-notebook-drop="${targetId}"`
+      : kind === "notes-and-notebooks"
+        ? `data-project-note-drop="${targetId}" data-project-notebook-drop="${targetId}"`
+      : kind === "notes"
+        ? `data-project-note-drop="${targetId}"`
+        : kind === "note-notebook"
+          ? `data-notebook-drop="${targetId}"`
+          : `data-project-drop="${targetId}"`;
+    const media = entityImage(imageEntity);
+    return `<article class="project-organizer-drop-target" ${attr} title="Drop here: ${esc(title)}">
+      <span class="note-project-drop-cover ${media ? "has-image" : ""}" style="background:${esc(color || "#1a1f36")};${media ? imageStyleVars(imageEntity) : ""}">
+        ${media ? `<img src="${esc(media)}" alt="">` : icon(iconName || "folder")}
+      </span>
+      <div><strong>${esc(title)}</strong><span>${esc(meta || "")}</span></div>
+      <span class="project-drop-hint">${icon("task")} Drop here</span>
+    </article>`;
+  }
+
+  function projectOrganizerCard(item, kind) {
+    if (kind === "notebooks") return projectOrganizerNotebookCard(item);
+    if (kind === "notes") return projectOrganizerNoteCard(item);
+    const project = data.projects.find((entry) => entry.id === item.projectId) || { id: null, name: "Unassigned", color: "#607d8b" };
+    return projectTaskCard(item, project, true);
+  }
+
+  function projectOrganizerNotebookCard(nb) {
+    const selected = ui.selectedNotebooks.includes(nb.id);
+    const project = data.projects.find((entry) => entry.id === nb.projectId);
+    const notes = data.notes.filter((note) => note.notebookId === nb.id);
+    const media = entityImage(nb);
+    const accent = nb.color || "#6c63ff";
+    return `<article class="project-task-mini project-organizer-notebook-mini draggable-notebook ${selected ? "selected" : ""}" data-action="navigate-notes" data-id="${nb.id}" draggable="true" data-project-notebook-id="${nb.id}" title="Open ${esc(nb.title)} or drag it to a project" role="button" tabindex="0">
+      <button class="task-mini-select ${selected ? "active" : ""}" data-action="toggle-notebook-select" data-id="${nb.id}" aria-label="${selected ? "Deselect" : "Select"} notebook">${selected ? icon("check") : ""}</button>
+      <span class="note-notebook-cover ${media ? "has-image" : ""}" style="--accent:${esc(accent)};${imageStyleVars(nb)}">
+        ${media ? `<img src="${esc(media)}" alt="">` : icon(nb.icon || "book")}
+      </span>
+      <div class="project-task-mini-body">
+        <strong>${esc(nb.title)}</strong>
+        <div class="subtle">${notes.length} note${notes.length === 1 ? "" : "s"} - ${project ? `Project: ${esc(project.name)}` : "Unassigned project"}</div>
+        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${esc(project?.color || "#607d8b")};border-color:${esc(project?.color || "#607d8b")};" data-action="open-modal" data-modal="editNotebook" data-id="${nb.id}">${project ? "Change Project" : "Assign to Project"}</button>
+      </div>
+      <span class="project-task-mini-badges"><span class="status info">${notebookSubjects(nb.id).length} subjects</span><span class="status muted">${project ? "Assigned" : "Loose"}</span></span>
+    </article>`;
+  }
+
+  function projectOrganizerNotebookMoverTile(nb) {
+    const selected = ui.selectedNotebooks.includes(nb.id);
+    const project = data.projects.find((entry) => entry.id === nb.projectId);
+    const notes = data.notes.filter((note) => note.notebookId === nb.id);
+    const media = entityImage(nb);
+    const accent = nb.color || "#6c63ff";
+    return `<article class="project-organizer-notebook-mover draggable-notebook ${selected ? "selected" : ""}" draggable="true" data-project-notebook-id="${nb.id}" title="Drag ${esc(nb.title)} to a project">
+      <button class="task-mini-select ${selected ? "active" : ""}" data-action="toggle-notebook-select" data-id="${nb.id}" aria-label="${selected ? "Deselect" : "Select"} notebook">${selected ? icon("check") : ""}</button>
+      <span class="note-notebook-cover ${media ? "has-image" : ""}" style="--accent:${esc(accent)};${imageStyleVars(nb)}">
+        ${media ? `<img src="${esc(media)}" alt="">` : icon(nb.icon || "book")}
+      </span>
+      <div>
+        <strong>${esc(nb.title)}</strong>
+        <span>${notes.length} note${notes.length === 1 ? "" : "s"} - ${project ? esc(project.name) : "No project"}</span>
+      </div>
+    </article>`;
+  }
+
+  function projectOrganizerNoteCard(note) {
+    const selected = ui.selectedNotes.includes(note.id);
+    const notebook = data.notebooks.find((entry) => entry.id === note.notebookId);
+    const project = data.projects.find((entry) => entry.id === note.projectId);
+    const importanceColor = noteImportanceColor(note.importance);
+    return `<article class="project-task-mini unassigned-note-mini draggable-note ${selected ? "selected" : ""}" draggable="true" data-action="open-modal" data-modal="editNote" data-id="${note.id}" data-notebook-note-id="${note.id}" title="Open ${esc(note.title)} or drag it to a notebook or project" role="button" tabindex="0">
+      <button class="task-mini-select ${selected ? "active" : ""}" data-action="toggle-note-select" data-id="${note.id}" aria-label="${selected ? "Deselect" : "Select"} note">${selected ? icon("check") : ""}</button>
+      <span class="round-icon note-icon" style="color:#fff;background:${importanceColor}">${icon(note.icon || "note")}</span>
+      <div class="project-task-mini-body">
+        <strong>${esc(note.title)}</strong>
+        <div class="subtle">${shortDate(note.date)} - ${esc(notebook ? notebook.title : "No notebook")} - ${esc(project ? project.name : "No project")}</div>
+        <button class="outline-btn" style="min-height:30px;margin-top:6px;color:${importanceColor};border-color:${importanceColor};" data-action="open-modal" data-modal="editNote" data-id="${note.id}">${!note.notebookId || !note.projectId ? "File Note" : "Edit Note"}</button>
+      </div>
+      <span class="project-task-mini-badges"><span class="status ${String(note.importance || "Low").toLowerCase()}">${esc(note.importance || "Low")}</span><span class="status muted">${note.subject ? esc(note.subject) : "No subject"}</span></span>
+    </article>`;
   }
 
   function renderProjectDetail(project) {
@@ -7157,6 +7517,40 @@ function quickAction(action) {
     return Array.from(new Set(ids));
   }
 
+  function projectOrganizerVisibleTaskIds() {
+    const visibleIds = new Set(projectOrganizerItems("tasks").map((task) => task.id));
+    return data.tasks.filter((task) => visibleIds.has(task.id)).map((task) => task.id);
+  }
+
+  function selectedProjectOrganizerTaskIds(fallbackId = "") {
+    const visibleIds = new Set(projectOrganizerVisibleTaskIds());
+    const ids = ui.selectedTasks.filter((taskId) => visibleIds.has(taskId));
+    if (fallbackId && visibleIds.has(fallbackId) && !ids.includes(fallbackId)) ids.push(fallbackId);
+    return Array.from(new Set(ids));
+  }
+
+  function projectOrganizerVisibleNotebookIds() {
+    return projectOrganizerItems("notebooks").map((notebook) => notebook.id);
+  }
+
+  function selectedProjectOrganizerNotebookIds(fallbackId = "") {
+    const visibleIds = new Set(projectOrganizerVisibleNotebookIds());
+    const ids = ui.selectedNotebooks.filter((notebookId) => visibleIds.has(notebookId));
+    if (fallbackId && visibleIds.has(fallbackId) && !ids.includes(fallbackId)) ids.push(fallbackId);
+    return Array.from(new Set(ids));
+  }
+
+  function projectOrganizerVisibleNoteIds() {
+    return projectOrganizerItems("notes").map((note) => note.id);
+  }
+
+  function selectedProjectOrganizerNoteIds(fallbackId = "") {
+    const visibleIds = new Set(projectOrganizerVisibleNoteIds());
+    const ids = ui.selectedNotes.filter((noteId) => visibleIds.has(noteId));
+    if (fallbackId && visibleIds.has(fallbackId) && !ids.includes(fallbackId)) ids.push(fallbackId);
+    return Array.from(new Set(ids));
+  }
+
   function selectedProjectAssignmentIds(fallbackId = "") {
     const realIds = new Set(data.tasks.map((task) => task.id));
     const fallbackTask = data.tasks.find((task) => task.id === fallbackId);
@@ -7201,11 +7595,31 @@ function quickAction(action) {
 
   function selectVisibleProjectTasks(projectId = "") {
     const scopeProjectId = projectId || (ui.view === "projects" && ui.projectId ? ui.projectId : "");
-    const ids = data.tasks.filter((task) => scopeProjectId ? task.projectId === scopeProjectId : !task.projectId).map((task) => task.id);
+    const ids = ui.view === "projects" && !ui.projectId && !scopeProjectId
+      ? projectOrganizerVisibleTaskIds()
+      : data.tasks.filter((task) => scopeProjectId ? task.projectId === scopeProjectId : !task.projectId).map((task) => task.id);
     const allSelected = ids.length > 0 && ids.every((taskId) => ui.selectedTasks.includes(taskId));
     ui.selectedTasks = allSelected
       ? ui.selectedTasks.filter((taskId) => !ids.includes(taskId))
       : Array.from(new Set([...ui.selectedTasks, ...ids]));
+    render();
+  }
+
+  function selectVisibleProjectNotebooks() {
+    const ids = projectOrganizerVisibleNotebookIds();
+    const allSelected = ids.length > 0 && ids.every((notebookId) => ui.selectedNotebooks.includes(notebookId));
+    ui.selectedNotebooks = allSelected
+      ? ui.selectedNotebooks.filter((notebookId) => !ids.includes(notebookId))
+      : Array.from(new Set([...ui.selectedNotebooks, ...ids]));
+    render();
+  }
+
+  function selectVisibleProjectOrganizerNotes() {
+    const ids = projectOrganizerVisibleNoteIds();
+    const allSelected = ids.length > 0 && ids.every((noteId) => ui.selectedNotes.includes(noteId));
+    ui.selectedNotes = allSelected
+      ? ui.selectedNotes.filter((noteId) => !ids.includes(noteId))
+      : Array.from(new Set([...ui.selectedNotes, ...ids]));
     render();
   }
 
@@ -7254,18 +7668,34 @@ function quickAction(action) {
 
   function assignNotesToNotebook(noteIds, notebookId) {
     const ids = Array.from(new Set((Array.isArray(noteIds) ? noteIds : [noteIds]).filter(Boolean)));
-    const notebook = data.notebooks.find((item) => item.id === notebookId);
+    const notebook = notebookId ? data.notebooks.find((item) => item.id === notebookId) : null;
     const notes = ids.map((noteId) => data.notes.find((item) => item.id === noteId)).filter(Boolean);
-    if (!notes.length || !notebook) return;
+    if (!notes.length || (notebookId && !notebook)) return;
     notes.forEach((note) => {
-      note.notebookId = notebook.id;
-      if (note.subject) ensureNotebookSubject(notebook.id, note.subject);
+      note.notebookId = notebook?.id || null;
+      if (notebook?.id && note.subject) ensureNotebookSubject(notebook.id, note.subject);
       note.updatedAt = new Date().toISOString();
     });
     ui.selectedNotes = ui.selectedNotes.filter((noteId) => !ids.includes(noteId));
     saveData();
     render();
-    showToast(`${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}. Undo is available.`);
+    showToast(notebook ? `${notes.length} note${notes.length === 1 ? "" : "s"} moved to ${notebook.title}. Undo is available.` : `${notes.length} note${notes.length === 1 ? "" : "s"} moved to No Notebook. Undo is available.`);
+  }
+
+  function assignNotebooksToProject(notebookIds, projectId) {
+    const ids = Array.from(new Set((Array.isArray(notebookIds) ? notebookIds : [notebookIds]).filter(Boolean)));
+    const project = projectId ? data.projects.find((item) => item.id === projectId) : null;
+    if (projectId && !project) return;
+    const notebooks = ids.map((notebookId) => data.notebooks.find((item) => item.id === notebookId)).filter(Boolean);
+    if (!notebooks.length) return showToast("Select at least one notebook first.", "danger");
+    notebooks.forEach((notebook) => {
+      notebook.projectId = project?.id || null;
+      notebook.updatedAt = new Date().toISOString();
+    });
+    ui.selectedNotebooks = ui.selectedNotebooks.filter((notebookId) => !ids.includes(notebookId));
+    saveData();
+    render();
+    showToast(project ? `${notebooks.length} notebook${notebooks.length === 1 ? "" : "s"} assigned to ${project.name}.` : `${notebooks.length} notebook${notebooks.length === 1 ? "" : "s"} moved to Unassigned.`);
   }
 
   function assignNotesToProject(noteIds, projectId) {
@@ -10161,8 +10591,12 @@ function quickAction(action) {
     return value === "contain" ? "contain" : "cover";
   }
 
+  function imageStyleVars(entity) {
+    return `--media-zoom:${imageZoom(entity?.imageZoom || 1)};--media-x:${imagePan(entity?.imageX || 0)}%;--media-y:${imagePan(entity?.imageY || 0)}%;--media-fit:${imageFit(entity?.imageFit || "cover")};--media-opacity:${imageOpacity(entity?.imageOpacity || 1)};`;
+  }
+
   function imageStyleAttr(entity) {
-    return `style="--media-zoom:${imageZoom(entity?.imageZoom || 1)};--media-x:${imagePan(entity?.imageX || 0)}%;--media-y:${imagePan(entity?.imageY || 0)}%;--media-fit:${imageFit(entity?.imageFit || "cover")};--media-opacity:${imageOpacity(entity?.imageOpacity || 1)};"`;
+    return `style="${imageStyleVars(entity)}"`;
   }
 
   function imageSrc(source) {
@@ -10583,6 +11017,7 @@ function quickAction(action) {
     attachDayTaskInteractions();
     attachHabitInteractions();
     attachProjectTaskInteractions();
+    attachProjectNotebookInteractions();
     attachNoteNotebookInteractions();
   }
 
@@ -10717,7 +11152,7 @@ function quickAction(action) {
         }
         event.dataTransfer.effectAllowed = "move";
         const draggedId = card.dataset.projectTaskId || "";
-        const taskIds = ui.selectedTasks.includes(draggedId) ? selectedUnassignedTaskIds(draggedId) : [draggedId].filter(Boolean);
+        const taskIds = ui.selectedTasks.includes(draggedId) ? selectedProjectOrganizerTaskIds(draggedId) : [draggedId].filter(Boolean);
         event.dataTransfer.setData("text/plain", draggedId);
         event.dataTransfer.setData("application/x-billmaster-task", draggedId);
         event.dataTransfer.setData("application/x-billmaster-tasks", JSON.stringify(taskIds));
@@ -10825,11 +11260,11 @@ function quickAction(action) {
 
   function endProjectDragSelect(event) {
     if (projectDragSelectState && event?.clientX !== undefined) updateProjectDragSelect(event.clientX, event.clientY);
-    const selectedCount = selectedUnassignedTaskIds().length;
+    const selectedCount = selectedProjectOrganizerTaskIds().length;
     cleanupProjectDragSelect();
     suppressCardEditUntil = Date.now() + 700;
     render();
-    showToast(selectedCount ? `${selectedCount} unassigned task${selectedCount === 1 ? "" : "s"} selected.` : "No task cards selected.");
+    showToast(selectedCount ? `${selectedCount} task${selectedCount === 1 ? "" : "s"} selected.` : "No task cards selected.");
   }
 
   function cleanupProjectDragSelect() {
@@ -10839,6 +11274,140 @@ function quickAction(action) {
     projectDragSelectState?.grid?.classList.remove("is-selecting");
     projectDragSelectState?.marquee?.remove();
     projectDragSelectState = null;
+  }
+
+  function noteBulkActionCardFromEvent(event) {
+    const card = event.target.closest?.("[data-notebook-note-id]");
+    if (!card || event.target.closest?.("button,input,select,textarea,a")) return null;
+    const noteId = card.dataset.notebookNoteId || "";
+    if (!noteId || !ui.selectedNotes.includes(noteId)) return null;
+    const scopedSelected = selectedNoteDragIds(noteId);
+    return scopedSelected.length ? { card, noteId, noteIds: scopedSelected } : null;
+  }
+
+  function clearNoteActionHoldState() {
+    if (noteActionHoldState?.timer) clearTimeout(noteActionHoldState.timer);
+    noteActionHoldState = null;
+    document.querySelectorAll(".note-hold-pending").forEach((card) => card.classList.remove("note-hold-pending"));
+  }
+
+  function hideSelectedNoteActionMenu() {
+    noteActionMenuEl?.remove();
+    noteActionMenuEl = null;
+  }
+
+  function showSelectedNoteActionMenu(card, noteId, clientX, clientY) {
+    const noteIds = selectedNoteDragIds(noteId);
+    if (!card || !noteIds.length) return;
+    hideSelectedNoteActionMenu();
+    const menu = document.createElement("div");
+    menu.className = "note-selection-menu";
+    menu.dataset.noteActionMenu = "true";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = `
+      <div class="note-selection-menu-title"><strong>${noteIds.length} selected</strong><span>Apply to selected notes</span></div>
+      <button type="button" data-action="open-modal" data-modal="duplicateNotes">${icon("note")} Duplicate</button>
+      <button type="button" data-action="open-modal" data-modal="bulkNoteSubject">${icon("edit")} Change subject</button>
+      <button type="button" data-action="open-modal" data-modal="bulkNoteNotebook">${icon("book")} Change notebook</button>
+      <button type="button" data-action="clear-selected-notes">${icon("close")} Clear selection</button>
+    `;
+    document.body.appendChild(menu);
+    const cardRect = card.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const desiredX = Number.isFinite(clientX) ? clientX : cardRect.left + 24;
+    const desiredY = Number.isFinite(clientY) ? clientY : cardRect.top + 24;
+    const left = clamp(desiredX, 12, Math.max(12, window.innerWidth - menuRect.width - 12));
+    const top = clamp(desiredY, 12, Math.max(12, window.innerHeight - menuRect.height - 12));
+    Object.assign(menu.style, { left: `${left}px`, top: `${top}px` });
+    noteActionMenuEl = menu;
+  }
+
+  function startSelectedNoteActionHold(event) {
+    if (event.button !== 0) return;
+    const payload = noteBulkActionCardFromEvent(event);
+    if (!payload) return;
+    clearNoteActionHoldState();
+    payload.card.classList.add("note-hold-pending");
+    noteActionHoldState = {
+      ...payload,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      triggered: false,
+      timer: setTimeout(() => {
+        if (!noteActionHoldState || noteActionHoldState.pointerId !== event.pointerId) return;
+        noteActionHoldState.triggered = true;
+        suppressCardEditUntil = Date.now() + 900;
+        showSelectedNoteActionMenu(payload.card, payload.noteId, event.clientX, event.clientY);
+        payload.card.classList.remove("note-hold-pending");
+      }, noteActionHoldDelay)
+    };
+  }
+
+  function moveSelectedNoteActionHold(event) {
+    if (!noteActionHoldState || noteActionHoldState.pointerId !== event.pointerId || noteActionHoldState.triggered) return;
+    const moved = Math.hypot(event.clientX - noteActionHoldState.startX, event.clientY - noteActionHoldState.startY);
+    if (moved > blockHoldMoveTolerance) clearNoteActionHoldState();
+  }
+
+  function endSelectedNoteActionHold(event) {
+    if (!noteActionHoldState || noteActionHoldState.pointerId !== event.pointerId) return;
+    if (noteActionHoldState.triggered) suppressCardEditUntil = Date.now() + 900;
+    clearNoteActionHoldState();
+  }
+
+  function attachProjectNotebookInteractions() {
+    if (ui.view !== "projects" || ui.projectId) return;
+    document.querySelectorAll("[data-project-notebook-id]").forEach((card) => {
+      if (card.dataset.dragBound === "true") return;
+      card.dataset.dragBound = "true";
+      card.addEventListener("dragstart", (event) => {
+        if (event.target.closest("button,input,select,textarea,a")) {
+          event.preventDefault();
+          return;
+        }
+        const draggedId = card.dataset.projectNotebookId || "";
+        const notebookIds = ui.selectedNotebooks.includes(draggedId) ? selectedProjectOrganizerNotebookIds(draggedId) : [draggedId].filter(Boolean);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", draggedId);
+        event.dataTransfer.setData("application/x-billmaster-notebook", draggedId);
+        event.dataTransfer.setData("application/x-billmaster-notebooks", JSON.stringify(notebookIds));
+        card.classList.add("is-dragging");
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
+        document.querySelectorAll(".project-notebook-drop-active").forEach((tile) => tile.classList.remove("project-notebook-drop-active"));
+      });
+    });
+    document.querySelectorAll("[data-project-notebook-drop]").forEach((tile) => {
+      if (tile.dataset.notebookProjectDropBound === "true") return;
+      tile.dataset.notebookProjectDropBound = "true";
+      tile.addEventListener("dragover", (event) => {
+        const types = Array.from(event.dataTransfer.types || []);
+        if (!types.includes("application/x-billmaster-notebooks") && !types.includes("application/x-billmaster-notebook")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        tile.classList.add("project-notebook-drop-active");
+      });
+      tile.addEventListener("dragleave", (event) => {
+        if (!isDragOutsideElement(event, tile)) return;
+        tile.classList.remove("project-notebook-drop-active");
+      });
+      tile.addEventListener("drop", (event) => {
+        let notebookIds = [];
+        try {
+          notebookIds = JSON.parse(event.dataTransfer.getData("application/x-billmaster-notebooks") || "[]");
+        } catch (error) {
+          notebookIds = [];
+        }
+        const notebookId = event.dataTransfer.getData("application/x-billmaster-notebook");
+        if (!notebookIds.length && notebookId) notebookIds = [notebookId];
+        if (!notebookIds.length) return;
+        event.preventDefault();
+        tile.classList.remove("project-notebook-drop-active");
+        assignNotebooksToProject(notebookIds, tile.dataset.projectNotebookDrop);
+      });
+    });
   }
 
   function attachNoteNotebookInteractions() {
@@ -12161,6 +12730,8 @@ function quickAction(action) {
   document.addEventListener("touchend", handleDateZoneTouch, { passive: false });
 
   document.addEventListener("pointerdown", (event) => {
+    if (noteActionMenuEl && !event.target.closest?.("[data-note-action-menu]")) hideSelectedNoteActionMenu();
+    startSelectedNoteActionHold(event);
     if (event.target.closest?.("[data-sheet]")) {
       modalInsideInteractionUntil = Date.now() + modalInsideInteractionGuardMs;
     }
@@ -12188,18 +12759,31 @@ function quickAction(action) {
   }, true);
 
   document.addEventListener("pointermove", (event) => {
+    moveSelectedNoteActionHold(event);
     if (!quickHoldState || quickHoldState.pointerId !== event.pointerId || quickHoldState.triggered) return;
     const moved = Math.hypot(event.clientX - quickHoldState.startX, event.clientY - quickHoldState.startY);
     if (moved > blockHoldMoveTolerance) clearQuickHoldState();
   }, true);
 
   document.addEventListener("pointerup", (event) => {
+    endSelectedNoteActionHold(event);
     if (!quickHoldState || quickHoldState.pointerId !== event.pointerId) return;
     if (quickHoldState.triggered) quickHoldClickSuppressUntil = Date.now() + 850;
     clearQuickHoldState();
   }, true);
 
-  document.addEventListener("pointercancel", clearQuickHoldState, true);
+  document.addEventListener("pointercancel", (event) => {
+    endSelectedNoteActionHold(event);
+    clearQuickHoldState();
+  }, true);
+
+  document.addEventListener("contextmenu", (event) => {
+    const payload = noteBulkActionCardFromEvent(event);
+    if (!payload) return;
+    event.preventDefault();
+    suppressCardEditUntil = Date.now() + 900;
+    showSelectedNoteActionMenu(payload.card, payload.noteId, event.clientX, event.clientY);
+  });
 
   document.addEventListener("focusin", (event) => {
     if (event.target.closest?.("[data-sheet]")) {
@@ -12222,6 +12806,8 @@ function quickAction(action) {
   document.addEventListener("click", (event) => {
     const sheet = event.target.closest?.("[data-sheet]");
     const actionEl = event.target.closest?.("[data-action]");
+    const clickedNoteActionMenu = event.target.closest?.("[data-note-action-menu]");
+    if (clickedNoteActionMenu && actionEl) hideSelectedNoteActionMenu();
     const backdropAction = actionEl?.classList?.contains("sheet-backdrop") && actionEl.dataset.action === "close-modal";
     const clickedBackdropSurface = backdropAction && event.target === actionEl;
     if (backdropAction && !clickedBackdropSurface) {
@@ -12261,6 +12847,10 @@ function quickAction(action) {
     }
     const action = actionEl.dataset.action;
     if (actionEl.dataset.holdAction && Date.now() < quickHoldClickSuppressUntil) return;
+    if (Date.now() < suppressCardEditUntil && action === "open-modal" && actionEl.matches?.(".note-card[data-action='open-modal'], .unassigned-note-mini[data-action='open-modal'], [data-notebook-note-id][data-action='open-modal']")) {
+      event.preventDefault();
+      return;
+    }
     if (action === "habit-inline") return;
     if (action === "note-inline") return;
     if (action === "image-upload") return;
@@ -12489,6 +13079,11 @@ function quickAction(action) {
   });
 
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && noteActionMenuEl) {
+      event.preventDefault();
+      hideSelectedNoteActionMenu();
+      return;
+    }
     const cardActionEl = event.target.closest?.(".note-card[data-action='open-modal'], .unassigned-note-mini[data-action='open-modal'], .notebook-tile[data-action='navigate-notes']");
     if (cardActionEl && (event.key === "Enter" || event.key === " ") && !event.target.closest("button,input,select,textarea,a")) {
       event.preventDefault();
@@ -12579,6 +13174,7 @@ function quickAction(action) {
     if (action === "close-modal") return closeModal();
     if (action === "set-tab") {
       ui[el.dataset.key] = el.dataset.value;
+      if (el.dataset.key === "projectOrganizerKind" && el.dataset.value !== "tasks") ui.projectDragSelectMode = false;
       return render();
     }
     if (action === "toggle-nav-section") return toggleNavSection(el.dataset.section);
@@ -12588,6 +13184,8 @@ function quickAction(action) {
       ui.calendarColorsOpen = !ui.calendarColorsOpen;
       return render();
     }
+    if (action === "toggle-calendar-sticky-dates") return toggleCalendarStickyDates();
+    if (action === "calendar-time-control-reserved") return showToast("That Time square is ready for the next calendar control.", "info");
     if (action === "set-calendar-palette") return setCalendarPalette(el.dataset.palette);
     if (action === "reset-calendar-day-colors") return resetCalendarDayColors();
     if (action === "set-calendar-date-view") return setCalendarDateView(el.dataset.date, el.dataset.view);
@@ -12756,6 +13354,7 @@ function quickAction(action) {
     if (action === "toggle-note-select") return toggleNoteSelect(el.dataset.id);
     if (action === "select-visible-notes") return selectVisibleNotes();
     if (action === "select-visible-project-notes") return selectVisibleProjectNotes(el.dataset.projectId);
+    if (action === "select-visible-project-organizer-notes") return selectVisibleProjectOrganizerNotes();
     if (action === "select-unassigned-notes") return selectUnassignedNotes();
     if (action === "clear-selected-notes") return clearSelectedNotes();
     if (action === "delete-selected-notes") return deleteSelectedNotes();
@@ -12773,6 +13372,7 @@ function quickAction(action) {
     if (action === "save-goal") return saveGoal(el.dataset.id);
     if (action === "toggle-notebook-select") return toggleNotebookSelect(el.dataset.id);
     if (action === "select-visible-notebooks") return selectVisibleNotebooks();
+    if (action === "select-visible-project-notebooks") return selectVisibleProjectNotebooks();
     if (action === "clear-selected-notebooks") return clearSelectedNotebooks();
     if (action === "duplicate-notebook") return duplicateNotebooks([el.dataset.id]);
     if (action === "duplicate-selected-notebooks") return duplicateSelectedNotebooks();
@@ -15340,9 +15940,10 @@ function quickAction(action) {
   }
 
   function selectedNoteDragIds(anchorNoteId = "") {
-    const selectedValidIds = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
+    const scopedIds = ui.view === "projects" && !ui.projectId ? new Set(projectOrganizerVisibleNoteIds()) : null;
+    const selectedValidIds = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId) && (!scopedIds || scopedIds.has(noteId)));
     if (anchorNoteId && selectedValidIds.includes(anchorNoteId)) return selectedValidIds;
-    return anchorNoteId && data.notes.some((note) => note.id === anchorNoteId) ? [anchorNoteId] : [];
+    return anchorNoteId && data.notes.some((note) => note.id === anchorNoteId) && (!scopedIds || scopedIds.has(anchorNoteId)) ? [anchorNoteId] : [];
   }
 
   function toggleNoteSelect(noteId) {
