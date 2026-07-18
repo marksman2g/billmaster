@@ -514,6 +514,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "delete-goal",
     "delete-contact",
     "delete-project",
+    "duplicate-project",
     "save-address",
     "save-task",
     "save-habit",
@@ -7027,19 +7028,23 @@ function quickAction(action) {
     const media = entityImage(project);
     const tasks = projectTasks(project);
     const notes = projectNotes(project);
+    const notebooks = data.notebooks.filter((notebook) => notebook.projectId === project.id);
     const completed = tasks.filter((task) => task.status === "Completed").length;
     const lastTask = projectLastEditedTask(project);
-    return `<button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" data-project-note-drop="${project.id}" data-project-notebook-drop="${project.id}" title="Open project or drop tasks, notebooks, or notes here">
-      <span class="project-tile-cover" ${imageStyleAttr(project)}>
-        ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
-      </span>
-      <span class="project-tile-title">${esc(project.name)}</span>
-      <span class="project-tile-row">${projectLevelBadge(project.level)}</span>
-      <span class="project-tile-meta">${tasks.length} tasks - ${completed} done</span>
-      <span class="project-tile-meta">${notes.length} project note${notes.length === 1 ? "" : "s"}</span>
-      <span class="project-tile-last" title="${esc(projectLastTaskText(lastTask))}">${esc(projectLastTaskText(lastTask))}</span>
-      <span class="project-drop-hint">${icon("task")} Drop item here</span>
-    </button>`;
+    return `<article class="project-picture-tile-wrap">
+      <button class="project-picture-tile" data-action="open-project" data-id="${project.id}" data-project-drop="${project.id}" data-project-note-drop="${project.id}" data-project-notebook-drop="${project.id}" title="Open project or drop tasks, notebooks, or notes here">
+        <span class="project-tile-cover" ${imageStyleAttr(project)}>
+          ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
+        </span>
+        <span class="project-tile-title">${esc(project.name)}</span>
+        <span class="project-tile-row">${projectLevelBadge(project.level)}</span>
+        <span class="project-tile-meta">${tasks.length} tasks - ${completed} done</span>
+        <span class="project-tile-meta">${notes.length} project note${notes.length === 1 ? "" : "s"} - ${notebooks.length} notebook${notebooks.length === 1 ? "" : "s"}</span>
+        <span class="project-tile-last" title="${esc(projectLastTaskText(lastTask))}">${esc(projectLastTaskText(lastTask))}</span>
+        <span class="project-drop-hint">${icon("task")} Drop item here</span>
+      </button>
+      <button class="outline-btn project-deep-copy-btn" data-action="duplicate-project" data-id="${project.id}" title="Copy this project and everything linked to it">${icon("note")} Deep Copy Project</button>
+    </article>`;
   }
 
   function projectOrganizerKind() {
@@ -7281,7 +7286,7 @@ function quickAction(action) {
     const selectedNoteIds = noteIds.filter((noteId) => ui.selectedNotes.includes(noteId));
     const allNotesSelected = noteIds.length > 0 && selectedNoteIds.length === noteIds.length;
     return `<section class="screen">
-      ${header(project.name, `<button class="icon-btn" data-action="open-modal" data-modal="editTask">${icon("plus")}</button><button class="icon-btn" data-action="close-project">${icon("close")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}">${icon("edit")}</button>`)}
+      ${header(project.name, `<button class="icon-btn" data-action="open-modal" data-modal="editTask">${icon("plus")}</button><button class="icon-btn" data-action="duplicate-project" data-id="${project.id}" title="Deep copy project" aria-label="Deep copy project">${icon("note")}</button><button class="icon-btn" data-action="close-project">${icon("close")}</button><button class="icon-btn" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}">${icon("edit")}</button>`)}
       <section class="project-detail-hero">
         <button class="project-detail-cover editable-cover" data-action="open-modal" data-modal="editProjectName" data-id="${project.id}" title="Update project picture" ${imageStyleAttr(project)}>
           ${media ? `<img src="${esc(media)}" alt="">` : `<span class="round-icon" style="color:#fff;background:${esc(project.color || "#1a1f36")}">${icon("folder")}</span>`}
@@ -13380,6 +13385,7 @@ function quickAction(action) {
     if (action === "delete-notebook") return deleteNotebook(el.dataset.id);
     if (action === "delete-notebook-subject") return deleteNotebookSubject(el.dataset.id, el.dataset.subject);
     if (action === "delete-goal") return deleteGoal(el.dataset.id);
+    if (action === "duplicate-project") return duplicateProjectDeep(el.dataset.id);
     if (action === "delete-project") return deleteProject(el.dataset.id);
     if (action === "save-goal-contribution") return saveGoalContribution(el.dataset.id);
     if (action === "save-goal-plan-contribution") return saveGoalContribution(el.dataset.id, "planned");
@@ -15404,10 +15410,11 @@ function quickAction(action) {
     const previousLastPaidDate = bill.lastPaidDate || "";
     const previousLastPaidAmount = moneyNumber(bill.lastPaidAmount);
     const previousConfirmation = bill.lastConfirmation || "";
-    const modalAmount = typeof document !== "undefined" && document.getElementById("billPayAmount") ? numberValue("billPayAmount") : 0;
+    const paymentAmountInput = typeof document !== "undefined" ? document.getElementById("billPayAmount") : null;
+    const modalAmount = paymentAmountInput ? numberValue("billPayAmount") : 0;
     const paymentDate = value("billPayDate") || todayIso();
     const memo = value("billPayMemo");
-    const requestedAmount = modalAmount > 0 ? modalAmount : nextBillPaymentAmount(bill);
+    const requestedAmount = paymentAmountInput ? modalAmount : nextBillPaymentAmount(bill);
     const paymentAmount = Math.min(Math.max(0, moneyNumber(requestedAmount)), remainingBeforePayment || Number.MAX_SAFE_INTEGER);
     if (!paymentAmount) {
       showToast("Enter a payment amount before recording this bill.", "danger");
@@ -16213,6 +16220,100 @@ function quickAction(action) {
     ui.modal = null;
     saveData();
     showToast("Contact deleted.");
+  }
+
+  function projectCopyName(sourceName) {
+    const base = `${String(sourceName || "Project").trim() || "Project"} Copy`;
+    const names = new Set(data.projects.map((project) => String(project.name || "").trim().toLowerCase()));
+    if (!names.has(base.toLowerCase())) return base;
+    let suffix = 2;
+    while (names.has(`${base} ${suffix}`.toLowerCase())) suffix += 1;
+    return `${base} ${suffix}`;
+  }
+
+  function duplicateProjectDeep(projectId) {
+    const sourceProject = data.projects.find((project) => project.id === projectId);
+    if (!sourceProject) return showToast("That project could not be found.", "danger");
+
+    const now = new Date().toISOString();
+    const copiedProject = {
+      ...structuredClone(sourceProject),
+      id: id("proj"),
+      name: projectCopyName(sourceProject.name),
+      lastEditedAt: now
+    };
+
+    const ownedNotebookIds = new Set(
+      data.notebooks
+        .filter((notebook) => notebook.projectId === sourceProject.id)
+        .map((notebook) => notebook.id)
+    );
+    const directlyLinkedNotes = data.notes.filter((note) => note.projectId === sourceProject.id);
+    const notebookIdsToCopy = new Set(ownedNotebookIds);
+    directlyLinkedNotes.forEach((note) => {
+      if (note.notebookId && data.notebooks.some((notebook) => notebook.id === note.notebookId)) {
+        notebookIdsToCopy.add(note.notebookId);
+      }
+    });
+
+    const notebookIdMap = new Map();
+    const copiedNotebooks = data.notebooks
+      .filter((notebook) => notebookIdsToCopy.has(notebook.id))
+      .map((notebook) => {
+        const copiedNotebook = {
+          ...structuredClone(notebook),
+          id: id("nb"),
+          projectId: copiedProject.id,
+          updatedAt: now
+        };
+        notebookIdMap.set(notebook.id, copiedNotebook.id);
+        return copiedNotebook;
+      });
+
+    const copiedNotes = data.notes
+      .filter((note) => note.projectId === sourceProject.id || ownedNotebookIds.has(note.notebookId))
+      .map((note) => ({
+        ...structuredClone(note),
+        id: id("note"),
+        projectId: copiedProject.id,
+        notebookId: note.notebookId ? (notebookIdMap.get(note.notebookId) || null) : null,
+        updatedAt: now
+      }));
+
+    const copiedTasks = data.tasks
+      .filter((task) => task.projectId === sourceProject.id)
+      .map((task) => ({
+        ...structuredClone(task),
+        id: id("task"),
+        projectId: copiedProject.id,
+        subtasks: normalizeSubtasks(task.subtasks).map((subtask) => ({ ...subtask, id: id("subtask") })),
+        alertFiredKeys: [],
+        updatedAt: now
+      }));
+
+    const copiedHabits = safeArray(data.habits)
+      .filter((habit) => habit.projectId === sourceProject.id)
+      .map((habit) => ({
+        ...structuredClone(habit),
+        id: id("habit"),
+        projectId: copiedProject.id,
+        updatedAt: now
+      }));
+
+    data.projects.unshift(copiedProject);
+    data.notebooks.unshift(...copiedNotebooks);
+    data.notes.unshift(...copiedNotes);
+    data.tasks.unshift(...copiedTasks);
+    data.habits.unshift(...copiedHabits);
+    ui.projectId = copiedProject.id;
+    ui.selectedTasks = [];
+    ui.selectedNotes = [];
+    ui.selectedNotebooks = [];
+
+    const saved = saveData();
+    if (!saved) return showToast(ui.lastSaveError, "danger");
+    render();
+    showToast(`${copiedProject.name} created with ${copiedTasks.length} task${copiedTasks.length === 1 ? "" : "s"}, ${copiedNotebooks.length} notebook${copiedNotebooks.length === 1 ? "" : "s"}, ${copiedNotes.length} note${copiedNotes.length === 1 ? "" : "s"}, and ${copiedHabits.length} habit${copiedHabits.length === 1 ? "" : "s"}.`);
   }
 
   function deleteProject(projectId) {
