@@ -29,12 +29,14 @@ Deno.serve(async (req) => {
     if (action === "health") return json(await plaidHealth());
     if (action === "sync_all_transactions") return json(await syncAllTransactions(req, body));
     if (action === "sync_all_liabilities") return json(await syncAllLiabilities(req, body));
+    if (action === "purge_expired_data") return json(await purgeExpiredData(req, body));
 
     const { user, admin } = await requireUser(req);
     if (action === "create_link_token") return json(await createLinkToken(user.id));
     if (action === "exchange_public_token") return json(await exchangePublicToken(admin, user.id, body));
     if (action === "sync_transactions") return json(await syncTransactions(admin, user.id, body));
     if (action === "sync_liabilities") return json(await syncLiabilities(admin, user.id, body));
+    if (action === "delete_user_data") return json(await deleteUserData(admin, user.id));
 
     throw new HttpError(400, `Unknown Plaid sync action: ${action}`);
   } catch (error) {
@@ -61,19 +63,37 @@ function json(payload: unknown, status = 200) {
 }
 
 async function plaidHealth() {
+  const products = plaidProducts();
+  const configured = {
+    plaid_client_id: Boolean(Deno.env.get("PLAID_CLIENT_ID")),
+    plaid_secret: Boolean(Deno.env.get("PLAID_SECRET")),
+    supabase_url: Boolean(Deno.env.get("SUPABASE_URL")),
+    supabase_anon_key: Boolean(publicSupabaseKey()),
+    supabase_service_role_key: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+    billmaster_sync_secret: Boolean(Deno.env.get("BILLMASTER_SYNC_SECRET")),
+    plaid_products: products,
+    plaid_products_ready: requiredPlaidProductsReady(products)
+  };
+  const database = await plaidDatabaseHealth();
+  const requiredConfigured = [
+    configured.plaid_client_id,
+    configured.plaid_secret,
+    configured.supabase_url,
+    configured.supabase_anon_key,
+    configured.supabase_service_role_key,
+    configured.plaid_products_ready
+  ].every(Boolean);
+  const requiredDatabase = [
+    database.plaid_tokens_ready,
+    database.plaid_connections_ready,
+    database.plaid_liabilities_ready
+  ].every(Boolean);
   return {
-    ok: true,
+    ok: requiredConfigured && requiredDatabase,
     plaid_env: plaidEnv(),
-    configured: {
-      plaid_client_id: Boolean(Deno.env.get("PLAID_CLIENT_ID")),
-      plaid_secret: Boolean(Deno.env.get("PLAID_SECRET")),
-      supabase_url: Boolean(Deno.env.get("SUPABASE_URL")),
-      supabase_anon_key: Boolean(publicSupabaseKey()),
-      supabase_service_role_key: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
-      billmaster_sync_secret: Boolean(Deno.env.get("BILLMASTER_SYNC_SECRET"))
-    },
-    database: await plaidDatabaseHealth(),
-    actions: ["create_link_token", "exchange_public_token", "sync_transactions", "sync_liabilities", "sync_all_transactions", "sync_all_liabilities"]
+    configured,
+    database,
+    actions: ["create_link_token", "exchange_public_token", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
   };
 }
 
@@ -84,6 +104,7 @@ async function plaidDatabaseHealth() {
     return {
       plaid_tokens_ready: false,
       plaid_connections_ready: false,
+      plaid_liabilities_ready: false,
       message: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
     };
   }
@@ -188,12 +209,22 @@ async function plaidPost(path: string, payload: JsonRecord) {
   return result as JsonRecord;
 }
 
+function plaidProducts() {
+  return csvSecret("PLAID_PRODUCTS", ["transactions", "liabilities"])
+    .map((product) => product.toLowerCase());
+}
+
+function requiredPlaidProductsReady(products: string[]) {
+  const configured = new Set(products);
+  return ["transactions", "liabilities"].every((product) => configured.has(product));
+}
+
 async function createLinkToken(userId: string) {
   const result = await plaidPost("/link/token/create", {
     client_name: Deno.env.get("PLAID_CLIENT_NAME") || "BillMaster",
     country_codes: csvSecret("PLAID_COUNTRY_CODES", ["US"]),
     language: "en",
-    products: csvSecret("PLAID_PRODUCTS", ["transactions", "liabilities"]),
+    products: plaidProducts(),
     transactions: { days_requested: Number(Deno.env.get("PLAID_DAYS_REQUESTED") || 90) },
     user: { client_user_id: userId }
   });
@@ -246,6 +277,90 @@ async function exchangePublicToken(admin: ReturnType<typeof createClient>, userI
     institution_name: stringValue(institution.name) || "Plaid item",
     accounts_count: accounts.length,
     request_id: exchanged.request_id
+  };
+}
+
+async function deleteUserData(admin: ReturnType<typeof createClient>, userId: string) {
+  const tokenRead = await admin
+    .from("billmaster_plaid_tokens")
+    .select("item_id, access_token")
+    .eq("user_id", userId);
+  assertDb(tokenRead.error, "Reading Plaid tokens before deletion");
+
+  const revokeErrors: JsonRecord[] = [];
+  for (const token of tokenRead.data || []) {
+    const accessToken = stringValue(token.access_token);
+    if (!accessToken) continue;
+    try {
+      await plaidPost("/item/remove", { access_token: accessToken });
+    } catch (error) {
+      const details = error instanceof HttpError && error.details ? error.details : {};
+      const code = stringValue(details.error_code);
+      if (code !== "ITEM_NOT_FOUND") {
+        revokeErrors.push({ item_id: stringValue(token.item_id), error: error instanceof Error ? error.message : "Plaid item removal failed." });
+      }
+    }
+  }
+  if (revokeErrors.length) {
+    throw new HttpError(502, "Plaid access could not be fully revoked, so BillMaster kept the deletion target available for retry.", { revoke_errors: revokeErrors });
+  }
+
+  const storage = admin.storage.from("billmaster-media");
+  const media = await storage.list(userId, { limit: 1000 });
+  if (!media.error && media.data?.length) {
+    const paths = media.data.map((file) => `${userId}/${file.name}`).filter(Boolean);
+    if (paths.length) await storage.remove(paths);
+  }
+
+  const deletes = await Promise.all([
+    admin.from("billmaster_plaid_liabilities").delete().eq("user_id", userId),
+    admin.from("billmaster_plaid_connections").delete().eq("user_id", userId),
+    admin.from("billmaster_plaid_tokens").delete().eq("user_id", userId),
+    admin.from("billmaster_workspaces").delete().eq("user_id", userId)
+  ]);
+  deletes.forEach((result, index) => assertDb(result.error, `Deleting user data set ${index + 1}`));
+  return {
+    deleted: true,
+    user_id: userId,
+    plaid_items_revoked: (tokenRead.data || []).length,
+    media_deleted: !media.error,
+    deleted_at: new Date().toISOString()
+  };
+}
+
+async function purgeExpiredData(req: Request, body: JsonRecord) {
+  requireSyncSecret(req);
+  const admin = adminClient();
+  const retentionDays = clampInt(numberValue(body.retention_days), 30, 3650, 730);
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+  const maxUsers = clampInt(numberValue(body.max_users), 1, 100, 25);
+  const workspaceRead = await admin
+    .from("billmaster_workspaces")
+    .select("user_id, updated_at")
+    .lt("updated_at", cutoff)
+    .limit(maxUsers);
+  assertDb(workspaceRead.error, "Finding expired workspaces");
+
+  const users = (workspaceRead.data || []).map((row) => stringValue(row.user_id)).filter(Boolean);
+  const deleted = [];
+  const errors = [];
+  for (const userId of users) {
+    try {
+      const result = await deleteUserData(admin, userId);
+      deleted.push(result);
+    } catch (error) {
+      errors.push({ user_id: userId, error: error instanceof Error ? error.message : "Expired-data deletion failed." });
+    }
+  }
+  return {
+    deleted_at: new Date().toISOString(),
+    retention_days: retentionDays,
+    cutoff,
+    candidates: users.length,
+    deleted_count: deleted.length,
+    errors_count: errors.length,
+    deleted,
+    errors
   };
 }
 

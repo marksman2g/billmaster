@@ -63,6 +63,7 @@
     blockHandleStyle: "interactive",
     blockZoom: "1",
     blockTimeFocus: "full",
+    blockSnapMinutes: "15",
     blockSelectMode: false,
     blockDrawMode: false,
     daySwapMode: false,
@@ -93,6 +94,9 @@
     lastSaveError: "",
     toast: null
   };
+
+  let lastKnownTodayIso = ui.selectedDate;
+  let dateBoundaryTimer = null;
 
   const validViews = new Set(["dashboard", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
@@ -248,6 +252,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       googleContactsLastImportCount: 0,
       googleContactsLastGroupImportCount: 0,
       googleContactsLastStatus: "",
+      plaidConsentAt: "",
       plaidMode: "sandbox",
       plaidSandboxConnected: false,
       plaidLastImportAt: "",
@@ -336,6 +341,21 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       { id: "goal_3", name: "New Car Down Payment", target: 8000, current: 3200, targetDate: "2027-03-31", color: "purple", createdAt: "2026-05-06", contributionSchedule: "None", contributionAmount: 0, contributionAccountId: "acct_3", confirmContributions: true }
     ],
     goalContributions: [],
+    businessModel: {
+      selectedPlan: "Plus",
+      paidCustomers: 0,
+      connectedAccounts: 0,
+      firstMilestoneCustomers: 10,
+      targetMonthlyRevenue: 1000,
+      targetConnectedAccounts: 10,
+      scenarioCustomers: 100,
+      scenarioAccountsPerCustomer: 1,
+      monthlyPrice: 9.99,
+      plaidPerConnectionCost: 0.5,
+      plaidMonthlyCommitment: 0,
+      scalePlanCommitment: 2000,
+      updatedAt: ""
+    },
     addresses: [
       { id: "addr_1", label: "LGA", street: "Terminal 1", city: "Queens", state: "NY", zip: "", country: "USA", entity: "task" },
       { id: "addr_2", label: "Big Address", street: "291 Big Blanket Ave", city: "Bronx", state: "NY", zip: "10454", country: "USA", entity: "bill" },
@@ -448,10 +468,14 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   const modalInsideInteractionGuardMs = 4200;
   let projectDragSelectState = null;
   let habitTimeDragId = "";
+  let aiTtsAudio = null;
+  let aiTtsUnavailableUntil = 0;
+  let aiTtsRequestId = 0;
   const dayHoldDelay = 520;
   const blockHoldDelay = 1250;
   const blockSelectHoldDelay = 520;
   const blockHoldMoveTolerance = 8;
+  const BLOCK_CREATE_CROSSHAIR_OFFSET_PX = 4;
   const quickHoldDelay = 560;
   const noteActionHoldDelay = 560;
   const aiVoiceProfiles = {
@@ -479,6 +503,18 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       pitch: 0.86,
       names: ["david", "mark", "guy", "alex", "fred", "google us english"]
     }
+  };
+  const aiTtsVoiceByProfile = {
+    femaleWarm: "coral",
+    femaleClear: "shimmer",
+    maleWarm: "ash",
+    maleClear: "verse"
+  };
+  const aiTtsInstructionsByProfile = {
+    femaleWarm: "Speak warmly, naturally, and calmly, like a thoughtful personal assistant. Use gentle emphasis without sounding theatrical.",
+    femaleClear: "Speak clearly and confidently, like a helpful guide. Keep the pace comfortable and the tone friendly.",
+    maleWarm: "Speak warmly and naturally, like a calm personal assistant. Use gentle emphasis without sounding theatrical.",
+    maleClear: "Speak clearly and confidently, like a helpful guide. Keep the pace comfortable and the tone friendly."
   };
   const singleSubmitActions = new Set([
     "save-bill",
@@ -561,6 +597,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "save-goal",
     "save-goal-contribution",
     "save-goal-plan-contribution",
+    "save-business-metrics",
+    "select-business-plan",
     "delete-selected-notebooks",
     "save-contact",
     "save-alpha-feedback",
@@ -1198,6 +1236,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       googleContactsLastImportCount: 0,
       googleContactsLastGroupImportCount: 0,
       googleContactsLastStatus: "",
+      plaidConsentAt: "",
       deletedItems: {},
       ...(nextData.settings || {})
     };
@@ -1214,6 +1253,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     nextData.settings.cloudAutoSync = Boolean(nextData.settings.cloudAutoSync);
     if (!["off", "daily", "weekly", "monthly"].includes(nextData.settings.backupFrequency)) nextData.settings.backupFrequency = "weekly";
     if (!taskBackgrounds.includes(nextData.settings.taskDefaultBgColor)) nextData.settings.taskDefaultBgColor = DEFAULT_TASK_BG;
+    normalizeBusinessModel(nextData);
     taskCategories.forEach((category) => {
       if (!isHexColor(nextData.settings.categoryColors[category])) nextData.settings.categoryColors[category] = defaultCategoryColors[category];
     });
@@ -1230,6 +1270,39 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     normalizeNotificationLog(nextData);
     nextData.transactions = dedupeLendingTransactions(nextData.transactions || []);
     return nextData;
+  }
+
+  function normalizeBusinessModel(nextData) {
+    const defaults = clone(seed.businessModel);
+    const model = nextData.businessModel && typeof nextData.businessModel === "object" && !Array.isArray(nextData.businessModel)
+      ? nextData.businessModel
+      : {};
+    const wholeNumber = (value, fallback, max = 10000000) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? clamp(Math.floor(parsed), 0, max) : fallback;
+    };
+    const decimal = (value, fallback, max = 1000000) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? clamp(parsed, 0, max) : fallback;
+    };
+    nextData.businessModel = {
+      ...defaults,
+      ...model,
+      selectedPlan: ["Free", "Plus", "Pro"].includes(model.selectedPlan) ? model.selectedPlan : defaults.selectedPlan,
+      paidCustomers: wholeNumber(model.paidCustomers, defaults.paidCustomers),
+      connectedAccounts: wholeNumber(model.connectedAccounts, defaults.connectedAccounts),
+      firstMilestoneCustomers: wholeNumber(model.firstMilestoneCustomers, defaults.firstMilestoneCustomers),
+      targetMonthlyRevenue: decimal(model.targetMonthlyRevenue, defaults.targetMonthlyRevenue),
+      targetConnectedAccounts: wholeNumber(model.targetConnectedAccounts, defaults.targetConnectedAccounts),
+      scenarioCustomers: wholeNumber(model.scenarioCustomers, defaults.scenarioCustomers),
+      scenarioAccountsPerCustomer: wholeNumber(model.scenarioAccountsPerCustomer, defaults.scenarioAccountsPerCustomer, 20),
+      monthlyPrice: decimal(model.monthlyPrice, defaults.monthlyPrice, 1000),
+      plaidPerConnectionCost: decimal(model.plaidPerConnectionCost, defaults.plaidPerConnectionCost, 1000),
+      plaidMonthlyCommitment: decimal(model.plaidMonthlyCommitment, defaults.plaidMonthlyCommitment),
+      scalePlanCommitment: decimal(model.scalePlanCommitment, defaults.scalePlanCommitment),
+      updatedAt: String(model.updatedAt || "")
+    };
+    return nextData.businessModel;
   }
 
   function safeArray(value) {
@@ -5443,7 +5516,7 @@ function quickAction(action) {
         </div>
         ${calendarTopTools(view)}
       </div>
-      <div class="calendar-controls ${view === "week" || view === "block" ? "calendar-controls--guided" : ""}">
+      <div class="calendar-controls calendar-controls--guided">
         <button class="icon-btn" data-action="calendar-nav" data-direction="-1" aria-label="Previous ${view}">${icon("back")}</button>
         <div class="calendar-title-cluster">
           <button class="today-jump" data-action="go-calendar-today" data-view="${view}" title="Jump to today">${icon("calendar")} Today</button>
@@ -5457,9 +5530,13 @@ function quickAction(action) {
   }
 
   function calendarCategoryBar() {
-    return `<div class="category-filter-bar">
-      ${taskCategories.map((category) => `<button class="${isTaskCategoryEnabled(category) ? "active" : ""}" data-action="toggle-task-category" data-category="${category}" style="--category-color:${taskCategoryColor(category)}">${esc(category)}</button>`).join("")}
-    </div>`;
+    const enabledCount = taskCategories.filter((category) => isTaskCategoryEnabled(category)).length;
+    return `<details class="calendar-category-menu">
+      <summary title="Filter calendar tasks by category">${icon("filter")} <span>Categories</span><strong>${enabledCount}/${taskCategories.length}</strong></summary>
+      <div class="category-filter-bar" aria-label="Calendar task categories">
+        ${taskCategories.map((category) => `<button class="${isTaskCategoryEnabled(category) ? "active" : ""}" data-action="toggle-task-category" data-category="${category}" style="--category-color:${taskCategoryColor(category)}">${esc(category)}</button>`).join("")}
+      </div>
+    </details>`;
   }
 
   function calendarTopTools(view) {
@@ -5550,6 +5627,28 @@ function quickAction(action) {
 
   function todayIso() {
     return isoDate(new Date());
+  }
+
+  function scheduleDateBoundaryRefresh() {
+    clearAppTimer(dateBoundaryTimer);
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2, 0);
+    dateBoundaryTimer = setAppTimer(() => {
+      refreshDateContext();
+      scheduleDateBoundaryRefresh();
+    }, Math.max(1000, nextMidnight.getTime() - now.getTime()));
+  }
+
+  function refreshDateContext() {
+    const currentToday = todayIso();
+    if (currentToday === lastKnownTodayIso) return false;
+    const wasFollowingToday = ui.selectedDate === lastKnownTodayIso;
+    lastKnownTodayIso = currentToday;
+    if (wasFollowingToday) {
+      ui.selectedDate = currentToday;
+      render();
+    }
+    return wasFollowingToday;
   }
 
   function nowIso() {
@@ -6406,12 +6505,15 @@ function quickAction(action) {
     const focusKey = normalizedBlockFocusKey();
     const drawMode = Boolean(ui.blockDrawMode);
     const selectedActionButton = selectedCount ? `<button class="outline-btn compact-action block-selected-actions-btn" data-action="open-modal" data-modal="taskActions">${icon("note")} Actions (${selectedCount})</button>` : "";
+    const snapToggle = `<button class="outline-btn block-snap-toggle" data-action="toggle-block-snap" title="Switch Block View snapping between 15 and 30 minutes">Snap ${blockSnapIntervalMinutes()}m</button>`;
+    const blockUndo = calendarUndoButton("icon-btn undo-icon block-toolbar-undo");
     const blockSelectTools = `<div class="block-select-tools"><button class="outline-btn" data-action="toggle-block-select-mode">${ui.blockSelectMode ? "Done selecting" : "Select tasks"}</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">Select week</button><button class="outline-btn" data-action="clear-selected-tasks">Clear</button>${selectedCount ? `<button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}` : ""}</div>`;
     const helperText = week2
       ? "Week 2 keeps the clean week grid while preserving block drag, draw, select, repeat, and timed-task controls."
       : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space.";
+    const toolbarHelperText = ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText;
     const lockedRail = ui.calendarStickyDates ? calendarLockedDateRail(weekdays, "block") : "";
-    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted">${ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText}</span>${selectedActionButton}<span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockSelectTools}${calendarUndoButton()}<button class="outline-btn block-timed-task-btn" style="min-height:32px;margin-left:auto;" data-action="open-block-quick-create">${icon("plus")} Timed Task</button></div>
+    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted" title="${esc(toolbarHelperText)}">${toolbarHelperText}</span>${selectedActionButton}${blockSelectTools}${snapToggle}<button class="outline-btn block-timed-task-btn" data-action="open-block-quick-create">${icon("plus")} Timed Task</button><span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockUndo}</div>
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
       ${lockedRail}<div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""} ${ui.calendarStickyDates ? "calendar-dates-locked" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}</div></div>`;
   }
@@ -6442,7 +6544,7 @@ function quickAction(action) {
     const bottomHandle = statusHandleColor(task.status);
     const bg = blockTaskColor(task);
     const selected = ui.selectedTasks.includes(task.id);
-    const short = duration < 120;
+    const short = duration < 90;
     const micro = duration <= 30;
     const boundary = blockBoundaryInfo(task, dayTasks, range);
     return `<div class="event-block ${task.includeHours ? "" : "not-counted"} ${selected ? "is-selected" : ""} ${short ? "short-block" : ""} ${micro ? "micro-block" : ""} ${boundary.startsHere ? "has-start-boundary" : ""} ${boundary.endsHere ? "has-end-boundary" : ""} status-${statusSlug(task.status)}" style="top:${top}px;height:${height}px;--event-bg:${bg};--top-handle:${topHandle};--bottom-handle:${bottomHandle};--task-font:${taskFontFamily(task)};" data-title="${esc(task.title)}" title="${short ? esc(task.title) : ""}" data-task-id="${task.id}" role="button" tabindex="0" aria-label="${esc(`${task.title}, ${durationLabel(duration)}`)}">
@@ -6572,6 +6674,10 @@ function quickAction(action) {
 
   function blockMinuteDelta(pixelDelta) {
     return snapMinutes(pixelDelta / blockMinuteScale());
+  }
+
+  function blockSnapIntervalMinutes() {
+    return Number(ui.blockSnapMinutes) === 30 ? 30 : 15;
   }
 
   function ampmHourLabel(hour) {
@@ -7386,6 +7492,7 @@ function quickAction(action) {
     });
     return `<section class="screen">
       ${header("Financial Goals", `<button class="icon-btn" data-action="open-modal" data-modal="editGoal">${icon("plus")}</button>`)}
+      ${renderBusinessPlan()}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
         <div class="card-row">
           <div><div class="balance-label">Active Goal Balance</div><div class="balance-amount">${moneyWhole(sum(activeGoals, "current"))}</div></div>
@@ -7399,6 +7506,188 @@ function quickAction(action) {
       </div>
       <div class="goal-grid ${compact ? "compact-goals" : ""}">${visibleGoals.length ? visibleGoals.map((goal) => goalDetailCard(goal, compact)).join("") : `<section class="section-card"><p class="muted">No goals in this view yet.</p></section>`}</div>
     </section>`;
+  }
+
+  function businessPlanMath(customers, accountsPerCustomer, monthlyPrice, perConnectionCost, commitment) {
+    const safeCustomers = Math.max(0, Number(customers) || 0);
+    const safeAccounts = Math.max(0, Number(accountsPerCustomer) || 0);
+    const safePrice = Math.max(0, Number(monthlyPrice) || 0);
+    const safeConnectionCost = Math.max(0, Number(perConnectionCost) || 0);
+    const safeCommitment = Math.max(0, Number(commitment) || 0);
+    const connections = safeCustomers * safeAccounts;
+    const revenue = safeCustomers * safePrice;
+    const plaidCost = connections * safeConnectionCost;
+    const contribution = revenue - plaidCost - safeCommitment;
+    const unitContribution = safePrice - (safeAccounts * safeConnectionCost);
+    const breakEvenCustomers = safeCommitment > 0 && unitContribution > 0 ? Math.ceil(safeCommitment / unitContribution) : 0;
+    return { customers: safeCustomers, connections, revenue, plaidCost, commitment: safeCommitment, contribution, breakEvenCustomers };
+  }
+
+  function businessImpactStats() {
+    const expenses = reportableTransactions("expense");
+    const income = reportableTransactions("income");
+    return {
+      savingsOpportunity: expenses.reduce((total, tx) => total + Math.max(0, Number(tx.amount || 0) - Number(tx.projected || 0)), 0),
+      incomeOpportunity: income.reduce((total, tx) => total + Math.max(0, Number(tx.projected || 0) - Number(tx.amount || 0)), 0),
+      incomeActual: sum(income),
+      expenseActual: sum(expenses),
+      scheduledHours: totalTaskHours([...safeArray(data.tasks), ...safeArray(data.habits)]),
+      timedItems: [...safeArray(data.tasks), ...safeArray(data.habits)].filter((item) => item.start && item.end && item.includeHours).length
+    };
+  }
+
+  function businessConnectionStats() {
+    const accounts = safeArray(data.accounts);
+    const live = accounts.filter((account) => account.plaidLinked || account.provider === "Plaid").length;
+    const sandbox = accounts.filter((account) => account.plaidSandbox || account.provider === "Plaid Sandbox").length;
+    return { live, sandbox };
+  }
+
+  function businessMetric(label, amount, detail, tone = "") {
+    return `<div class="business-plan-metric ${tone ? `business-plan-metric--${tone}` : ""}"><span>${esc(label)}</span><strong>${esc(amount)}</strong><small>${esc(detail)}</small></div>`;
+  }
+
+  function businessMarginGuardrail(model, potential) {
+    const perCustomerPlaid = Math.max(0, model.scenarioAccountsPerCustomer) * Math.max(0, model.plaidPerConnectionCost);
+    const commitmentShare = model.scenarioCustomers > 0 ? Math.max(0, model.scalePlanCommitment) / model.scenarioCustomers : 0;
+    const scalePriceFloor = perCustomerPlaid + commitmentShare;
+    const unitContribution = model.monthlyPrice - perCustomerPlaid;
+    const danger = unitContribution <= 0;
+    const warning = !danger && model.scenarioCustomers > 0 && model.monthlyPrice < scalePriceFloor;
+    const tone = danger ? "danger" : warning ? "warn" : "success";
+    const title = danger
+      ? "Price is below the Plaid cost per customer"
+      : warning
+        ? "Scale-plan commitment needs a higher price or more customers"
+        : "Margin guardrail looks healthy";
+    const detail = danger
+      ? `Each customer loses ${money(Math.abs(unitContribution))} before other costs.`
+      : warning
+        ? `At ${model.scenarioCustomers} scenario customers, the scale-plan floor is ${money(scalePriceFloor)} per month.`
+        : `Each customer contributes ${money(unitContribution)} before other operating costs.`;
+    return `<div class="business-margin-guardrail ${tone}"><strong>${esc(title)}</strong><span>${esc(detail)}</span><small>Scenario contribution: ${esc(money(potential.contribution))}</small></div>`;
+  }
+
+  function businessNextMoves(impact) {
+    const moves = [
+      impact.savingsOpportunity > 0
+        ? ["Find savings", `${money(impact.savingsOpportunity)} in expenses is above projection. Review the variance before it repeats.`, "bills", "Review Bills"]
+        : ["Set a savings baseline", "Compare actual and projected expenses so the next savings opportunity is visible.", "bills", "Open Bills"],
+      impact.incomeOpportunity > 0
+        ? ["Grow income", `${money(impact.incomeOpportunity)} of expected income is not yet realized. Turn the gap into a task or goal.`, "analytics", "Review Analytics"]
+        : ["Track income upside", "Keep projected income and actual deposits together so earned-money progress stays visible.", "analytics", "Open Analytics"],
+      impact.scheduledHours > 0
+        ? ["Protect your time", `${durationHoursLabel(impact.scheduledHours)} is scheduled across ${impact.timedItems} timed items. Keep the highest-value blocks protected.`, "calendar", "Open Calendar"]
+        : ["Make time visible", "Add one timed task or habit so BillMaster can show where your day goes.", "calendar", "Open Calendar"]
+    ];
+    return `<div class="business-next-moves"><div class="section-title"><h3>Next Time & Money moves</h3><span class="muted">Turn the signal into an action</span></div><div class="business-next-move-grid">${moves.map(([title, copy, view, label]) => `<article class="business-next-move"><strong>${esc(title)}</strong><p>${esc(copy)}</p><button class="outline-btn" data-action="navigate" data-view="${esc(view)}">${esc(label)}</button></article>`).join("")}</div></div>`;
+  }
+
+  function businessProgressRow(label, current, target, format = (value) => String(value)) {
+    const safeTarget = Math.max(0, Number(target) || 0);
+    const safeCurrent = Math.max(0, Number(current) || 0);
+    const pct = progressPct(safeCurrent, safeTarget);
+    return `<div class="business-progress-row"><div class="business-progress-label"><span>${esc(label)}</span><strong>${esc(format(safeCurrent))} / ${esc(format(safeTarget))}</strong></div><div class="business-progress-track"><i style="width:${pct}%"></i></div><small>${pct}% complete</small></div>`;
+  }
+
+  function renderBusinessPlan() {
+    const model = normalizeBusinessModel(data);
+    const connectionStats = businessConnectionStats();
+    const actualConnections = connectionStats.live || model.connectedAccounts;
+    const connectionSource = connectionStats.live ? "live Plaid accounts" : "planning input until first sync";
+    const actual = businessPlanMath(model.paidCustomers, actualConnections / Math.max(1, model.paidCustomers || 1), model.monthlyPrice, model.plaidPerConnectionCost, model.plaidMonthlyCommitment);
+    actual.connections = actualConnections;
+    actual.plaidCost = actual.connections * model.plaidPerConnectionCost;
+    actual.contribution = actual.revenue - actual.plaidCost - model.plaidMonthlyCommitment;
+    const potential = businessPlanMath(model.scenarioCustomers, model.scenarioAccountsPerCustomer, model.monthlyPrice, model.plaidPerConnectionCost, model.plaidMonthlyCommitment);
+    const scale = businessPlanMath(model.scenarioCustomers, model.scenarioAccountsPerCustomer, model.monthlyPrice, model.plaidPerConnectionCost, model.scalePlanCommitment);
+    const impact = businessImpactStats();
+    const tiers = [
+      ["Free", "$0", "Manual tracking; keep bank syncing limited."],
+      ["Plus", "$9.99", "Bank sync plus Time & Money insights."],
+      ["Pro", "$19.99", "Multiple accounts, forecasting, and automation."]
+    ];
+    return `<section class="section-card business-plan-card" aria-labelledby="businessPlanTitle">
+      <div class="business-plan-heading">
+        <div><span class="eyebrow">Time & Money business objective</span><h2 id="businessPlanTitle">Make BillMaster sustainable</h2><p class="muted">Track customers, account connections, revenue, and Plaid cost in the same place. The goal is simple: help people make better money decisions while BillMaster earns more than it spends.</p></div>
+        <span class="pill business-plan-pill">${model.paidCustomers ? `${model.paidCustomers} paying` : "Planning mode"}</span>
+      </div>
+      <div class="business-plan-tier-row">${tiers.map(([name, price, detail]) => `<button type="button" class="business-plan-tier ${model.selectedPlan === name ? "is-selected" : ""} ${name === "Plus" ? "is-recommended" : ""}" data-action="select-business-plan" data-plan="${esc(name)}" aria-pressed="${model.selectedPlan === name ? "true" : "false"}"><div><strong>${esc(name)}</strong>${name === "Plus" ? `<span class="status success">Recommended</span>` : ""}</div><b>${esc(price)}<small>/month</small></b><p>${esc(detail)}</p>${model.selectedPlan === name ? `<span class="business-plan-tier-selected">Selected for planning</span>` : ""}</button>`).join("")}</div>
+      <div class="business-plan-metric-grid">
+        ${businessMetric("Actual MRR", money(actual.revenue), `${model.paidCustomers} paid customers`, actual.revenue ? "positive" : "neutral")}
+        ${businessMetric("Actual Plaid cost", money(actual.plaidCost + model.plaidMonthlyCommitment), `${actualConnections} ${connectionSource}`, "expense")}
+        ${businessMetric("Actual contribution", money(actual.contribution), "before other operating costs", actual.contribution >= 0 ? "positive" : "negative")}
+        ${businessMetric("Potential at scenario", money(potential.contribution), `${model.scenarioCustomers} customers at ${money(model.monthlyPrice)}`, potential.contribution >= 0 ? "positive" : "negative")}
+      </div>
+      ${businessMarginGuardrail(model, potential)}
+      <div class="business-impact-panel"><div class="section-title"><h3>Time & Money impact</h3><span class="muted">What BillMaster helps a user improve</span></div><div class="business-impact-grid">
+        ${businessMetric("Savings opportunity", money(impact.savingsOpportunity), "expense amount above projection", impact.savingsOpportunity ? "positive" : "neutral")}
+        ${businessMetric("Income upside", money(impact.incomeOpportunity), "income still below projection", impact.incomeOpportunity ? "positive" : "neutral")}
+        ${businessMetric("Money earned tracked", money(impact.incomeActual), `${reportableTransactions("income").length} income records`, "positive")}
+        ${businessMetric("Time scheduled", durationHoursLabel(impact.scheduledHours), `${impact.timedItems} timed items`, "neutral")}
+      </div></div>
+      ${businessNextMoves(impact)}
+      <div class="business-objectives-panel"><div class="section-title"><h3>Objectives we are conquering</h3><span class="muted">Progress updates from the model above</span></div>
+        ${businessProgressRow("Paid customers", model.paidCustomers, model.firstMilestoneCustomers, (value) => String(value))}
+        ${businessProgressRow("Monthly recurring revenue", actual.revenue, model.targetMonthlyRevenue, (value) => money(value))}
+        ${businessProgressRow("Connected accounts", actualConnections, model.targetConnectedAccounts, (value) => String(value))}
+      </div>
+      <div class="business-plan-columns">
+        <div class="business-plan-inputs"><div class="section-title"><h3>Planning inputs</h3><span class="muted">Edit and save</span></div>
+          <div class="business-plan-form-grid">
+            <label>Paid customers<input id="businessPaidCustomers" type="number" min="0" step="1" value="${esc(model.paidCustomers)}"></label>
+            <label>Planning connected accounts<input id="businessConnectedAccounts" type="number" min="0" step="1" value="${esc(model.connectedAccounts)}"></label>
+            <label>First customer target<input id="businessCustomerTarget" type="number" min="1" step="1" value="${esc(model.firstMilestoneCustomers)}"></label>
+            <label>MRR target<input id="businessRevenueTarget" type="number" min="0" step="0.01" value="${esc(model.targetMonthlyRevenue)}"></label>
+            <label>Connection target<input id="businessConnectionTarget" type="number" min="0" step="1" value="${esc(model.targetConnectedAccounts)}"></label>
+            <label>Scenario customers<input id="businessScenarioCustomers" type="number" min="0" step="1" value="${esc(model.scenarioCustomers)}"></label>
+            <label>Accounts per scenario customer<input id="businessScenarioAccounts" type="number" min="1" step="1" value="${esc(model.scenarioAccountsPerCustomer)}"></label>
+            <label>Monthly customer price<input id="businessMonthlyPrice" type="number" min="0" step="0.01" value="${esc(model.monthlyPrice)}"></label>
+            <label>Plaid cost per connection<input id="businessPlaidCost" type="number" min="0" step="0.01" value="${esc(model.plaidPerConnectionCost)}"></label>
+            <label>Current plan commitment<input id="businessPlaidCommitment" type="number" min="0" step="0.01" value="${esc(model.plaidMonthlyCommitment)}"></label>
+            <label>Scale-plan commitment<input id="businessScaleCommitment" type="number" min="0" step="0.01" value="${esc(model.scalePlanCommitment)}"></label>
+          </div>
+          <p class="business-plan-input-note">Live Plaid-linked accounts replace this planning fallback after the first production sync.${connectionStats.sandbox ? ` ${connectionStats.sandbox} sandbox account${connectionStats.sandbox === 1 ? " is" : "s are"} excluded from actual margin.` : ""}</p>
+          <button class="primary-btn" data-action="save-business-metrics">${icon("check")} Save business model</button>
+        </div>
+        <div class="business-plan-targets"><div class="section-title"><h3>Revenue targets</h3><span class="muted">What we are conquering next</span></div>
+          <div class="business-plan-target"><span>First milestone</span><strong>${model.firstMilestoneCustomers} paying customers</strong><small>Validate that the core Time & Money promise is worth paying for.</small></div>
+          <div class="business-plan-target"><span>Scale milestone</span><strong>${scale.breakEvenCustomers || "—"} customers to cover ${money(model.scalePlanCommitment)}</strong><small>At ${money(model.monthlyPrice)} per month and ${model.scenarioAccountsPerCustomer} account${model.scenarioAccountsPerCustomer === 1 ? "" : "s"} each.</small></div>
+          <div class="business-plan-target"><span>Current decision</span><strong>${model.plaidMonthlyCommitment ? "Protect the commitment with paid growth" : "Stay flexible on Pay-as-you-go"}</strong><small>${model.plaidMonthlyCommitment ? "Keep measuring margin before adding more Plaid products." : "Do not take a fixed commitment until recurring revenue is dependable."}</small></div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function saveBusinessMetrics() {
+    const model = normalizeBusinessModel(data);
+    model.paidCustomers = integerValue("businessPaidCustomers", model.paidCustomers, 0, 10000000);
+    model.connectedAccounts = integerValue("businessConnectedAccounts", model.connectedAccounts, 0, 20000000);
+    model.firstMilestoneCustomers = integerValue("businessCustomerTarget", model.firstMilestoneCustomers, 1, 10000000);
+    model.targetMonthlyRevenue = clamp(numberValue("businessRevenueTarget"), 0, 1000000);
+    model.targetConnectedAccounts = integerValue("businessConnectionTarget", model.targetConnectedAccounts, 0, 20000000);
+    model.scenarioCustomers = integerValue("businessScenarioCustomers", model.scenarioCustomers, 0, 10000000);
+    model.scenarioAccountsPerCustomer = integerValue("businessScenarioAccounts", model.scenarioAccountsPerCustomer, 1, 20);
+    model.monthlyPrice = clamp(numberValue("businessMonthlyPrice"), 0, 1000);
+    model.plaidPerConnectionCost = clamp(numberValue("businessPlaidCost"), 0, 1000);
+    model.plaidMonthlyCommitment = clamp(numberValue("businessPlaidCommitment"), 0, 1000000);
+    model.scalePlanCommitment = clamp(numberValue("businessScaleCommitment"), 0, 1000000);
+    model.updatedAt = new Date().toISOString();
+    data.businessModel = model;
+    const saved = saveData();
+    render();
+    showToast(saved ? "Business model saved." : "Business model saved temporarily in this tab.", saved ? "success" : "danger");
+  }
+
+  function selectBusinessPlan(plan) {
+    const prices = { Free: 0, Plus: 9.99, Pro: 19.99 };
+    const selected = ["Free", "Plus", "Pro"].includes(plan) ? plan : "Plus";
+    const model = normalizeBusinessModel(data);
+    model.selectedPlan = selected;
+    model.monthlyPrice = prices[selected];
+    const saved = saveData();
+    render();
+    showToast(saved ? `${selected} plan selected for planning.` : "Plan selection saved temporarily.", saved ? "success" : "danger");
   }
 
   function goalDetailCard(goal, compact = false) {
@@ -8495,6 +8784,9 @@ function quickAction(action) {
     const lastAiText = lastAiMessageText();
     const voiceProfile = currentAiVoiceProfile();
     const autoSpeak = aiAutoSpeakEnabled();
+    const enhancedVoiceLabel = cloudSignedIn()
+      ? "Enhanced voice is connected through Supabase when openai-tts is deployed."
+      : "Sign in to Supabase for enhanced voice; this device voice remains available."
     return `<section class="screen">
       ${header("AI Assistant")}
       <section class="section-card balance-panel" style="margin-bottom:16px;">
@@ -8522,6 +8814,7 @@ function quickAction(action) {
           <button class="${autoSpeak ? "active" : ""}" data-action="toggle-ai-auto-speak">${icon(autoSpeak ? "speaker" : "close")} Auto read ${autoSpeak ? "on" : "off"}</button>
           <button data-action="test-ai-voice">${icon("playcard")} Test</button>
         </div>
+        <div class="subtle ai-voice-status">${esc(enhancedVoiceLabel)}</div>
         ${ui.aiVoiceError ? `<div class="voice-message ai-voice-message">${esc(ui.aiVoiceError)}</div>` : ""}
       </div>
     </section>`;
@@ -8609,6 +8902,8 @@ function quickAction(action) {
     if (type === "cloudSetup") content = modalCloudSetup();
     if (type === "restoreBackup") content = modalRestoreBackup();
     if (type === "cloudAuth") content = modalCloudAuth();
+    if (type === "plaidConsent") content = modalPlaidConsent();
+    if (type === "privacyNotice") content = modalPrivacyNotice();
     if (type === "googleContactsSetup") content = modalGoogleContactsSetup();
     if (type === "copyFallback") content = modalCopyFallback();
     if (type === "friendOnboarding") content = modalFriendOnboarding();
@@ -8843,8 +9138,8 @@ function quickAction(action) {
           <button class="icon-btn danger-text" data-action="delete-transaction" data-id="${tx.id}" aria-label="Delete transaction">${icon("trash")}</button>
         </div>
       </div>
-      <div class="detail-table">
-        <div class="row head"><span>Period</span><span>Actual</span><span>Projected</span><span>Variance</span></div>
+      <div class="detail-table has-tooltips">
+        ${detailTableHeader(tx.amount, tx.projected, tx.type)}
         ${detailPeriod("Monthly", tx.amount, tx.projected, tx.type)}
         ${detailPeriod("Quarterly", q, tx.projected * 3, tx.type)}
         ${detailPeriod("6 Months", six, tx.projected * 6, tx.type)}
@@ -8855,7 +9150,31 @@ function quickAction(action) {
 
   function detailPeriod(label, actual, projected, type) {
     const variance = budgetVariance(actual, projected, type);
-    return `<div class="row"><span>${esc(label)}</span><strong class="${type === "income" ? "money-income" : "money-expense"}">${money(actual)}</strong><span class="${projectedClass(actual, projected, type)}">${money(projected)}</span><span class="${varianceClass(actual, projected, type)}">${money(variance)}</span></div>`;
+    const varianceHover = varianceHoverInfo(actual, projected, type);
+    return `<div class="row"><span>${esc(label)}</span><strong class="detail-tooltip ${type === "income" ? "money-income" : "money-expense"}" ${detailTooltipAttrs(`Actual amount: ${money(actual)}`)}>${money(actual)}</strong><span class="detail-tooltip ${projectedClass(actual, projected, type)}" ${detailTooltipAttrs(`Possible amount: ${money(projected)}`)}>${money(projected)}</span><span class="detail-tooltip ${varianceClass(actual, projected, type)}" ${detailTooltipAttrs(varianceHover.text, varianceHover.tone)}>${money(variance)}</span></div>`;
+  }
+
+  function detailTableHeader(actual, projected, type) {
+    const varianceHover = varianceHoverInfo(actual, projected, type);
+    return `<div class="row head"><span>Period</span><span class="detail-tooltip" ${detailTooltipAttrs("Actual amount")}>Actual</span><span class="detail-tooltip" ${detailTooltipAttrs("Possible amount")}>Projected</span><span class="detail-tooltip" ${detailTooltipAttrs(varianceHover.text, varianceHover.tone)}>Variance</span></div>`;
+  }
+
+  function detailTooltipAttrs(text, tone = "neutral") {
+    return `data-tooltip="${esc(text)}" data-tooltip-tone="${esc(tone)}" tabindex="0"`;
+  }
+
+  function varianceHoverInfo(actual, projected, type = "expense") {
+    const current = Number(actual || 0);
+    const possible = Number(projected || 0);
+    const difference = Math.abs(possible - current);
+    if (possible === current) return { text: "No possible change", tone: "neutral" };
+    if (type === "income" && possible > current) {
+      return { text: `Possible gain amount: ${money(difference)}`, tone: "positive" };
+    }
+    if (type !== "income" && possible < current) {
+      return { text: `Possible save amount: ${money(difference)}`, tone: "positive" };
+    }
+    return { text: `Possible loss amount: ${money(difference)}`, tone: "negative" };
   }
 
   function modalSubscriptionDetail(subId) {
@@ -8863,8 +9182,8 @@ function quickAction(action) {
     if (!sub) return "";
     return `${modalHeader(sub.name, sub.plan)}
       ${imageAttachmentField("subDetail", sub.image || "", "Subscription Picture / Logo", sub.imageZoom, sub.imageX, sub.imageY, sub.imageFit, sub.imageOpacity)}
-      <div class="detail-table">
-        <div class="row head"><span>Period</span><span>Actual</span><span>Projected</span><span>Variance</span></div>
+      <div class="detail-table has-tooltips">
+        ${detailTableHeader(sub.amount, sub.projected, "expense")}
         ${detailPeriod("Quarterly", sub.amount * 3, sub.projected * 3, "expense")}
         ${detailPeriod("6 Months", sub.amount * 6, sub.projected * 6, "expense")}
         ${detailPeriod("Yearly", sub.amount * 12, sub.projected * 12, "expense")}
@@ -9323,6 +9642,42 @@ function quickAction(action) {
         <button class="outline-btn" data-action="cloud-sign-up">${icon("plus")} Create account first</button>
         <button class="secondary-btn" data-action="cloud-sign-in">${icon("check")} Sign in</button>
       </div>`;
+  }
+
+  function modalPlaidConsent() {
+    return `${modalHeader("Before you connect a bank", "Read this short privacy notice before Plaid Link opens.")}
+      <section class="section-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <p class="muted">BillMaster uses Plaid to retrieve the bank data you authorize. Plaid access tokens stay on the secure server; BillMaster receives account, balance, and transaction data for your workspace.</p>
+        <ul class="muted">
+          <li>You choose the institution and accounts in Plaid Link.</li>
+          <li>You can stop using the connection from BillMaster.</li>
+          <li>Imported recurring charges first go to Review Inbox.</li>
+        </ul>
+        <button class="text-btn" data-action="open-modal" data-modal="privacyNotice">Read the full BillMaster Privacy Notice</button>
+        <label class="check-row"><input id="plaidConsentCheckbox" type="checkbox"> I understand and consent to BillMaster requesting this data through Plaid.</label>
+      </section>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
+        <button class="outline-btn" data-action="close-modal">Cancel</button>
+        <button class="primary-btn" data-action="confirm-plaid-consent">Continue to Plaid Link</button>
+      </div>`;
+  }
+
+  function modalPrivacyNotice() {
+    return `${modalHeader("BillMaster Privacy Notice", "How BillMaster uses the information needed to show where your time and money go.")}
+      <section class="section-card privacy-notice-card" style="box-shadow:none;background:#f8fbff;margin-bottom:14px;">
+        <h3>What BillMaster uses</h3>
+        <p class="muted">Depending on the features you use, BillMaster may store your workspace account details, bills, subscriptions, transactions, balances, liabilities, schedules, notes, contacts, goals, Plaid connection metadata, consent timestamps, and sync status.</p>
+        <h3>What BillMaster does not ask for</h3>
+        <p class="muted">BillMaster does not ask for or store your bank username, bank password, or full card number. Plaid Link collects institution credentials and returns only the data you authorize.</p>
+        <h3>How it is protected and used</h3>
+        <p class="muted">Requests use HTTPS/TLS. Plaid access tokens stay in server-only storage, and Supabase Row Level Security limits private workspace and connection data to the signed-in owner. BillMaster uses authorized data to provide calendar, bill, spending, income, and Time &amp; Money views, protect the service, and stage recurring charges for review.</p>
+        <h3>Your choices</h3>
+        <p class="muted">You choose the institution and accounts in Plaid Link. You can stop using a connection, export your workspace, or request deletion through the production support process. Imported recurring charges first go to Review Inbox instead of silently becoming bills.</p>
+        <h3>Retention and contact</h3>
+        <p class="muted">The owner maintains retention and deletion procedures for workspace data, Plaid connections, tokens, logs, and backups. Privacy questions can be sent to <a href="mailto:computer.fieldtech@gmail.com">computer.fieldtech@gmail.com</a>.</p>
+        <p class="muted"><strong>Last updated:</strong> July 21, 2026. This notice will be updated when data types, providers, or Plaid flows materially change.</p>
+      </section>
+      <div class="sheet-actions"><button class="primary-btn" data-action="close-modal">Close</button></div>`;
   }
 
   function modalGoogleContactsSetup() {
@@ -11716,13 +12071,21 @@ function quickAction(action) {
       originalEnd: eventWindow.end,
       range: blockFocusRange(),
       block,
+      originalInlineTop: block.style.top,
+      originalInlineHeight: block.style.height,
+      originalInlineTransform: block.style.transform,
+      originalTimeLabel: block.querySelector(".block-time-range")?.textContent || "",
+      originalDurationLabel: block.querySelector(".block-duration")?.textContent || "",
       moved: false,
       holdOpened: false,
-      holdTimer: null
+      holdTimer: null,
+      previewFrame: 0,
+      latestClientX: event.clientX,
+      latestClientY: event.clientY
     };
     if (!resize) scheduleBlockHoldMenu(blockDragState);
     block.classList.add("is-dragging");
-    document.addEventListener("pointermove", moveBlockDrag);
+    document.addEventListener("pointermove", moveBlockDrag, { passive: false });
     document.addEventListener("pointerup", endBlockDrag, { once: true });
     document.addEventListener("pointercancel", cancelBlockDrag, { once: true });
   }
@@ -11876,7 +12239,7 @@ function quickAction(action) {
       document.removeEventListener("pointerup", endBlockDrag);
       document.removeEventListener("pointercancel", cancelBlockDrag);
       state.block.classList.remove("is-dragging");
-      state.block.style.transform = "";
+      resetBlockDragPreview(state);
       ui.blockSelectMode = true;
       blockDragState = null;
       blockSelectBrushState = {
@@ -11917,7 +12280,9 @@ function quickAction(action) {
     if (startIndex < 0) return null;
     const rect = column.getBoundingClientRect();
     const range = blockFocusRange();
-    const startMinute = clamp(snapGridMinuteCeil(blockPixelToMinute(event.clientY - rect.top)), range.start, range.end - 15);
+    const snapInterval = blockSnapIntervalMinutes();
+    const pointerY = event.clientY + BLOCK_CREATE_CROSSHAIR_OFFSET_PX - rect.top;
+    const startMinute = clamp(snapGridMinuteCeil(blockPixelToMinute(pointerY)), range.start, range.end - snapInterval);
     return {
       columns,
       column,
@@ -12049,14 +12414,15 @@ function quickAction(action) {
     if (state.touchLike && (ui.blockDrawMode || state.doubleTapDrag)) {
       const touchDate = state.columns[state.startIndex]?.dataset.date || ui.selectedDate;
       const range = blockFocusRange();
+      const snapInterval = blockSnapIntervalMinutes();
       const startMinute = selection.startMinute;
       const endMinute = state.moved
         ? selection.endMinute
-        : clamp(state.startMinute + 60, range.start + 15, range.end);
+        : clamp(state.startMinute + 60, range.start + snapInterval, range.end);
       scheduleBlockQuickCreate({
         date: touchDate,
         startMinute,
-        endMinute: clamp(Math.max(startMinute + 15, endMinute), range.start + 15, range.end),
+        endMinute: clamp(Math.max(startMinute + snapInterval, endMinute), range.start + snapInterval, range.end),
         x: event.clientX || state.startX,
         y: event.clientY || state.startY
       }, { delay: 90 });
@@ -12068,7 +12434,7 @@ function quickAction(action) {
       return;
     }
     const duration = selection.endMinute - selection.startMinute;
-    if (duration < 15) return;
+    if (duration < blockSnapIntervalMinutes()) return;
     createTasksFromBlockSelection(selection);
   }
 
@@ -12085,7 +12451,7 @@ function quickAction(action) {
     const firstRect = columns[0]?.getBoundingClientRect();
     if (!firstRect) return fallback;
     const colWidth = Math.max(1, firstRect.width);
-    const rawIndex = Math.floor((x + 4 - firstRect.left) / colWidth);
+    const rawIndex = Math.floor((x + BLOCK_CREATE_CROSSHAIR_OFFSET_PX - firstRect.left) / colWidth);
     const index = clamp(rawIndex, 0, columns.length - 1);
     return columns[index] || fallback;
   }
@@ -12093,12 +12459,13 @@ function quickAction(action) {
   function blockCreateSelection(event, state) {
     const firstRect = state.columns[0].getBoundingClientRect();
     const colWidth = Math.max(1, firstRect.width);
-    const rawIndex = Math.floor((event.clientX + 4 - firstRect.left) / colWidth);
+    const rawIndex = Math.floor((event.clientX + BLOCK_CREATE_CROSSHAIR_OFFSET_PX - firstRect.left) / colWidth);
     const endIndex = clamp(rawIndex, 0, state.columns.length - 1);
     const range = blockFocusRange();
-    const y = event.clientY - firstRect.top;
+    const snapInterval = blockSnapIntervalMinutes();
+    const y = event.clientY + BLOCK_CREATE_CROSSHAIR_OFFSET_PX - firstRect.top;
     let endMinute = snapGridMinute(blockPixelToMinute(y));
-    if (endMinute === state.startMinute) endMinute = clamp(state.startMinute + 60, range.start + 15, range.end);
+    if (endMinute === state.startMinute) endMinute = clamp(state.startMinute + 60, range.start + snapInterval, range.end);
     const startMinute = Math.min(state.startMinute, endMinute);
     const finalEnd = Math.max(state.startMinute, endMinute);
     const startIndex = Math.min(state.startIndex, endIndex);
@@ -12107,7 +12474,7 @@ function quickAction(action) {
       startIndex,
       endIndex: finalIndex,
       startMinute,
-      endMinute: clamp(Math.max(startMinute + 15, finalEnd), range.start + 15, range.end),
+      endMinute: clamp(Math.max(startMinute + snapInterval, finalEnd), range.start + snapInterval, range.end),
       columns: state.columns
     };
   }
@@ -12132,6 +12499,7 @@ function quickAction(action) {
 
   function finishBlockTapCreate(state) {
     const range = blockFocusRange();
+    const snapInterval = blockSnapIntervalMinutes();
     if (!blockTapCreateState) {
       blockTapCreateState = {
         columns: state.columns,
@@ -12143,7 +12511,7 @@ function quickAction(action) {
         startIndex: state.startIndex,
         endIndex: state.startIndex,
         startMinute: state.startMinute,
-        endMinute: clamp(state.startMinute + 30, range.start + 15, range.end),
+        endMinute: clamp(state.startMinute + Math.max(30, snapInterval), range.start + snapInterval, range.end),
         columns: state.columns
       });
       blockTapCreateState.previews.forEach((preview) => {
@@ -12158,12 +12526,12 @@ function quickAction(action) {
     const endIndex = Math.max(draft.startIndex, state.startIndex);
     let startMinute = Math.min(draft.startMinute, state.startMinute);
     let endMinute = Math.max(draft.startMinute, state.startMinute);
-    if (endMinute === startMinute) endMinute = clamp(startMinute + 30, range.start + 15, range.end);
+    if (endMinute === startMinute) endMinute = clamp(startMinute + Math.max(30, snapInterval), range.start + snapInterval, range.end);
     const selection = {
       startIndex,
       endIndex,
       startMinute,
-      endMinute: clamp(Math.max(startMinute + 15, endMinute), range.start + 15, range.end),
+      endMinute: clamp(Math.max(startMinute + snapInterval, endMinute), range.start + snapInterval, range.end),
       columns: state.columns
     };
     clearBlockTapCreateDraft();
@@ -12498,28 +12866,87 @@ function quickAction(action) {
     return Math.max(0, Math.round((end - start) / 86400000));
   }
 
+  function blockDragTarget(state, clientX, clientY) {
+    const range = state.range || blockFocusRange();
+    const scale = blockMinuteScale();
+    const snapInterval = blockSnapIntervalMinutes();
+    const dx = clientX - state.startX;
+    const rawMinuteDelta = (clientY - state.startY) / scale;
+    const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
+    if (state.mode === "top") {
+      const start = clamp(snapMinutes(state.originalStart + rawMinuteDelta), range.start, state.originalEnd - snapInterval);
+      return { dayDelta: 0, start, end: state.originalEnd };
+    }
+    if (state.mode === "bottom") {
+      const end = clamp(snapMinutes(state.originalEnd + rawMinuteDelta), state.originalStart + snapInterval, range.end);
+      return { dayDelta: 0, start: state.originalStart, end };
+    }
+    const duration = clamp(snapMinutes(state.originalEnd - state.originalStart), snapInterval, range.end - range.start);
+    const start = clamp(snapMinutes(state.originalStart + rawMinuteDelta), range.start, range.end - duration);
+    return { dayDelta, start, end: start + duration };
+  }
+
+  function paintBlockDragPreview(state, clientX, clientY) {
+    if (!state?.block) return;
+    const range = state.range || blockFocusRange();
+    const scale = blockMinuteScale();
+    const snapInterval = blockSnapIntervalMinutes();
+    const dx = clientX - state.startX;
+    const rawMinuteDelta = (clientY - state.startY) / scale;
+    const target = blockDragTarget(state, clientX, clientY);
+    if (state.mode === "top") {
+      const visualStart = clamp(state.originalStart + rawMinuteDelta, range.start, state.originalEnd - snapInterval);
+      state.block.style.top = `${blockMinuteToPixel(visualStart)}px`;
+      state.block.style.height = `${Math.max(34, (state.originalEnd - visualStart) * scale)}px`;
+    } else if (state.mode === "bottom") {
+      const visualEnd = clamp(state.originalEnd + rawMinuteDelta, state.originalStart + snapInterval, range.end);
+      state.block.style.height = `${Math.max(34, (visualEnd - state.originalStart) * scale)}px`;
+    } else {
+      const visualDuration = state.originalEnd - state.originalStart;
+      const visualStart = clamp(state.originalStart + rawMinuteDelta, range.start, range.end - visualDuration);
+      state.block.style.transform = `translate3d(${dx}px, ${(visualStart - state.originalStart) * scale}px, 0)`;
+    }
+    const startLabel = timeLabel(timeFromBlockMinute(target.start));
+    const endLabel = timeLabel(timeFromBlockMinute(target.end));
+    const dayLabel = target.dayDelta ? ` · ${target.dayDelta > 0 ? "+" : ""}${target.dayDelta} day${Math.abs(target.dayDelta) === 1 ? "" : "s"}` : "";
+    state.block.dataset.snapLabel = `${snapInterval} min grid · ${startLabel} - ${endLabel}${dayLabel}`;
+    const timeRange = state.block.querySelector(".block-time-range");
+    if (timeRange) timeRange.textContent = `${startLabel} - ${endLabel}`;
+    const duration = state.block.querySelector(".block-duration");
+    if (duration) duration.textContent = durationLabel(target.end - target.start);
+  }
+
+  function resetBlockDragPreview(state) {
+    if (!state?.block) return;
+    if (state.previewFrame) cancelAnimationFrame(state.previewFrame);
+    state.previewFrame = 0;
+    state.block.style.top = state.originalInlineTop;
+    state.block.style.height = state.originalInlineHeight;
+    state.block.style.transform = state.originalInlineTransform;
+    delete state.block.dataset.snapLabel;
+    const timeRange = state.block.querySelector(".block-time-range");
+    if (timeRange) timeRange.textContent = state.originalTimeLabel;
+    const duration = state.block.querySelector(".block-duration");
+    if (duration) duration.textContent = state.originalDurationLabel;
+  }
+
   function moveBlockDrag(event) {
     if (!blockDragState) return;
     const state = blockDragState;
     const dx = event.clientX - state.startX;
     const dy = event.clientY - state.startY;
-    const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
-    const minuteDelta = blockMinuteDelta(dy);
-    const range = state.range || blockFocusRange();
     state.moved = state.moved || Math.abs(dx) > blockHoldMoveTolerance || Math.abs(dy) > blockHoldMoveTolerance;
     if (state.moved) clearBlockHoldTimer(state);
-    if (state.mode === "top") {
-      const newStart = clamp(state.originalStart + minuteDelta, range.start, state.originalEnd - 15);
-      state.block.style.top = `${blockMinuteToPixel(newStart)}px`;
-      state.block.style.height = `${Math.max(34, (state.originalEnd - newStart) * blockMinuteScale())}px`;
-      return;
-    }
-    if (state.mode === "bottom") {
-      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, range.end);
-      state.block.style.height = `${Math.max(34, (newEnd - state.originalStart) * blockMinuteScale())}px`;
-      return;
-    }
-    state.block.style.transform = `translate(${dayDelta * state.colWidth}px, ${minuteDelta * blockMinuteScale()}px)`;
+    if (!state.moved) return;
+    event.preventDefault();
+    state.latestClientX = event.clientX;
+    state.latestClientY = event.clientY;
+    if (state.previewFrame) return;
+    state.previewFrame = requestAnimationFrame(() => {
+      state.previewFrame = 0;
+      if (blockDragState !== state) return;
+      paintBlockDragPreview(state, state.latestClientX, state.latestClientY);
+    });
   }
 
   function endBlockDrag(event) {
@@ -12529,33 +12956,24 @@ function quickAction(action) {
     clearBlockHoldTimer(state);
     const task = findCalendarItemById(state.taskId);
     state.block.classList.remove("is-dragging");
-    state.block.style.transform = "";
+    resetBlockDragPreview(state);
     if (!task) {
       blockDragState = null;
       return;
     }
-    const dx = event.clientX - state.startX;
-    const dy = event.clientY - state.startY;
-    const dayDelta = Math.round(dx / Math.max(1, state.colWidth));
-    const minuteDelta = blockMinuteDelta(dy);
-    const range = state.range || blockFocusRange();
     if (!state.moved) {
       if (state.mode === "bottom") openModal("blockStatus", state.taskId);
       blockDragState = null;
       return;
     }
+    const target = blockDragTarget(state, event.clientX, event.clientY);
     if (state.mode === "top") {
-      const newStart = clamp(state.originalStart + minuteDelta, range.start, state.originalEnd - 15);
-      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(newStart), endDate: blockEndDateFor(task.date, newStart, state.originalEnd) });
+      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(target.start), endDate: blockEndDateFor(task.date, target.start, target.end) });
     } else if (state.mode === "bottom") {
-      const newEnd = clamp(state.originalEnd + minuteDelta, state.originalStart + 15, range.end);
-      updateCalendarItemSchedule(task, { end: timeFromBlockMinute(newEnd), endDate: blockEndDateFor(task.date, state.originalStart, newEnd) });
+      updateCalendarItemSchedule(task, { end: timeFromBlockMinute(target.end), endDate: blockEndDateFor(task.date, target.start, target.end) });
     } else {
-      const duration = state.originalEnd - state.originalStart;
-      const newStart = clamp(state.originalStart + minuteDelta, range.start, range.end - duration);
-      const newEnd = newStart + duration;
-      const nextDate = addDaysIso(state.originalDate, dayDelta);
-      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(newStart), end: timeFromBlockMinute(newEnd), date: nextDate, endDate: blockEndDateFor(nextDate, newStart, newEnd) });
+      const nextDate = addDaysIso(state.originalDate, target.dayDelta);
+      updateCalendarItemSchedule(task, { start: timeFromBlockMinute(target.start), end: timeFromBlockMinute(target.end), date: nextDate, endDate: blockEndDateFor(nextDate, target.start, target.end) });
     }
     saveData();
     blockDragState = null;
@@ -12568,23 +12986,26 @@ function quickAction(action) {
     if (blockDragState) {
       clearBlockHoldTimer(blockDragState);
       blockDragState.block.classList.remove("is-dragging");
-      blockDragState.block.style.transform = "";
+      resetBlockDragPreview(blockDragState);
       blockDragState = null;
     }
   }
 
-  function snapMinutes(pixelDelta) {
-    return Math.round(pixelDelta / 15) * 15;
+  function snapMinutes(minuteDelta) {
+    const snapInterval = blockSnapIntervalMinutes();
+    return Math.round(minuteDelta / snapInterval) * snapInterval;
   }
 
   function snapGridMinute(rawMinute) {
     const range = blockFocusRange();
-    return clamp(Math.round(rawMinute / 15) * 15, range.start, range.end);
+    const snapInterval = blockSnapIntervalMinutes();
+    return clamp(Math.round(rawMinute / snapInterval) * snapInterval, range.start, range.end);
   }
 
   function snapGridMinuteCeil(rawMinute) {
     const range = blockFocusRange();
-    return clamp(Math.ceil(rawMinute / 15) * 15, range.start, range.end - 15);
+    const snapInterval = blockSnapIntervalMinutes();
+    return clamp(Math.ceil(rawMinute / snapInterval) * snapInterval, range.start, range.end - snapInterval);
   }
 
   function clamp(value, min, max) {
@@ -13119,6 +13540,7 @@ function quickAction(action) {
       }
     });
     window.addEventListener("focus", () => {
+      refreshDateContext();
       resumeCloudAutoSyncNow(350);
     });
     window.addEventListener("online", () => {
@@ -13139,7 +13561,10 @@ function quickAction(action) {
 
   if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") resumeCloudAutoSyncNow(350);
+      if (document.visibilityState === "visible") {
+        refreshDateContext();
+        resumeCloudAutoSyncNow(350);
+      }
     });
   }
 
@@ -13276,6 +13701,7 @@ function quickAction(action) {
     if (action === "set-task-status") return setTaskStatus(el.dataset.id, el.dataset.value);
     if (action === "toggle-subtask") return toggleSubtask(el.dataset.id, el.dataset.subtask);
     if (action === "toggle-block-draw-mode") return toggleBlockDrawMode();
+    if (action === "toggle-block-snap") return toggleBlockSnapInterval();
     if (action === "toggle-block-select-mode") return toggleBlockSelectMode();
     if (action === "toggle-day-swap-mode") return toggleDaySwapMode();
     if (action === "start-block-multi-select") return startBlockMultiSelect(el.dataset.id);
@@ -13375,6 +13801,8 @@ function quickAction(action) {
     if (action === "save-notebook") return saveNotebook(el.dataset.id);
     if (action === "save-notebook-picture") return saveNotebookPicture(el.dataset.id);
     if (action === "save-goal") return saveGoal(el.dataset.id);
+    if (action === "save-business-metrics") return saveBusinessMetrics();
+    if (action === "select-business-plan") return selectBusinessPlan(el.dataset.plan);
     if (action === "toggle-notebook-select") return toggleNotebookSelect(el.dataset.id);
     if (action === "select-visible-notebooks") return selectVisibleNotebooks();
     if (action === "select-visible-project-notebooks") return selectVisibleProjectNotebooks();
@@ -13424,6 +13852,7 @@ function quickAction(action) {
     if (action === "cloud-refresh-media-links") return refreshCloudMediaLinks();
     if (action === "check-plaid-backend") return checkPlaidBackend();
     if (action === "start-plaid-link") return startPlaidLink();
+    if (action === "confirm-plaid-consent") return confirmPlaidConsent();
     if (action === "sync-plaid-transactions") return syncPlaidTransactions();
     if (action === "sync-plaid-liabilities") return syncPlaidLiabilities();
     if (action === "run-plaid-sandbox-import") return runPlaidSandboxImport();
@@ -13962,6 +14391,7 @@ function quickAction(action) {
   }
 
   function testAiVoice() {
+    aiTtsUnavailableUntil = 0;
     speakAiText("BillMaster voice is ready. Ask me what is on your calendar, or tell me to add a task.", { manual: true });
   }
 
@@ -13986,17 +14416,73 @@ function quickAction(action) {
       if (manual) showToast("No AI answer to read yet.", "danger");
       return;
     }
+    if (manual) aiTtsUnavailableUntil = 0;
     speakAiText(text, { manual });
   }
 
-  function speakAiText(text, options = {}) {
-    if (!text || !aiSpeechSupported()) {
+  function aiSpeechText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function stopAiAudio() {
+    if (!aiTtsAudio) return;
+    try {
+      aiTtsAudio.pause();
+      aiTtsAudio.removeAttribute("src");
+      aiTtsAudio.load();
+    } catch (error) {
+      // Audio cleanup is best effort.
+    }
+    aiTtsAudio = null;
+  }
+
+  async function speakOpenAiText(text, profileKey, requestId) {
+    if (!cloudSignedIn() || Date.now() < aiTtsUnavailableUntil) return false;
+    const voice = aiTtsVoiceByProfile[profileKey] || aiTtsVoiceByProfile.femaleWarm;
+    const instructions = aiTtsInstructionsByProfile[profileKey] || aiTtsInstructionsByProfile.femaleWarm;
+    try {
+      await refreshCloudSessionIfNeeded();
+      const response = await fetch(`${cloudConfig.url}/functions/v1/openai-tts`, {
+        method: "POST",
+        headers: cloudHeaders(true),
+        body: JSON.stringify({ text, voice, instructions })
+      });
+      if (!response.ok) throw new Error(`openai-tts request failed (${response.status})`);
+      const blob = await response.blob();
+      if (!blob.size || requestId !== aiTtsRequestId) return false;
+      stopAiAudio();
+      const source = URL.createObjectURL(blob);
+      const audio = new Audio(source);
+      aiTtsAudio = audio;
+      const cleanup = () => {
+        if (aiTtsAudio === audio) aiTtsAudio = null;
+        URL.revokeObjectURL(source);
+      };
+      audio.addEventListener("ended", cleanup, { once: true });
+      audio.addEventListener("error", cleanup, { once: true });
+      try {
+        await audio.play();
+      } catch (error) {
+        cleanup();
+        return false;
+      }
+      aiTtsUnavailableUntil = 0;
+      return true;
+    } catch (error) {
+      // A missing function, expired session, or offline browser should never block the local voice.
+      aiTtsUnavailableUntil = Date.now() + 5 * 60 * 1000;
+      return false;
+    }
+  }
+
+  function speakBrowserAiText(text, options = {}) {
+    if (!aiSpeechSupported()) {
       if (options.manual) showToast("This browser cannot read answers aloud.", "danger");
       return;
     }
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, " ").trim());
+      const utterance = new SpeechSynthesisUtterance(text);
       const profileKey = currentAiVoiceProfile();
       const profile = aiVoiceProfiles[profileKey] || aiVoiceProfiles.femaleWarm;
       const voice = preferredAiSpeechVoice(profileKey);
@@ -14009,6 +14495,20 @@ function quickAction(action) {
     } catch (error) {
       if (options.manual) showToast("BillMaster could not read that answer aloud.", "danger");
     }
+  }
+
+  async function speakAiText(text, options = {}) {
+    const cleaned = aiSpeechText(text);
+    if (!cleaned) {
+      if (options.manual) showToast("There is no answer to read yet.", "danger");
+      return;
+    }
+    const requestId = ++aiTtsRequestId;
+    const profileKey = currentAiVoiceProfile();
+    if (aiSpeechSupported()) window.speechSynthesis.cancel();
+    stopAiAudio();
+    if (await speakOpenAiText(cleaned, profileKey, requestId)) return;
+    speakBrowserAiText(cleaned, options);
   }
 
   function startAiVoice() {
@@ -16687,11 +17187,12 @@ function quickAction(action) {
   function openBlockQuickCreate(dateOrAnchor = null, startMinute = null) {
     const target = normalizeBlockQuickCreateTarget(dateOrAnchor, startMinute);
     const range = blockFocusRange();
+    const snapInterval = blockSnapIntervalMinutes();
     const safeStartMinute = Number.isFinite(target.startMinute)
-      ? clamp(target.startMinute, range.start, range.end - 15)
-      : clamp(Math.max(range.start, 9 * 60), range.start, range.end - 15);
+      ? clamp(target.startMinute, range.start, range.end - snapInterval)
+      : clamp(Math.max(range.start, 9 * 60), range.start, range.end - snapInterval);
     const safeEndMinute = Number.isFinite(target.endMinute)
-      ? clamp(Math.max(safeStartMinute + 15, target.endMinute), range.start + 15, range.end)
+      ? clamp(Math.max(safeStartMinute + snapInterval, target.endMinute), range.start + snapInterval, range.end)
       : Math.min(safeStartMinute + 60, range.end);
     const start = timeFromBlockMinute(safeStartMinute);
     const end = timeFromBlockMinute(safeEndMinute);
@@ -17357,6 +17858,12 @@ function quickAction(action) {
     if (ui.blockDrawMode) ui.blockSelectMode = false;
     render();
     showToast(ui.blockDrawMode ? "Draw Task is on. Drag white space to create a block task." : "Draw Task is off. You can move and zoom the block calendar.");
+  }
+
+  function toggleBlockSnapInterval() {
+    ui.blockSnapMinutes = blockSnapIntervalMinutes() === 30 ? "15" : "30";
+    render();
+    showToast(`Block View now snaps to ${blockSnapIntervalMinutes()}-minute intervals.`);
   }
 
   function toggleDaySwapMode() {
@@ -20033,16 +20540,20 @@ function quickAction(action) {
         ["PLAID_CLIENT_ID", configured.plaid_client_id],
         ["PLAID_SECRET", configured.plaid_secret],
         ["SUPABASE_URL", configured.supabase_url],
-        ["SUPABASE_SERVICE_ROLE_KEY", configured.supabase_service_role_key]
+        ["SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY", configured.supabase_anon_key],
+        ["SUPABASE_SERVICE_ROLE_KEY", configured.supabase_service_role_key],
+        ["PLAID_PRODUCTS (transactions,liabilities)", configured.plaid_products_ready]
       ].filter(([, ready]) => !ready).map(([name]) => name);
       const database = result.database || {};
       const databaseIssues = [
         ["Plaid token table/service role", database.plaid_tokens_ready],
-        ["Plaid connection table/service role", database.plaid_connections_ready]
+        ["Plaid connection table/service role", database.plaid_connections_ready],
+        ["Plaid liability table/service role", database.plaid_liabilities_ready]
       ].filter(([, ready]) => ready === false).map(([name]) => name);
       const databaseDetail = [
         database.token_error ? `Token table: ${database.token_error}` : "",
-        database.connection_error ? `Connection table: ${database.connection_error}` : ""
+        database.connection_error ? `Connection table: ${database.connection_error}` : "",
+        database.liability_error ? `Liability table: ${database.liability_error}` : ""
       ].filter(Boolean).join(" ");
       const ok = Boolean(result.ok && !missing.length && !databaseIssues.length);
       const autoSyncReady = Boolean(configured.billmaster_sync_secret);
@@ -20050,7 +20561,7 @@ function quickAction(action) {
         ? " Automatic pull-down secret is set."
         : " Manual sync is ready; add BILLMASTER_SYNC_SECRET when you want scheduled pull-downs.";
       const message = ok
-        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode, and Plaid tables are reachable.${autoSyncNote}`
+        ? `plaid-sync is reachable in ${result.plaid_env || "sandbox"} mode with ${(configured.plaid_products || ["transactions", "liabilities"]).join(", ")} requested, and Plaid tables are reachable.${autoSyncNote}`
         : `plaid-sync needs attention: ${[...missing, ...databaseIssues].join(", ") || "required setup"}.${databaseDetail ? ` ${databaseDetail}` : ""}`;
       recordPlaidBackendStatus(ok, message, result);
       render();
@@ -20093,6 +20604,10 @@ function quickAction(action) {
     if (!cloudSignedIn()) {
       showToast("Sign in to Supabase before opening Plaid Link.", "danger");
       openModal("cloudAuth");
+      return;
+    }
+    if (!data.settings.plaidConsentAt) {
+      openModal("plaidConsent");
       return;
     }
     if (!data.settings.plaidBackendReady) {
@@ -20141,6 +20656,20 @@ function quickAction(action) {
       render();
       showToast(error?.message || "Plaid Link could not start.", "danger");
     }
+  }
+
+  function confirmPlaidConsent() {
+    const checkbox = document.getElementById("plaidConsentCheckbox");
+    if (!checkbox?.checked) {
+      showToast("Confirm the Plaid data notice before continuing.", "danger");
+      return;
+    }
+    data.settings.plaidConsentAt = new Date().toISOString();
+    saveData({ undo: false, syncStamp: false });
+    ui.modal = null;
+    render();
+    showToast("Consent recorded. Opening Plaid Link.");
+    return startPlaidLink();
   }
 
   async function syncPlaidTransactions(options = {}) {
@@ -20507,6 +21036,11 @@ Important:
    npx supabase secrets set PLAID_CLIENT_NAME="BillMaster"
    npx supabase secrets set BILLMASTER_SYNC_SECRET="A_LONG_RANDOM_SYNC_SECRET"
 
+Plaid dashboard product requirement:
+- Request Transactions for account balances and transaction history.
+- Request Liabilities for credit-card/loan minimums, due dates, and APR.
+- Auth/Balance alone are not enough for BillMaster's transaction sync.
+
 4. Deploy the Edge Function:
    npx supabase functions deploy plaid-sync
 
@@ -20615,20 +21149,21 @@ select cron.schedule(
     showToast(copied ? "Plaid auto-sync SQL copied and shown." : "Select and copy the auto-sync SQL.", copied ? "success" : "danger");
   }
 
-  function copyPlaidProductionPlan() {
+function copyPlaidProductionPlan() {
     copyText(`BillMaster Plaid Production Plan
 
 1. Create a Plaid developer account and start in Sandbox.
-2. Run supabase/schema.sql so Plaid metadata and service-role token tables exist.
-3. Deploy supabase/functions/plaid-sync and set PLAID_CLIENT_ID, PLAID_SECRET, and PLAID_ENV.
-4. Browser opens Plaid Link using create_link_token and receives a public_token.
-5. Backend exchanges public_token for access_token; the browser never sees Plaid secrets.
-6. Store visible connection metadata separately from service-role-only access tokens.
-7. Pull accounts, balances, and transactions with sync_transactions.
-8. Add sync_all_transactions plus pg_cron/pg_net for automatic pull-downs.
-9. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
-10. Add Liabilities next for credit-card statement balances, due dates, minimum payments, and APR.
-11. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
+2. In Plaid Products, request Transactions (required) and Liabilities (required for minimums/APR). Auth/Balance alone do not provide BillMaster's transaction history.
+3. Run supabase/schema.sql so Plaid metadata and service-role token tables exist.
+4. Deploy supabase/functions/plaid-sync and set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS=transactions,liabilities.
+5. Browser opens Plaid Link using create_link_token and receives a public_token.
+6. Backend exchanges public_token for access_token; the browser never sees Plaid secrets.
+7. Store visible connection metadata separately from service-role-only access tokens.
+8. Pull accounts, balances, and transactions with sync_transactions.
+9. Add sync_all_transactions plus pg_cron/pg_net for automatic pull-downs.
+10. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
+11. Pull credit-card statement balances, due dates, minimum payments, and APR with Liabilities.
+12. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
     showToast("Plaid production plan copied.");
   }
 
@@ -21149,26 +21684,33 @@ select cron.schedule(
   }
 
   function aiDateInRange(iso, startIso, endIso) {
-    const value = parseLocalDate(iso).getTime();
-    return value >= parseLocalDate(startIso).getTime() && value <= parseLocalDate(endIso).getTime();
+    const value = aiDateKey(iso);
+    const start = aiDateKey(startIso);
+    const end = aiDateKey(endIso);
+    return Boolean(value && start && end && value >= start && value <= end);
+  }
+
+  function aiDateKey(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? "" : isoDate(parsed);
   }
 
   function aiHabitOccursOn(habit, iso) {
-    if (habit.status && habit.status !== "Active") return false;
-    if (habit.startDate && parseLocalDate(habit.startDate) > parseLocalDate(iso)) return false;
-    if (habit.endDate && parseLocalDate(habit.endDate) < parseLocalDate(iso)) return false;
-    const weekday = parseLocalDate(iso).getDay();
-    if (Array.isArray(habit.days) && habit.days.length) return habit.days.includes(weekday);
-    const schedule = String(habit.schedule || "").toLowerCase();
-    if (schedule.includes("weekday")) return weekday > 0 && weekday < 6;
-    return schedule.includes("daily") || schedule.includes("weekly") || schedule.includes("monthly");
+    // Use the same recurrence rules as the calendar itself so the assistant
+    // cannot disagree with the events currently visible in Calendar/Today.
+    return habitScheduledOn(habit, aiDateKey(iso) || iso);
   }
 
   function aiCalendarItems(startIso, endIso) {
     const items = [];
     safeArray(data.tasks).forEach((task) => {
-      if (task.date && aiDateInRange(task.date, startIso, endIso)) {
-        items.push({ type: "Task", title: task.title, date: task.date, time: task.start || "", end: task.end || "", detail: task.description || task.category || task.status || "" });
+      const date = aiDateKey(task.date);
+      if (date && aiDateInRange(date, startIso, endIso)) {
+        items.push({ type: "Task", title: task.title, date, time: task.start || "", end: task.end || "", detail: task.description || task.category || task.status || "" });
       }
     });
     safeArray(data.habits).forEach((habit) => {
@@ -21177,18 +21719,21 @@ select cron.schedule(
       }
     });
     safeArray(data.bills).forEach((bill) => {
-      if (bill.dueDate && aiDateInRange(bill.dueDate, startIso, endIso)) {
-        items.push({ type: "Bill", title: bill.name, date: bill.dueDate, time: "", detail: `${money(bill.amount)} ${bill.status || ""}`.trim() });
+      const date = aiDateKey(bill.dueDate);
+      if (date && aiDateInRange(date, startIso, endIso)) {
+        items.push({ type: "Bill", title: bill.name, date, time: "", detail: `${money(bill.amount)} ${bill.status || ""}`.trim() });
       }
     });
     safeArray(data.subscriptions).forEach((sub) => {
-      if (sub.nextDate && aiDateInRange(sub.nextDate, startIso, endIso)) {
-        items.push({ type: "Subscription", title: sub.name, date: sub.nextDate, time: "", detail: `${money(sub.amount)} ${sub.status || ""}`.trim() });
+      const date = aiDateKey(sub.nextDate);
+      if (date && aiDateInRange(date, startIso, endIso)) {
+        items.push({ type: "Subscription", title: sub.name, date, time: "", detail: `${money(sub.amount)} ${sub.status || ""}`.trim() });
       }
     });
     safeArray(data.projects).forEach((project) => {
-      if (project.dueDate && aiDateInRange(project.dueDate, startIso, endIso)) {
-        items.push({ type: "Project", title: project.name, date: project.dueDate, time: "", detail: `${project.level || ""} ${project.status || ""}`.trim() });
+      const date = aiDateKey(project.dueDate);
+      if (date && aiDateInRange(date, startIso, endIso)) {
+        items.push({ type: "Project", title: project.name, date, time: "", detail: `${project.level || ""} ${project.status || ""}`.trim() });
       }
     });
     return items.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -21196,11 +21741,11 @@ select cron.schedule(
 
   function aiCalendarAnswer(prompt) {
     const lower = aiNorm(prompt);
-    const range = aiCalendarRange(lower);
+    const timeWindow = aiCalendarTimeWindow(prompt);
+    const range = aiCalendarRange(lower, timeWindow);
     const startIso = range.startIso;
     const endIso = range.endIso;
     let items = aiCalendarItems(startIso, endIso);
-    const timeWindow = aiCalendarTimeWindow(prompt);
     if (timeWindow) items = items.filter((item) => aiCalendarItemMatchesTimeWindow(item, timeWindow));
     const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
@@ -21267,8 +21812,8 @@ select cron.schedule(
     return true;
   }
 
-  function aiCalendarRange(lower) {
-    const base = ui.selectedDate || todayIso();
+  function aiCalendarRange(lower, timeWindow = null) {
+    const base = aiDateKey(ui.selectedDate) || todayIso();
     if (/\btoday\b/.test(lower) || /\bto do today\b/.test(lower) || /\bhave to do today\b/.test(lower)) {
       const today = todayIso();
       return { startIso: today, endIso: today };
@@ -21282,7 +21827,7 @@ select cron.schedule(
       return { startIso, endIso: addDaysIso(startIso, 6) };
     }
     const startIso = todayIso();
-    return { startIso, endIso: addDaysIso(startIso, 14) };
+    return { startIso, endIso: timeWindow ? startIso : addDaysIso(startIso, 14) };
   }
 
   function aiCalendarItemMatchesTopic(item, topic) {
@@ -21459,5 +22004,6 @@ select cron.schedule(
 
   startLocalWorkspaceSync();
   startCloudAutoSync();
+  scheduleDateBoundaryRefresh();
   render();
 })();
