@@ -402,23 +402,64 @@ async function listConnections(admin: ReturnType<typeof createClient>, userId: s
     .order("updated_at", { ascending: false }),
     admin
       .from("billmaster_plaid_tokens")
-      .select("item_id, environment")
+      .select("item_id, environment, access_token")
       .eq("user_id", userId)
   ]);
   assertDb(result.error, "Reading Plaid connections");
   assertDb(tokenResult.error, "Reading Plaid connection environments");
-  const environments = new Map((tokenResult.data || []).map((row) => [stringValue(row.item_id), stringValue(row.environment) || "unknown"]));
-  return {
-    connections: (result.data || []).map((row) => ({
-      item_id: stringValue(row.item_id),
+  const tokenByItem = new Map((tokenResult.data || []).map((row) => [stringValue(row.item_id), row]));
+  const refreshedAt = new Date().toISOString();
+  const connections = [];
+
+  for (const row of result.data || []) {
+    const itemId = stringValue(row.item_id);
+    const token = tokenByItem.get(itemId);
+    const environment = stringValue(token?.environment) || "unknown";
+    let accounts = Array.isArray(row.accounts) ? row.accounts : [];
+    let refreshed = false;
+
+    // Connection metadata can be stale until the first transaction sync. Refresh
+    // balances here so the account picker reflects the bank right after Link.
+    // Never include the access token in the response, and keep the stored metadata
+    // as a fallback when Plaid is temporarily unavailable.
+    const canRefresh = Boolean(token?.access_token)
+      && (environment === "unknown" || environment === plaidEnv());
+    if (canRefresh) {
+      try {
+        const accountResult = await plaidPost("/accounts/get", { access_token: token.access_token });
+        const freshAccounts = Array.isArray(accountResult.accounts)
+          ? (accountResult.accounts as JsonRecord[]).map(mapPlaidAccount)
+          : [];
+        if (freshAccounts.length) {
+          accounts = freshAccounts;
+          refreshed = true;
+          const update = await admin
+            .from("billmaster_plaid_connections")
+            .update({ accounts, updated_at: refreshedAt })
+            .eq("user_id", userId)
+            .eq("item_id", itemId);
+          assertDb(update.error, "Updating Plaid account balances");
+        }
+      } catch {
+        // A stale metadata read is more useful than failing the entire account list.
+      }
+    }
+
+    connections.push({
+      item_id: itemId,
       institution_id: stringValue(row.institution_id),
       institution_name: stringValue(row.institution_name) || "Plaid item",
       status: stringValue(row.status) || "linked",
-      environment: environments.get(stringValue(row.item_id)) || "unknown",
-      accounts: Array.isArray(row.accounts) ? row.accounts : [],
+      environment,
+      accounts,
       last_synced_at: stringValue(row.last_synced_at),
-      updated_at: stringValue(row.updated_at)
-    }))
+      updated_at: stringValue(row.updated_at),
+      accounts_refreshed_at: refreshed ? refreshedAt : ""
+    });
+  }
+
+  return {
+    connections
   };
 }
 
