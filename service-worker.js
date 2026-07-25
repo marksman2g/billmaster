@@ -1,4 +1,4 @@
-const CACHE_NAME = "billmaster-shell-v91";
+const CACHE_NAME = "billmaster-shell-v92";
 const APP_SHELL = [
   "./",
   "./index.html",
