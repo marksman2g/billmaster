@@ -33,7 +33,11 @@ const failures = [];
   ["Plaid consent confirmation", /confirm-plaid-consent/],
   ["Plaid consent gate", /if \(!data\.settings\.plaidConsentAt\)/],
   ["In-app privacy notice", /type === "privacyNotice"/],
-  ["Privacy notice contact", /computer\.fieldtech@gmail\.com/]
+  ["Privacy notice contact", /computer\.fieldtech@gmail\.com/],
+  ["Concise calendar counts", /function aiQuestionWantsCount/],
+  ["Least-events answers", /function aiLeastEventsAnswer/],
+  ["Interruptible AI speech", /stop-ai-speech/],
+  ["Higher-confidence voice alternatives", /recognition\.maxAlternatives = 3/]
 ].forEach(([label, pattern]) => {
   if (!pattern.test(code)) failures.push(`source: missing ${label}`);
 });

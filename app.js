@@ -4002,26 +4002,48 @@ function quickAction(action) {
   }
 
   function plaidSandboxPanel() {
+    const production = plaidUsesProduction();
     const sync = safeArray(data.syncConnections).find((item) => item.id === "sync_1") || {};
     const sandboxAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid Sandbox" || account.plaidSandbox);
     const sandboxTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid Sandbox" || tx.plaidSandbox);
-    const inboxCount = billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
-    const connected = Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
-    const lastImport = data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    const liveAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid" || account.plaidLinked);
+    const liveTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid" || tx.plaidLinked);
+    const inboxCount = production
+      ? billInboxItems().filter((item) => item.source === "Plaid recurring detector").length
+      : billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
+    const connected = production
+      ? Boolean(liveAccounts.length || liveTransactions.length || data.settings.plaidLastLinkedAt)
+      : Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
+    const lastImport = production
+      ? data.settings.plaidLastBackendSyncAt || sync.lastSync || "Not imported yet"
+      : data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    const backendOk = data.settings.plaidBackendReady === true;
+    const signedIn = cloudSignedIn();
+    const transactionsSynced = Boolean(data.settings.plaidLastBackendSyncAt);
+    const liabilitiesSynced = Boolean(data.settings.plaidLastLiabilitySyncAt || safeArray(data.settings.plaidLiabilities).length);
+    const nextButton = plaidNextActionButton({
+      production,
+      connected,
+      backendOk,
+      signedIn,
+      linked: Boolean(data.settings.plaidLastLinkedAt),
+      transactionsSynced,
+      liabilitiesSynced
+    });
     return `<section class="section-card plaid-foundation-panel">
       <div class="plaid-foundation-copy">
         <span class="round-icon plaid-icon">${icon("wallet")}</span>
         <div>
           <div class="section-title compact-title">
-            <h2>Plaid Bank/Card Sync Foundation</h2>
-            <span class="status ${connected ? "success" : "warn"}">${connected ? "Sandbox ready" : "Safe test mode"}</span>
+            <h2>Plaid Bank/Card Sync</h2>
+            <span class="status ${production ? "success" : connected ? "success" : "warn"}">${production ? connected ? "Production connected" : "Production mode" : connected ? "Sandbox ready" : "Safe test mode"}</span>
           </div>
-          <p class="muted">Use this to prove the bank-sync workflow before real credentials touch the app. Sandbox import creates token-style accounts, transactions, and recurring bill candidates for Review Inbox.</p>
+          <p class="muted">${production ? "Production mode is ready for a real, user-authorized bank connection. Plaid Link keeps bank credentials at the institution, then BillMaster imports balances, transactions, and recurring-charge candidates for review." : "Use this to prove the bank-sync workflow before real credentials touch the app. Sandbox import creates token-style accounts, transactions, and recurring bill candidates for Review Inbox."}</p>
         </div>
       </div>
       <div class="plaid-stage-grid">
-        <span><strong>${sandboxAccounts.length}</strong><small>linked sandbox accounts</small></span>
-        <span><strong>${sandboxTransactions.length}</strong><small>imported transactions</small></span>
+        <span><strong>${production ? liveAccounts.length : sandboxAccounts.length}</strong><small>${production ? "linked live accounts" : "linked sandbox accounts"}</small></span>
+        <span><strong>${production ? liveTransactions.length : sandboxTransactions.length}</strong><small>${production ? "imported live transactions" : "imported transactions"}</small></span>
         <span><strong>${inboxCount}</strong><small>review candidates</small></span>
         <span><strong>${esc(lastImport)}</strong><small>last Plaid import</small></span>
       </div>
@@ -4032,7 +4054,8 @@ function quickAction(action) {
         ${plaidFlowStep("4", "Review", "Bills/subscriptions wait in Review Inbox.")}
       </div>
       <div class="sheet-actions plaid-actions">
-        <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Plaid Sandbox Import</button>
+        ${nextButton}
+        <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
         <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review imported items</button>
         <button class="outline-btn" data-action="copy-plaid-production-plan">${icon("note")} Copy production plan</button>
       </div>
@@ -4044,7 +4067,7 @@ function quickAction(action) {
   }
 
   function plaidNextActionButton(state) {
-    if (!state.connected) {
+    if (!state.production && !state.connected) {
       return `<button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>`;
     }
     if (!state.backendOk) {
@@ -4055,7 +4078,7 @@ function quickAction(action) {
       return `<button class="primary-btn" data-action="open-modal" data-modal="${modal}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in" : "Setup Cloud"}</button>`;
     }
     if (!state.linked) {
-      return `<button class="primary-btn" data-action="start-plaid-link">${icon("wallet")} Open Plaid Link</button>`;
+      return `<button class="primary-btn" data-action="start-plaid-link">${icon("wallet")} ${state.production ? "Add bank(s) with Plaid Link" : "Open Plaid Link"}</button>`;
     }
     if (!state.transactionsSynced) {
       return `<button class="primary-btn" data-action="sync-plaid-transactions">${icon("refresh")} Sync Transactions</button>`;
@@ -8806,6 +8829,7 @@ function quickAction(action) {
           <button class="round-icon ai-voice-btn ${ui.aiListening ? "is-listening" : ""}" data-action="${ui.aiListening ? "stop-ai-voice" : "start-ai-voice"}" aria-label="${ui.aiListening ? "Stop listening" : "Ask BillMaster by voice"}" title="${aiVoiceAvailable ? ui.aiListening ? "Stop listening" : "Ask by voice" : "Voice may need Chrome or Edge microphone support"}">${icon(ui.aiListening ? "close" : "mic")}</button>
           <input id="aiInput" value="${esc(ui.aiDraft)}" placeholder="${ui.aiListening ? "Listening for your question..." : "Type a question, tap the mic, or press Enter..."}" />
           <button class="icon-btn ai-speak-btn" data-action="speak-last-ai" title="Read last answer aloud" aria-label="Read last answer aloud" ${lastAiText ? "" : "disabled"}>${icon("speaker")}</button>
+          <button class="icon-btn ai-stop-btn" data-action="stop-ai-speech" title="Stop the answer" aria-label="Stop the answer">${icon("close")}</button>
           <button class="primary-btn ai-send-btn" data-action="send-ai" title="Ask BillMaster AI">${icon("ai")} Ask</button>
         </div>
         <div class="ai-voice-settings" aria-label="AI voice options">
@@ -10652,11 +10676,20 @@ function quickAction(action) {
 
   function modalAccountConnections() {
     const sync = safeArray(data.syncConnections).find((item) => item.id === "sync_1") || {};
+    const production = plaidUsesProduction();
     const sandboxAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid Sandbox" || account.plaidSandbox);
     const sandboxTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid Sandbox" || tx.plaidSandbox);
-    const inboxCount = billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
-    const connected = Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
-    const lastImport = data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
+    const liveAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid" || account.plaidLinked);
+    const liveTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid" || tx.plaidLinked);
+    const inboxCount = production
+      ? billInboxItems().filter((item) => item.source === "Plaid recurring detector").length
+      : billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
+    const connected = production
+      ? Boolean(liveAccounts.length || liveTransactions.length || data.settings.plaidLastLinkedAt)
+      : Boolean(data.settings.plaidSandboxConnected || sandboxAccounts.length || sandboxTransactions.length);
+    const lastImport = production
+      ? data.settings.plaidLastBackendSyncAt || sync.lastSync || "Not imported yet"
+      : data.settings.plaidLastImportAt || sync.lastSync || "Not imported yet";
     const backendOk = data.settings.plaidBackendReady === true;
     const backendStatus = backendOk ? "Backend checked" : data.settings.plaidBackendStatus || "Backend not checked";
     const backendClass = backendOk ? "success" : data.settings.plaidBackendStatus ? "warn" : "info";
@@ -10676,6 +10709,7 @@ function quickAction(action) {
         ? "Sign in to BillMaster cloud first"
         : "";
     const plaidLinkStatus = data.settings.plaidLinkStatus || (plaidLinkReady ? "Ready to open Plaid Link" : plaidLinkBlocker || "Preparing Plaid");
+    const plaidSyncError = data.settings.plaidSyncError || "";
     const plaidLastLinked = data.settings.plaidLastLinkedAt
       ? `${data.settings.plaidLastLinkedInstitution || "Plaid item"} at ${data.settings.plaidLastLinkedAt}`
       : "Not linked yet";
@@ -10687,14 +10721,14 @@ function quickAction(action) {
         : "Minimums/APR not synced yet");
     const plaidTransactionsSynced = Boolean(data.settings.plaidLastBackendSyncAt);
     const plaidLiabilitiesSynced = Boolean(data.settings.plaidLastLiabilitySyncAt || plaidLiabilityCount);
-    const plaidNextStep = !connected
+    const plaidNextStep = !production && !connected
       ? "Run Sandbox Import"
       : !backendOk
         ? "Check Backend"
         : !signedIn
           ? "Sign in to BillMaster"
           : !data.settings.plaidLastLinkedAt
-            ? "Open Plaid Link"
+            ? production ? "Add bank(s) with Plaid Link" : "Open Plaid Link"
             : !plaidTransactionsSynced
               ? "Sync Transactions"
               : !plaidLiabilitiesSynced
@@ -10702,6 +10736,7 @@ function quickAction(action) {
                 : "Review Bills";
     const plaidNextClass = plaidLinkReady ? "ready" : backendOk || connected ? "warn" : "info";
     const plaidNextButton = plaidNextActionButton({
+      production,
       connected,
       backendOk,
       signedIn,
@@ -10723,21 +10758,21 @@ function quickAction(action) {
         <span class="status ${sandbox || livePlaid ? "success" : "info"}">${esc(status)}</span>
       </article>`;
     }).join("");
-    return `${modalHeader("Account Connections", "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
+    return `${modalHeader("Account Connections", production ? "Production mode: connect one or more real banks or cards in one Plaid Link session, then review imported data before it becomes a bill or subscription." : "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
       <section class="section-card plaid-foundation-panel account-sync-modal-panel" style="box-shadow:none;">
         <div class="plaid-foundation-copy">
           <span class="round-icon plaid-icon">${icon("wallet")}</span>
           <div>
             <div class="section-title compact-title">
               <h2>Bank/Card Sync Foundation</h2>
-              <span class="status ${connected ? "success" : "warn"}">${connected ? "Sandbox ready" : "Ready to test"}</span>
+              <span class="status ${production ? "success" : connected ? "success" : "warn"}">${production ? connected ? "Production connected" : "Production mode" : connected ? "Sandbox ready" : "Ready to test"}</span>
             </div>
-            <p class="muted">No real bank passwords belong in BillMaster. Phase 1 uses sandbox-style token accounts, imports transactions, and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent.</p>
+            <p class="muted">${production ? "No bank passwords belong in BillMaster. Plaid Link handles institution login, and you can add multiple banks before finishing the same session. BillMaster then receives tokenized account data and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent." : "No real bank passwords belong in BillMaster. Phase 1 uses sandbox-style token accounts, imports transactions, and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent."}</p>
           </div>
         </div>
         <div class="plaid-stage-grid">
-          <span><strong>${sandboxAccounts.length}</strong><small>sandbox accounts</small></span>
-          <span><strong>${sandboxTransactions.length}</strong><small>transactions imported</small></span>
+          <span><strong>${production ? liveAccounts.length : sandboxAccounts.length}</strong><small>${production ? "live accounts" : "sandbox accounts"}</small></span>
+          <span><strong>${production ? liveTransactions.length : sandboxTransactions.length}</strong><small>${production ? "live transactions" : "transactions imported"}</small></span>
           <span><strong>${inboxCount}</strong><small>review candidates</small></span>
           <span><strong>${esc(lastImport)}</strong><small>last import</small></span>
           <span class="plaid-next-step ${plaidNextClass}"><strong>${esc(plaidNextStep)}</strong><small>next step</small></span>
@@ -10761,21 +10796,22 @@ function quickAction(action) {
           <span>${icon(signedIn ? "check" : "home")}</span>
           <div><strong>${esc(cloudReadyTitle)}</strong><p>${esc(cloudReadyDetail)}</p></div>
         </div>
-        <div class="sync-step info plaid-sandbox-tip" style="margin-top:12px;">
+        ${production ? "" : `<div class="sync-step info plaid-sandbox-tip" style="margin-top:12px;">
           <span>${icon("alert")}</span>
           <div><strong>Plaid sandbox tip</strong><p>If Plaid asks for a phone number and rejects it, back out of phone sign-in and search for <strong>First Platypus Bank</strong>. Use sandbox credentials <strong>user_good</strong> / <strong>pass_good</strong> to prove BillMaster linking first.</p></div>
-        </div>
+        </div>`}
         <div class="plaid-flow">
-          ${plaidFlowStep("1", "Sandbox", "Run the safe import and verify balances.")}
+          ${plaidFlowStep("1", production ? "Production Link" : "Sandbox", production ? "Connect the actual bank through Plaid Link." : "Run the safe import and verify balances.")}
           ${plaidFlowStep("2", "Review", "Approve bill and subscription candidates.")}
           ${plaidFlowStep("3", "Backend", "Deploy plaid-sync Edge Function and set secrets.")}
-          ${plaidFlowStep("4", "Production", "Move to real Plaid after privacy and reconnect tests.")}
+          ${plaidFlowStep("4", production ? "Pull" : "Production", production ? "Sync transactions and liabilities from the linked item." : "Move to real Plaid after privacy and reconnect tests.")}
         </div>
+        ${plaidSyncError ? `<div class="sync-step danger" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Latest pull-down issue</strong><p>${esc(plaidSyncError)}</p></div></div>` : ""}
         <div class="sheet-actions plaid-actions">
-          <button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>
+          ${production ? "" : `<button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>`}
           <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
           ${signedIn ? "" : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in to BillMaster" : "Setup BillMaster Cloud"}</button>`}
-          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} Open Plaid Link</button>
+          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} ${production ? "Add bank(s) with Plaid Link" : "Open Plaid Link"}</button>
           <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("refresh")} Sync Transactions</button>
           <button class="outline-btn" data-action="sync-plaid-liabilities" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("chart")} Sync Minimums / APR</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
@@ -13600,7 +13636,16 @@ function quickAction(action) {
     if (action === "calendar-nav") return moveCalendar(Number(el.dataset.direction || 1));
     if (action === "go-calendar-today") return goCalendarToday(el.dataset.view);
     if (action === "open-day") return openCalendarDay(el.dataset.date);
-    if (action === "open-modal") return openModal(el.dataset.modal, el.dataset.id, el.dataset.returnModal, el.dataset.returnId);
+    if (action === "open-modal") {
+      const modalType = el.dataset.modal;
+      openModal(modalType, el.dataset.id, el.dataset.returnModal, el.dataset.returnId);
+      if (modalType === "accountConnections" && cloudConfigured() && cloudSignedIn()) {
+        return syncPlaidConnections({ silent: true }).then(() => {
+          if (ui.modal?.type === "accountConnections") render();
+        });
+      }
+      return;
+    }
     if (action === "close-modal") return closeModal();
     if (action === "set-tab") {
       ui[el.dataset.key] = el.dataset.value;
@@ -13888,6 +13933,7 @@ function quickAction(action) {
     if (action === "start-ai-voice") return startAiVoice();
     if (action === "stop-ai-voice") return stopAiVoice();
     if (action === "speak-last-ai") return speakLastAiAnswer(true);
+    if (action === "stop-ai-speech") return stopAiSpeech();
   }
 
   function navigate(view, root = false) {
@@ -14214,7 +14260,7 @@ function quickAction(action) {
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.maxAlternatives = 1;
+    recognition.maxAlternatives = 3;
     ui.aiListening = true;
     ui.aiVoiceError = "";
     render();
@@ -14436,6 +14482,14 @@ function quickAction(action) {
     aiTtsAudio = null;
   }
 
+  function stopAiSpeech() {
+    aiTtsRequestId += 1;
+    if (aiSpeechSupported()) window.speechSynthesis.cancel();
+    stopAiAudio();
+    showToast("Answer playback stopped.");
+    render();
+  }
+
   async function speakOpenAiText(text, profileKey, requestId) {
     if (!cloudSignedIn() || Date.now() < aiTtsUnavailableUntil) return false;
     const voice = aiTtsVoiceByProfile[profileKey] || aiTtsVoiceByProfile.femaleWarm;
@@ -14531,7 +14585,7 @@ function quickAction(action) {
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.maxAlternatives = 1;
+    recognition.maxAlternatives = 3;
     ui.aiListening = true;
     ui.aiVoiceError = "";
     render();
@@ -14917,7 +14971,13 @@ function quickAction(action) {
     const parts = [];
     for (let index = event?.resultIndex || 0; index < results.length; index += 1) {
       const result = results[index];
-      if (result && result[0] && result[0].transcript) parts.push(result[0].transcript);
+      if (!result || !result.length) continue;
+      let best = result[0];
+      for (let alternativeIndex = 1; alternativeIndex < result.length; alternativeIndex += 1) {
+        const alternative = result[alternativeIndex];
+        if (Number(alternative?.confidence || 0) > Number(best?.confidence || 0)) best = alternative;
+      }
+      if (best?.transcript) parts.push(best.transcript);
     }
     return parts.join(" ").trim();
   }
@@ -20490,14 +20550,20 @@ function quickAction(action) {
     const authenticated = options.authenticated !== false;
     if (authenticated) await refreshCloudSessionIfNeeded();
     let response = null;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = setTimeout(() => controller?.abort(), Number(options.timeoutMs || 30000));
     try {
       response = await fetch(`${cloudConfig.url}/functions/v1/plaid-sync`, {
         method: "POST",
         headers: cloudHeaders(authenticated, options.headers || {}),
-        body: JSON.stringify({ action, ...payload })
+        body: JSON.stringify({ action, ...payload }),
+        signal: controller?.signal
       });
     } catch (error) {
-      throw new Error("plaid-sync is not reachable yet. Deploy the Supabase Edge Function, set Plaid sandbox secrets, then check again.");
+      if (error?.name === "AbortError") throw new Error(`Plaid ${action.replaceAll("_", " ")} timed out. Check your cloud sign-in, then retry.`);
+      throw new Error("plaid-sync is not reachable yet. Check the Supabase Edge Function and your cloud sign-in, then retry.");
+    } finally {
+      clearTimeout(timeout);
     }
     const text = await response.text();
     let body = null;
@@ -20517,6 +20583,7 @@ function quickAction(action) {
 
   function recordPlaidBackendStatus(ok, message, details = {}) {
     data.settings.plaidBackendReady = Boolean(ok);
+    if (details.plaid_env) data.settings.plaidBackendEnv = String(details.plaid_env).toLowerCase();
     data.settings.plaidBackendStatus = ok ? `Ready ${details.plaid_env ? `(${details.plaid_env})` : ""}`.trim() : "Needs setup";
     data.settings.plaidBackendMessage = message || "";
     data.settings.plaidBackendCheckedAt = localTimestamp();
@@ -20595,6 +20662,38 @@ function quickAction(action) {
     });
   }
 
+  async function finishPlaidMultiItemLink(link) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        data.settings.plaidLinkStatus = "Finishing bank links";
+        data.settings.plaidSyncError = "";
+        render();
+        const linked = await plaidFunctionFetch("complete_multi_item_link", {
+          link_token: link.link_token,
+          plaid_user_id: link.plaid_user_id || ""
+        }, { timeoutMs: 30000 });
+        const institutions = safeArray(linked.institutions).filter(Boolean);
+        data.settings.plaidLastLinkedAt = localTimestamp();
+        data.settings.plaidLastLinkedInstitution = institutions.join(", ") || "Plaid accounts";
+        await syncPlaidConnections({ silent: true });
+        await syncPlaidTransactions({ silent: true });
+        data.settings.plaidLinkStatus = data.settings.plaidSyncError
+          ? "Linked; pull-down pending"
+          : `Linked ${linked.item_count || institutions.length || 1} bank${(linked.item_count || institutions.length || 1) === 1 ? "" : "s"}`;
+        render();
+        showToast(data.settings.plaidSyncError
+          ? "Bank links saved. Pull-down will retry after sign-in or the next sync."
+          : `${institutions.join(", ") || "Plaid accounts"} linked. Accounts and transactions refreshed.`);
+        return linked;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 900 * (attempt + 1)));
+      }
+    }
+    throw lastError || new Error("Plaid could not finish the multi-bank link.");
+  }
+
   async function startPlaidLink() {
     if (!cloudConfigured()) {
       showToast("Finish Supabase setup before opening Plaid Link.", "danger");
@@ -20623,8 +20722,14 @@ function quickAction(action) {
       const handler = window.Plaid.create({
         token: link.link_token,
         onSuccess: async (publicToken, metadata) => {
+          if (link.multi_item_link) {
+            data.settings.plaidLinkStatus = "Choose another bank or finish Link";
+            render();
+            return;
+          }
           try {
             data.settings.plaidLinkStatus = "Exchanging public token";
+            data.settings.plaidSyncError = "";
             render();
             const linked = await plaidFunctionFetch("exchange_public_token", {
               public_token: publicToken,
@@ -20638,11 +20743,23 @@ function quickAction(action) {
             showToast(`${linked.institution_name || "Plaid account"} linked. Transactions synced.`);
           } catch (error) {
             data.settings.plaidLinkStatus = "Link exchange failed";
+            data.settings.plaidSyncError = error?.message || "Plaid token exchange failed.";
             render();
             showToast(error?.message || "Plaid token exchange failed.", "danger");
           }
         },
-        onExit: (error) => {
+        onExit: async (error) => {
+          if (link.multi_item_link) {
+            try {
+              await finishPlaidMultiItemLink(link);
+            } catch (completionError) {
+              data.settings.plaidLinkStatus = error ? "Link exited with error" : "Link completion pending";
+              data.settings.plaidSyncError = completionError?.message || "Plaid could not finish the multi-bank link.";
+              render();
+              showToast(data.settings.plaidSyncError, "danger");
+            }
+            return;
+          }
           data.settings.plaidLinkStatus = error ? "Link exited with error" : "Link exited";
           render();
           if (error) showToast(error.display_message || error.error_message || "Plaid Link exited before finishing.", "danger");
@@ -20653,9 +20770,19 @@ function quickAction(action) {
       handler.open();
     } catch (error) {
       data.settings.plaidLinkStatus = "Link setup failed";
+      data.settings.plaidSyncError = error?.message || "Plaid Link could not start.";
       render();
       showToast(error?.message || "Plaid Link could not start.", "danger");
     }
+  }
+
+  function plaidBackendEnvironment() {
+    const env = String(data.settings?.plaidBackendEnv || "").toLowerCase();
+    return env === "production" ? "production" : "sandbox";
+  }
+
+  function plaidUsesProduction() {
+    return plaidBackendEnvironment() === "production";
   }
 
   function confirmPlaidConsent() {
@@ -20672,6 +20799,66 @@ function quickAction(action) {
     return startPlaidLink();
   }
 
+  function plaidConnectionAccount(account, connection) {
+    const raw = account || {};
+    const balances = raw.balances && typeof raw.balances === "object" ? raw.balances : {};
+    const accountId = raw.account_id || raw.id || raw.accountId || "";
+    return {
+      account_id: accountId,
+      name: raw.name || raw.official_name || `${connection.institution_name || "Plaid"} account`,
+      official_name: raw.official_name || "",
+      mask: raw.mask || raw.last4 || "----",
+      type: raw.type || "depository",
+      subtype: raw.subtype || "",
+      current_balance: Number(raw.current_balance ?? raw.balance ?? balances.current ?? 0),
+      available_balance: Number(raw.available_balance ?? balances.available ?? 0),
+      iso_currency_code: raw.iso_currency_code || balances.iso_currency_code || "USD"
+    };
+  }
+
+  function applyPlaidConnectionResult(result) {
+    let accountCount = 0;
+    safeArray(result?.connections).forEach((connection) => {
+      const sandbox = String(connection.environment || "").toLowerCase() === "sandbox";
+      safeArray(connection.accounts).map((account) => plaidConnectionAccount(account, connection)).forEach((account) => {
+        if (!account.account_id) return;
+        accountCount += 1;
+        upsertById(data.accounts, {
+          id: plaidStableId("acct_plaid", account.account_id),
+          name: account.name || account.official_name || "Plaid Account",
+          type: plaidAccountType(account),
+          last4: account.mask || "----",
+          balance: Number(account.current_balance || account.available_balance || 0),
+          color: account.type === "credit" ? "coral" : "teal",
+          provider: sandbox ? "Plaid Sandbox" : "Plaid",
+          plaidLinked: !sandbox,
+          plaidSandbox: sandbox,
+          plaidItemId: connection.item_id || "",
+          plaidAccountId: account.account_id,
+          plaidInstitution: connection.institution_name || "Plaid",
+          currency: account.iso_currency_code || "USD"
+        });
+      });
+    });
+    return { accounts: accountCount };
+  }
+
+  async function syncPlaidConnections(options = {}) {
+    if (!cloudConfigured() || !cloudSignedIn()) return { accounts: 0 };
+    try {
+      const result = await plaidFunctionFetch("list_connections", {}, { timeoutMs: options.timeoutMs || 15000 });
+      const summary = applyPlaidConnectionResult(result);
+      if (summary.accounts) {
+        saveData({ undo: false, cloudSync: false, syncStamp: false });
+        if (!options.silent) render();
+      }
+      return summary;
+    } catch (error) {
+      if (!options.silent) showToast(error?.message || "Linked account refresh failed.", "danger");
+      return { accounts: 0 };
+    }
+  }
+
   async function syncPlaidTransactions(options = {}) {
     if (!cloudConfigured()) {
       showToast("Finish Supabase setup before syncing Plaid.", "danger");
@@ -20684,11 +20871,14 @@ function quickAction(action) {
     }
     try {
       data.settings.plaidLinkStatus = "Syncing transactions";
+      data.settings.plaidSyncError = "";
       if (!options.silent) render();
+      await syncPlaidConnections({ silent: true });
       const result = await plaidFunctionFetch("sync_transactions");
       const summary = applyPlaidSyncResult(result);
       data.settings.plaidLastBackendSyncAt = localTimestamp();
       data.settings.plaidLinkStatus = `Synced ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}`;
+      data.settings.plaidSyncError = "";
       const connection = data.syncConnections.find((item) => item.id === "sync_1");
       if (connection) {
         connection.provider = "Plaid";
@@ -20705,6 +20895,7 @@ function quickAction(action) {
       return summary;
     } catch (error) {
       data.settings.plaidLinkStatus = "Sync failed";
+      data.settings.plaidSyncError = error?.message || "Plaid transaction sync failed.";
       render();
       showToast(error?.message || "Plaid transaction sync failed.", "danger");
       return { accounts: 0, transactions: 0 };
@@ -21027,10 +21218,10 @@ Important:
    npx supabase login
    npx supabase link --project-ref YOUR_SUPABASE_PROJECT_REF
 
-3. Set Plaid sandbox secrets in Supabase Edge Functions:
+3. Set Plaid secrets in Supabase Edge Functions. Use sandbox while testing; use the Plaid Production secret plus PLAID_ENV=production for real bank data:
    npx supabase secrets set PLAID_CLIENT_ID="YOUR_PLAID_CLIENT_ID"
    npx supabase secrets set PLAID_SECRET="YOUR_PLAID_SANDBOX_SECRET"
-   npx supabase secrets set PLAID_ENV="sandbox"
+   npx supabase secrets set PLAID_ENV="sandbox"  # change to production only with the Production secret
    npx supabase secrets set PLAID_PRODUCTS="transactions,liabilities"
    npx supabase secrets set PLAID_COUNTRY_CODES="US"
    npx supabase secrets set PLAID_CLIENT_NAME="BillMaster"
@@ -21163,7 +21354,7 @@ function copyPlaidProductionPlan() {
 9. Add sync_all_transactions plus pg_cron/pg_net for automatic pull-downs.
 10. Stage recurring bills/subscriptions in Review Inbox before adding them to Bills.
 11. Pull credit-card statement balances, due dates, minimum payments, and APR with Liabilities.
-12. Move to Plaid Development/Production only after privacy, RLS, friend testing, and error handling are stable.`);
+12. Set PLAID_ENV=production after Plaid grants Production access and privacy, RLS, friend testing, and error handling are stable. Plaid's old Development environment is no longer the live-data path.`);
     showToast("Plaid production plan copied.");
   }
 
@@ -21747,21 +21938,50 @@ function copyPlaidProductionPlan() {
     const endIso = range.endIso;
     let items = aiCalendarItems(startIso, endIso);
     if (timeWindow) items = items.filter((item) => aiCalendarItemMatchesTimeWindow(item, timeWindow));
+    items = items.filter((item) => aiCalendarItemMatchesScope(item, prompt));
     const topic = aiCalendarTopic(prompt);
     if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
       items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
-      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see a doctor or appointment item.`;
     } else if (topic) {
       items = items.filter((item) => aiCalendarItemMatchesTopic(item, topic));
-      if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see anything matching "${topic}" on your calendar.`;
     }
+    if (aiQuestionWantsCount(prompt)) return aiCountLabel(items.length);
+    if (/\bdoctor|dr\b|appointment|appt/.test(lower) && !items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see a doctor or appointment item.`;
+    if (topic && !items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see anything matching "${topic}" on your calendar.`;
     if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see any saved calendar items.`;
     return aiCalendarSummary(items, startIso, endIso, timeWindow);
   }
 
+  function aiQuestionWantsCount(prompt) {
+    return /\b(how many|number of|count|total number|how much)\b/.test(aiNorm(prompt));
+  }
+
+  function aiCalendarItemMatchesScope(item, prompt) {
+    const lower = aiNorm(prompt);
+    if (/\bbills?\b/.test(lower)) return item.type === "Bill";
+    if (/\bsubscriptions?\b/.test(lower)) return item.type === "Subscription";
+    if (/\b(events?|calendar items?|appointments?|appt|tasks?|todos?|to dos?)\b/.test(lower)) return ["Task", "Habit"].includes(item.type);
+    return true;
+  }
+
+  function aiLeastEventsAnswer(prompt) {
+    const lower = aiNorm(prompt);
+    const base = aiDateKey(ui.selectedDate) || todayIso();
+    const startIso = lower.includes("week") ? startOfWeekIso(base) : startOfWeekIso(todayIso());
+    const endIso = addDaysIso(startIso, 6);
+    const days = dateRangeIso(startIso, endIso).map((date) => {
+      const count = aiCalendarItems(date, date).filter((item) => ["Task", "Habit"].includes(item.type)).length;
+      return { date, count, label: weekdayLabels[parseLocalDate(date).getDay()] || dateLabel(date) };
+    });
+    const least = Math.min(...days.map((day) => day.count));
+    const matches = days.filter((day) => day.count === least);
+    if (matches.length === 1) return `${matches[0].label} has the fewest events: ${aiCountLabel(least)}.`;
+    return `${matches.map((day) => day.label).join(" and ")} tie for the fewest events: ${aiCountLabel(least)} each.`;
+  }
+
   function aiCalendarTopic(prompt) {
     const lower = aiNorm(prompt);
-    const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill after before later than past until till by around between am pm clock o noon midnight morning afternoon evening tonight day days".split(" "));
+    const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill after before later than past until till by around between am pm clock o noon midnight morning afternoon evening tonight day days can could would please tell hey hi hello billmaster assistant number count many least fewest".split(" "));
     const words = lower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !generic.has(word));
     return words.slice(0, 3).join(" ");
   }
@@ -21967,6 +22187,7 @@ function copyPlaidProductionPlan() {
 
   function aiAppDataAnswer(prompt) {
     const lower = aiNorm(prompt);
+    if ((/\b(least|fewest|lowest)\b/.test(lower) && /\b(events?|calendar|schedule)\b/.test(lower)) || /\bwhat day\b.*\b(least|fewest)\b/.test(lower)) return aiLeastEventsAnswer(prompt);
     if (lower.includes("goal")) return aiGoalAnswer();
     if (/\b(note|notebook|subject)\b/.test(lower)) return aiNotesAnswer(prompt);
     if (/\b(events?|calendar|appointments?|appt|doctor|week|today|tomorrow|coming up|due|tasks?|todos?|to do|schedule|scheduled|have to do|going on)\b/.test(lower)) return aiCalendarAnswer(prompt);

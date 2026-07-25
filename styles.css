@@ -13925,7 +13925,7 @@ canvas {
 }
 
 .ai-chat .quick-add {
-  grid-template-columns: 44px minmax(0, 1fr) 44px auto;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px auto;
 }
 
 .ai-voice-settings {
@@ -16063,6 +16063,15 @@ canvas {
   .weather-motion-layer::after {
     animation: none !important;
   }
+}
+
+.ai-stop-btn {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  color: #a92828;
+  background: #fff0f0;
+  border-color: #f2bcbc;
 }
 
 @media (max-width: 900px) {

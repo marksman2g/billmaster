@@ -32,8 +32,10 @@ Deno.serve(async (req) => {
     if (action === "purge_expired_data") return json(await purgeExpiredData(req, body));
 
     const { user, admin } = await requireUser(req);
-    if (action === "create_link_token") return json(await createLinkToken(user.id));
+    if (action === "create_link_token") return json(await createLinkToken(admin, user.id));
     if (action === "exchange_public_token") return json(await exchangePublicToken(admin, user.id, body));
+    if (action === "complete_multi_item_link") return json(await completeMultiItemLink(admin, user.id, body));
+    if (action === "list_connections") return json(await listConnections(admin, user.id));
     if (action === "sync_transactions") return json(await syncTransactions(admin, user.id, body));
     if (action === "sync_liabilities") return json(await syncLiabilities(admin, user.id, body));
     if (action === "delete_user_data") return json(await deleteUserData(admin, user.id));
@@ -93,7 +95,7 @@ async function plaidHealth() {
     plaid_env: plaidEnv(),
     configured,
     database,
-    actions: ["create_link_token", "exchange_public_token", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
+    actions: ["create_link_token", "exchange_public_token", "complete_multi_item_link", "list_connections", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
   };
 }
 
@@ -219,20 +221,43 @@ function requiredPlaidProductsReady(products: string[]) {
   return ["transactions", "liabilities"].every((product) => configured.has(product));
 }
 
-async function createLinkToken(userId: string) {
+async function createLinkToken(admin: ReturnType<typeof createClient>, userId: string) {
+  const plaidUserId = await getOrCreatePlaidUserId(admin, userId);
   const result = await plaidPost("/link/token/create", {
     client_name: Deno.env.get("PLAID_CLIENT_NAME") || "BillMaster",
     country_codes: csvSecret("PLAID_COUNTRY_CODES", ["US"]),
     language: "en",
+    user_id: plaidUserId,
+    enable_multi_item_link: true,
     products: plaidProducts(),
     transactions: { days_requested: Number(Deno.env.get("PLAID_DAYS_REQUESTED") || 90) },
-    user: { client_user_id: userId }
   });
   return {
     link_token: result.link_token,
     expiration: result.expiration,
-    request_id: result.request_id
+    request_id: result.request_id,
+    multi_item_link: true,
+    plaid_user_id: plaidUserId
   };
+}
+
+async function getOrCreatePlaidUserId(admin: ReturnType<typeof createClient>, userId: string) {
+  const existing = await admin
+    .from("billmaster_plaid_connections")
+    .select("link_metadata")
+    .eq("user_id", userId)
+    .limit(100);
+  assertDb(existing.error, "Reading Plaid user metadata");
+  for (const row of existing.data || []) {
+    const metadata = isRecord(row.link_metadata) ? row.link_metadata : {};
+    const plaidUserId = stringValue(metadata.plaid_user_id);
+    if (plaidUserId) return plaidUserId;
+  }
+
+  const created = await plaidPost("/user/create", { client_user_id: userId });
+  const plaidUserId = stringValue(created.user_id);
+  if (!plaidUserId) throw new HttpError(502, "Plaid did not return a user_id for Multi-Item Link.");
+  return plaidUserId;
 }
 
 async function exchangePublicToken(admin: ReturnType<typeof createClient>, userId: string, body: JsonRecord) {
@@ -245,8 +270,10 @@ async function exchangePublicToken(admin: ReturnType<typeof createClient>, userI
   if (!itemId || !accessToken) throw new HttpError(502, "Plaid did not return an item_id and access_token.");
 
   const metadata = isRecord(body.metadata) ? body.metadata : {};
-  const institution = isRecord(metadata.institution) ? metadata.institution : {};
-  const accounts = Array.isArray(metadata.accounts) ? metadata.accounts : [];
+  const plaidUserId = stringValue(body.plaid_user_id);
+  const linkMetadata = plaidUserId ? { ...metadata, plaid_user_id: plaidUserId } : metadata;
+  const institution = isRecord(linkMetadata.institution) ? linkMetadata.institution : {};
+  const accounts = Array.isArray(linkMetadata.accounts) ? linkMetadata.accounts : [];
   const now = new Date().toISOString();
 
   const tokenWrite = await admin.from("billmaster_plaid_tokens").upsert({
@@ -266,7 +293,7 @@ async function exchangePublicToken(admin: ReturnType<typeof createClient>, userI
     institution_name: stringValue(institution.name) || "Plaid item",
     status: "linked",
     accounts,
-    link_metadata: metadata,
+    link_metadata: linkMetadata,
     updated_at: now
   }, { onConflict: "user_id,item_id" });
   assertDb(connectionWrite.error, "Saving Plaid connection metadata");
@@ -325,6 +352,73 @@ async function deleteUserData(admin: ReturnType<typeof createClient>, userId: st
     plaid_items_revoked: (tokenRead.data || []).length,
     media_deleted: !media.error,
     deleted_at: new Date().toISOString()
+  };
+}
+
+async function completeMultiItemLink(admin: ReturnType<typeof createClient>, userId: string, body: JsonRecord) {
+  const linkToken = stringValue(body.link_token);
+  if (!linkToken) throw new HttpError(400, "Missing link_token for Multi-Item Link completion.");
+  const plaidUserId = stringValue(body.plaid_user_id);
+  const result = await plaidPost("/link/token/get", { link_token: linkToken });
+  const itemAdds: JsonRecord[] = [];
+  const sessions = Array.isArray(result.link_sessions) ? result.link_sessions : [];
+  for (const session of sessions) {
+    const sessionResults = isRecord(session.results) ? session.results : {};
+    for (const item of recordsArray(sessionResults.item_add_results)) itemAdds.push(item);
+  }
+  const topResults = isRecord(result.results) ? result.results : {};
+  for (const item of recordsArray(topResults.item_add_results)) itemAdds.push(item);
+
+  const seen = new Set<string>();
+  const items = [];
+  for (const item of itemAdds) {
+    const publicToken = stringValue(item.public_token);
+    if (!publicToken || seen.has(publicToken)) continue;
+    seen.add(publicToken);
+    items.push(await exchangePublicToken(admin, userId, {
+      public_token: publicToken,
+      plaid_user_id: plaidUserId,
+      metadata: item
+    }));
+  }
+  if (!items.length) {
+    throw new HttpError(409, "Plaid has not finished returning the linked accounts yet. Wait a moment and try the sync again.");
+  }
+  return {
+    linked: true,
+    multi_item_link: true,
+    item_count: items.length,
+    institutions: items.map((item) => item.institution_name).filter(Boolean),
+    items
+  };
+}
+
+async function listConnections(admin: ReturnType<typeof createClient>, userId: string) {
+  const [result, tokenResult] = await Promise.all([
+    admin
+    .from("billmaster_plaid_connections")
+    .select("item_id, institution_id, institution_name, status, accounts, last_synced_at, updated_at, link_metadata")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false }),
+    admin
+      .from("billmaster_plaid_tokens")
+      .select("item_id, environment")
+      .eq("user_id", userId)
+  ]);
+  assertDb(result.error, "Reading Plaid connections");
+  assertDb(tokenResult.error, "Reading Plaid connection environments");
+  const environments = new Map((tokenResult.data || []).map((row) => [stringValue(row.item_id), stringValue(row.environment) || "unknown"]));
+  return {
+    connections: (result.data || []).map((row) => ({
+      item_id: stringValue(row.item_id),
+      institution_id: stringValue(row.institution_id),
+      institution_name: stringValue(row.institution_name) || "Plaid item",
+      status: stringValue(row.status) || "linked",
+      environment: environments.get(stringValue(row.item_id)) || "unknown",
+      accounts: Array.isArray(row.accounts) ? row.accounts : [],
+      last_synced_at: stringValue(row.last_synced_at),
+      updated_at: stringValue(row.updated_at)
+    }))
   };
 }
 
