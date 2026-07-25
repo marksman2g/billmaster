@@ -2645,7 +2645,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   function renderDashboard() {
     const income = sum(reportableTransactions("income"));
     const expenses = sum(reportableTransactions("expense"));
-    const balance = sum(data.accounts, "balance") + income - expenses;
+    const balance = sum(data.accounts.filter((account) => plaidAccountIncluded(account)), "balance") + income - expenses;
     const upcomingBills = data.bills
       .filter((bill) => daysBetween(bill.dueDate) <= 14)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
@@ -2726,10 +2726,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           <section class="section-card">
             <div class="section-title"><h2>Accounts</h2><button class="text-btn" data-action="open-modal" data-modal="accountConnections">Manage</button></div>
             <div class="account-strip">
-              ${data.accounts.map((acct) => `<article class="account-card clickable-card" style="border-left-color: var(--${acct.color});" data-action="open-modal" data-modal="accountDetail" data-id="${acct.id}" tabindex="0" role="button">
+              ${data.accounts.map((acct) => `<article class="account-card clickable-card ${isPlaidTrackedAccount(acct) && !plaidAccountIncluded(acct) ? "account-card--excluded" : ""}" style="border-left-color: var(--${acct.color});" data-action="open-modal" data-modal="accountDetail" data-id="${acct.id}" tabindex="0" role="button">
                 <div class="entity-title">${esc(acct.name)}</div>
-                <div class="entity-subtitle">${esc(acct.type)} ****${esc(acct.last4)}</div>
+                <div class="entity-subtitle">${esc(accountInstitutionLabel(acct))}${accountInstitutionLabel(acct) ? " · " : ""}${esc(acct.type)} ****${esc(acct.last4)}</div>
                 <div class="amount-large money-blue">${money(acct.balance)}</div>
+                ${isPlaidTrackedAccount(acct) && !plaidAccountIncluded(acct) ? `<span class="account-excluded-badge">Not processing</span>` : ""}
               </article>`).join("")}
             </div>
           </section>
@@ -4008,6 +4009,7 @@ function quickAction(action) {
     const sandboxTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid Sandbox" || tx.plaidSandbox);
     const liveAccounts = safeArray(data.accounts).filter((account) => account.provider === "Plaid" || account.plaidLinked);
     const liveTransactions = safeArray(data.transactions).filter((tx) => tx.source === "Plaid" || tx.plaidLinked);
+    const workingAccounts = (production ? liveAccounts : sandboxAccounts).filter((account) => plaidAccountIncluded(account));
     const inboxCount = production
       ? billInboxItems().filter((item) => item.source === "Plaid recurring detector").length
       : billInboxItems().filter((item) => item.source === "Plaid Sandbox" || item.source === "Plaid recurring detector").length;
@@ -9241,7 +9243,7 @@ function quickAction(action) {
       <section class="section-card" style="box-shadow:none;background:#eef3f9;margin-bottom:16px;"><div class="card-row"><div><span class="subtle">Payment Amount</span><div class="amount-large money-blue">${money(sub.amount)}</div></div><div><span class="subtle">Billing Cycle</span><div><strong>${filterLabel(sub.cycle)}</strong></div></div></div></section>
       <div class="section-title"><h2>Pay From</h2><button class="text-btn">${icon("plus")} Link Account</button></div>
       <div class="list">${data.accounts.map((acct) => `<button class="data-row" style="background:transparent;width:100%;text-align:left;border:1px solid var(--line);border-radius:8px;padding:12px;" data-action="pay-subscription" data-id="${sub.id}" data-account="${acct.id}">
-        <span class="round-icon">${icon("wallet")}</span><div><strong>${esc(acct.name)}</strong><div class="subtle">****${esc(acct.last4)} - ${money(acct.balance)}</div></div><span class="status ${acct.type === "Credit" ? "muted" : "success"}">${esc(acct.type)}</span>
+        <span class="round-icon">${icon("wallet")}</span><div><strong>${esc(acct.name)}</strong><div class="subtle">${esc(accountInstitutionLabel(acct))}${accountInstitutionLabel(acct) ? " · " : ""}****${esc(acct.last4)} - ${money(acct.balance)}</div></div><span class="status ${acct.type === "Credit" ? "muted" : "success"}">${esc(acct.type)}</span>
       </button>`).join("")}</div>
       <p class="muted">${icon("check")} Payments are secured with 256-bit encryption via Stripe.</p>`;
   }
@@ -10580,7 +10582,7 @@ function quickAction(action) {
         ${field("goalContributionPlanAmount", "Planned Contribution Amount", goal.contributionAmount || "", "100", "number")}
         ${selectField("goalContributionPlanAccount", "Default Funding Account", accountOptions, goal.contributionAccountId || data.accounts[0]?.id || "", (value) => {
           const account = data.accounts.find((acct) => acct.id === value);
-          return account ? `${account.name} - ${money(account.balance)}` : "Choose an account";
+          return account ? `${accountDisplayLabel(account)} - ${money(account.balance)}` : "Choose an account";
         })}
         <div class="info-note">${icon("check")} Automatic contributions are planned only. You still confirm each one before money moves.</div>
         ${imageAttachmentField("goal", goal.image || "", "Goal Picture / Graphic", goal.imageZoom, goal.imageX, goal.imageY, goal.imageFit, goal.imageOpacity)}
@@ -10597,7 +10599,7 @@ function quickAction(action) {
         ${field("goalContributionAmount", "Contribution Amount", goal.contributionAmount || "", "100", "number")}
         ${selectField("goalContributionAccount", "From Account", accountOptions, goal.contributionAccountId || data.accounts[0]?.id || "", (value) => {
           const account = data.accounts.find((acct) => acct.id === value);
-          return account ? `${account.name} - ${money(account.balance)}` : "Choose an account";
+          return account ? `${accountDisplayLabel(account)} - ${money(account.balance)}` : "Choose an account";
         })}
         ${field("goalContributionDate", "Date", todayIso(), "", "date")}
         ${textArea("goalContributionNote", "Note", "", "Optional note")}
@@ -10619,7 +10621,7 @@ function quickAction(action) {
         ${field("goalContributionAmount", "Contribution Amount", goal.contributionAmount || "", "100", "number")}
         ${selectField("goalContributionAccount", "From Account", accountOptions, account?.id || data.accounts[0]?.id || "", (value) => {
           const selected = data.accounts.find((acct) => acct.id === value);
-          return selected ? `${selected.name} - ${money(selected.balance)}` : "Choose an account";
+          return selected ? `${accountDisplayLabel(selected)} - ${money(selected.balance)}` : "Choose an account";
         })}
         ${field("goalContributionDate", "Confirmation Date", todayIso(), "", "date")}
         ${textArea("goalContributionNote", "Contribution Note", "", "What was this contribution for?")}
@@ -10670,7 +10672,7 @@ function quickAction(action) {
     return `${modalHeader("Import Card Statement")}
       <div class="section-card" style="box-shadow:none;background:#e9f8ef;color:#0b7b4b;margin-bottom:16px;">${icon("check")} Last synced: 15:48 - tap to re-scan for new/cancelled subscriptions</div>
       <div class="section-card" style="box-shadow:none;background:#eef6ff;color:#1871d6;margin-bottom:16px;">${icon("alert")} Import a card statement, bill PDF, screenshot, or email forward. BillMaster will stage detections in Review Inbox before creating anything.</div>
-      ${selectField("statementCard", "Select Card", data.accounts.map((acct) => acct.id), data.accounts[0]?.id, (value) => data.accounts.find((acct) => acct.id === value)?.name || "Choose a card")}
+      ${selectField("statementCard", "Select Card", data.accounts.map((acct) => acct.id), data.accounts[0]?.id, (value) => accountDisplayLabel(data.accounts.find((acct) => acct.id === value)) || "Choose a card")}
       <div class="sheet-actions"><button class="secondary-btn" data-action="simulate-import">${icon("note")} Import from Device</button><button class="outline-btn" data-action="simulate-import">${icon("camera")} Screenshot / PDF</button><button class="outline-btn" data-action="simulate-import">${icon("note")} Google Drive / Email</button></div>`;
   }
 
@@ -10748,14 +10750,17 @@ function quickAction(action) {
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
       const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
+      const linked = sandbox || livePlaid;
+      const included = plaidAccountIncluded(acct);
       const status = sandbox ? "Sandbox linked" : livePlaid ? "Plaid linked" : "Local account";
-      return `<article class="account-connection-row">
+      const institution = accountInstitutionLabel(acct);
+      return `<article class="account-connection-row ${linked && !included ? "is-excluded" : ""}">
         <span class="round-icon" style="color:${sandbox || livePlaid ? "var(--teal)" : "var(--navy)"};background:${sandbox || livePlaid ? "#e7fbff" : "#eef6ff"};">${icon(sandbox || livePlaid ? "cloud" : "wallet")}</span>
         <div>
           <strong>${esc(acct.name)}</strong>
-          <small>${esc(acct.type)} ****${esc(acct.last4 || "----")} &middot; ${money(acct.balance || 0)}</small>
+          <small>${institution ? `${esc(institution)} &middot; ` : ""}${esc(acct.type)} ****${esc(acct.last4 || "----")} &middot; ${money(acct.balance || 0)}</small>
         </div>
-        <span class="status ${sandbox || livePlaid ? "success" : "info"}">${esc(status)}</span>
+        ${linked ? `<label class="account-connection-toggle"><input type="checkbox" data-plaid-account-toggle data-id="${esc(acct.id)}" ${included ? "checked" : ""}><span>${included ? "Use in BillMaster" : "Excluded"}</span></label>` : `<span class="status info">${esc(status)}</span>`}
       </article>`;
     }).join("");
     return `${modalHeader("Account Connections", production ? "Production mode: connect one or more real banks or cards in one Plaid Link session, then review imported data before it becomes a bill or subscription." : "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
@@ -10771,7 +10776,8 @@ function quickAction(action) {
           </div>
         </div>
         <div class="plaid-stage-grid">
-          <span><strong>${production ? liveAccounts.length : sandboxAccounts.length}</strong><small>${production ? "live accounts" : "sandbox accounts"}</small></span>
+          <span><strong>${workingAccounts.length}</strong><small>working accounts</small></span>
+          <span><strong>${production ? liveAccounts.length : sandboxAccounts.length}</strong><small>linked accounts</small></span>
           <span><strong>${production ? liveTransactions.length : sandboxTransactions.length}</strong><small>${production ? "live transactions" : "transactions imported"}</small></span>
           <span><strong>${inboxCount}</strong><small>review candidates</small></span>
           <span><strong>${esc(lastImport)}</strong><small>last import</small></span>
@@ -10822,6 +10828,7 @@ function quickAction(action) {
         </div>
       </section>
       <h3 class="section-kicker">Linked Accounts</h3>
+      <p class="muted account-selection-help">Choose which linked accounts BillMaster should use for future transaction, bill, and liability imports. Unchecked accounts stay connected for reference, and existing history is kept.</p>
       <div class="list account-connection-list">${accountRows || `<p class="muted">No accounts yet. Run the sandbox import to create safe test accounts.</p>`}</div>
       <section class="section-card account-sync-safety-card" style="box-shadow:none;">
         <strong>${icon("alert")} What full access means for Phase 1</strong>
@@ -10832,14 +10839,15 @@ function quickAction(action) {
   function modalAccountDetail(accountId) {
     const account = data.accounts.find((acct) => acct.id === accountId);
     if (!account) return `${modalHeader("Account Detail")}<p class="muted">Account not found.</p>`;
+    const institution = accountInstitutionLabel(account);
     const contributions = safeArray(data.goalContributions)
       .filter((entry) => entry.accountId === account.id)
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     const transfers = data.transactions.filter((tx) => tx.accountId === account.id).slice(0, 8);
-    return `${modalHeader(account.name, `${account.type} ****${account.last4}`)}
+    return `${modalHeader(account.name, `${institution ? `${institution} · ` : ""}${account.type} ****${account.last4}`)}
       <section class="section-card account-detail-card" style="box-shadow:none;">
         <div class="amount-large money-blue">${money(account.balance)}</div>
-        <p class="muted">Current prototype balance. Goal contributions deduct from here after confirmation.</p>
+        <p class="muted">${institution ? `Institution: ${esc(institution)}. ` : ""}Current balance from the linked account. Goal contributions deduct from here after confirmation.</p>
       </section>
       <div class="account-detail-grid">
         <span><strong>${money(sum(contributions, "amount"))}</strong><small>goal contributions</small></span>
@@ -13435,6 +13443,10 @@ function quickAction(action) {
 
   document.addEventListener("change", (event) => {
     const target = event.target;
+    if (target && target.dataset.plaidAccountToggle !== undefined) {
+      setPlaidAccountIncluded(target.dataset.id, target.checked);
+      return;
+    }
     if (target && billPaymentPreviewFieldIds.has(target.id)) {
       updateBillPaymentPlanPreview();
     }
@@ -20949,6 +20961,44 @@ function quickAction(action) {
     return `${prefix}_${safe || id("plaid")}`;
   }
 
+  function isPlaidTrackedAccount(account) {
+    const provider = String(account?.provider || "").toLowerCase();
+    return Boolean(account && (account.plaidLinked || account.plaidSandbox || provider.startsWith("plaid")));
+  }
+
+  function plaidAccountIncluded(account) {
+    return !isPlaidTrackedAccount(account) || account.plaidIncluded !== false;
+  }
+
+  function accountInstitutionLabel(account) {
+    if (!account) return "";
+    if (account.plaidInstitution) return String(account.plaidInstitution);
+    if (account.institutionName) return String(account.institutionName);
+    if (account.plaidSandbox || String(account.provider || "").toLowerCase().includes("sandbox")) return "Plaid Sandbox";
+    return isPlaidTrackedAccount(account) ? "Plaid" : "";
+  }
+
+  function accountDisplayLabel(account) {
+    if (!account) return "";
+    const institution = accountInstitutionLabel(account);
+    return institution ? `${account.name} · ${institution}` : account.name;
+  }
+
+  function plaidAccountIncludedById(plaidAccountId) {
+    const account = data.accounts.find((item) => item.plaidAccountId === plaidAccountId);
+    return !account || plaidAccountIncluded(account);
+  }
+
+  function setPlaidAccountIncluded(accountId, included) {
+    const account = data.accounts.find((item) => item.id === accountId);
+    if (!account || !isPlaidTrackedAccount(account)) return;
+    account.plaidIncluded = Boolean(included);
+    account.plaidSelectionUpdatedAt = localTimestamp();
+    saveData({ undo: false });
+    if (ui.modal?.type === "accountConnections") render();
+    showToast(`${accountDisplayLabel(account)} ${account.plaidIncluded ? "will be included" : "will be excluded"} from future Plaid imports.`, "info");
+  }
+
   function plaidAccountType(account) {
     const type = String(account.type || "").toLowerCase();
     const subtype = String(account.subtype || "").toLowerCase();
@@ -20959,7 +21009,7 @@ function quickAction(action) {
   }
 
   function plaidAccountNameByPlaidId(plaidAccountId) {
-    return data.accounts.find((account) => account.plaidAccountId === plaidAccountId)?.name || "Plaid Account";
+    return accountDisplayLabel(data.accounts.find((account) => account.plaidAccountId === plaidAccountId)) || "Plaid Account";
   }
 
   function plaidText(tx) {
@@ -21064,6 +21114,7 @@ function quickAction(action) {
       });
       [...safeArray(item.added), ...safeArray(item.modified)].forEach((tx) => {
         if (!tx.transaction_id) return;
+        if (!plaidAccountIncludedById(tx.account_id)) return;
         transactionCount += 1;
         const accountName = plaidAccountNameByPlaidId(tx.account_id);
         const category = plaidAppCategory(tx);
@@ -21110,6 +21161,7 @@ function quickAction(action) {
     safeArray(result.items).forEach((item) => {
       safeArray(item.liabilities).forEach((liability) => {
         if (!liability?.account_id) return;
+        if (!plaidAccountIncludedById(liability.account_id)) return;
         liabilityCount += 1;
         const normalized = {
           ...liability,
