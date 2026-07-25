@@ -10723,6 +10723,7 @@ function quickAction(action) {
         : "Minimums/APR not synced yet");
     const plaidTransactionsSynced = Boolean(data.settings.plaidLastBackendSyncAt);
     const plaidLiabilitiesSynced = Boolean(data.settings.plaidLastLiabilitySyncAt || plaidLiabilityCount);
+    const plaidLinkLabel = production && data.settings.plaidLastLinkedAt ? "Add another bank with Plaid Link" : production ? "Add bank(s) with Plaid Link" : "Open Plaid Link";
     const plaidNextStep = !production && !connected
       ? "Run Sandbox Import"
       : !backendOk
@@ -10730,7 +10731,7 @@ function quickAction(action) {
         : !signedIn
           ? "Sign in to BillMaster"
           : !data.settings.plaidLastLinkedAt
-            ? production ? "Add bank(s) with Plaid Link" : "Open Plaid Link"
+            ? plaidLinkLabel
             : !plaidTransactionsSynced
               ? "Sync Transactions"
               : !plaidLiabilitiesSynced
@@ -10772,7 +10773,7 @@ function quickAction(action) {
               <h2>Bank/Card Sync Foundation</h2>
               <span class="status ${production ? "success" : connected ? "success" : "warn"}">${production ? connected ? "Production connected" : "Production mode" : connected ? "Sandbox ready" : "Ready to test"}</span>
             </div>
-            <p class="muted">${production ? "No bank passwords belong in BillMaster. Plaid Link handles institution login, and you can add multiple banks before finishing the same session. BillMaster then receives tokenized account data and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent." : "No real bank passwords belong in BillMaster. Phase 1 uses sandbox-style token accounts, imports transactions, and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent."}</p>
+            <p class="muted">${production ? "No bank passwords belong in BillMaster. Plaid Link handles institution login, and you can add multiple banks before finishing the same session. If Plaid shows a bank already connected, do not sign in again unless you are intentionally refreshing it; choose another institution or finish Link. BillMaster prevents exact duplicate accounts and refreshes existing connections safely." : "No real bank passwords belong in BillMaster. Phase 1 uses sandbox-style token accounts, imports transactions, and stages recurring bills/subscriptions in Review Inbox before anything becomes permanent."}</p>
           </div>
         </div>
         <div class="plaid-stage-grid">
@@ -10813,11 +10814,12 @@ function quickAction(action) {
           ${plaidFlowStep("4", production ? "Pull" : "Production", production ? "Sync transactions and liabilities from the linked item." : "Move to real Plaid after privacy and reconnect tests.")}
         </div>
         ${plaidSyncError ? `<div class="sync-step danger" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Latest pull-down issue</strong><p>${esc(plaidSyncError)}</p></div></div>` : ""}
+        ${production && liveAccounts.length ? `<div class="sync-step info plaid-duplicate-tip" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Already linked?</strong><p>If the bank you want is already listed below, leave it alone and choose another institution in Plaid Link. Repeating the same login can create a duplicate Item; BillMaster will report an existing connection instead of creating an exact duplicate.</p></div></div>` : ""}
         <div class="sheet-actions plaid-actions">
           ${production ? "" : `<button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>`}
           <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
           ${signedIn ? "" : `<button class="primary-btn" data-action="open-modal" data-modal="${cloudConfigured() ? "cloudAuth" : "cloudSetup"}">${icon(cloudConfigured() ? "home" : "settings")} ${cloudConfigured() ? "Sign in to BillMaster" : "Setup BillMaster Cloud"}</button>`}
-          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} ${production ? "Add bank(s) with Plaid Link" : "Open Plaid Link"}</button>
+          <button class="outline-btn" data-action="start-plaid-link" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("wallet")} ${production ? (liveAccounts.length ? "Add another bank with Plaid Link" : "Add bank(s) with Plaid Link") : "Open Plaid Link"}</button>
           <button class="outline-btn" data-action="sync-plaid-transactions" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("refresh")} Sync Transactions</button>
           <button class="outline-btn" data-action="sync-plaid-liabilities" ${plaidLinkReady ? "" : `disabled title="${esc(plaidLinkBlocker)}"`}>${icon("chart")} Sync Minimums / APR</button>
           <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
@@ -10841,6 +10843,7 @@ function quickAction(action) {
     const account = data.accounts.find((acct) => acct.id === accountId);
     if (!account) return `${modalHeader("Account Detail")}<p class="muted">Account not found.</p>`;
     const institution = accountInstitutionLabel(account);
+    const balanceLabel = account.type === "Credit" ? "Current balance" : "Available balance";
     const contributions = safeArray(data.goalContributions)
       .filter((entry) => entry.accountId === account.id)
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
@@ -10848,7 +10851,7 @@ function quickAction(action) {
     return `${modalHeader(account.name, `${institution ? `${institution} · ` : ""}${account.type} ****${account.last4}`)}
       <section class="section-card account-detail-card" style="box-shadow:none;">
         <div class="amount-large money-blue">${money(account.balance)}</div>
-        <p class="muted">${institution ? `Institution: ${esc(institution)}. ` : ""}Current balance from the linked account. Goal contributions deduct from here after confirmation.</p>
+        <p class="muted">${institution ? `Institution: ${esc(institution)}. ` : ""}${balanceLabel} from the linked account. Goal contributions deduct from here after confirmation.</p>
       </section>
       <div class="account-detail-grid">
         <span><strong>${money(sum(contributions, "amount"))}</strong><small>goal contributions</small></span>
@@ -20687,17 +20690,27 @@ function quickAction(action) {
           plaid_user_id: link.plaid_user_id || ""
         }, { timeoutMs: 30000 });
         const institutions = safeArray(linked.institutions).filter(Boolean);
+        const addedCount = Number(linked.item_count || 0);
+        const existingCount = Number(linked.existing_item_count || 0);
         data.settings.plaidLastLinkedAt = localTimestamp();
         data.settings.plaidLastLinkedInstitution = institutions.join(", ") || "Plaid accounts";
         await syncPlaidConnections({ silent: true });
         await syncPlaidTransactions({ silent: true });
         data.settings.plaidLinkStatus = data.settings.plaidSyncError
           ? "Linked; pull-down pending"
-          : `Linked ${linked.item_count || institutions.length || 1} bank${(linked.item_count || institutions.length || 1) === 1 ? "" : "s"}`;
+          : addedCount && existingCount
+            ? `Added ${addedCount} bank${addedCount === 1 ? "" : "s"}; refreshed ${existingCount} existing`
+            : existingCount
+              ? "Already linked; connection refreshed"
+              : `Linked ${addedCount || institutions.length || 1} bank${(addedCount || institutions.length || 1) === 1 ? "" : "s"}`;
         render();
         showToast(data.settings.plaidSyncError
           ? "Bank links saved. Pull-down will retry after sign-in or the next sync."
-          : `${institutions.join(", ") || "Plaid accounts"} linked. Accounts and transactions refreshed.`);
+          : existingCount && !addedCount
+            ? `${institutions.join(", ") || "That bank"} is already connected. No duplicate was created; the existing connection was refreshed.`
+            : addedCount && existingCount
+              ? `${institutions.join(", ") || "Plaid accounts"} updated: ${addedCount} new bank${addedCount === 1 ? "" : "s"} and ${existingCount} existing connection${existingCount === 1 ? "" : "s"} refreshed.`
+              : `${institutions.join(", ") || "Plaid accounts"} linked. Accounts and transactions refreshed.`);
         return linked;
       } catch (error) {
         lastError = error;
@@ -20748,6 +20761,16 @@ function quickAction(action) {
               public_token: publicToken,
               metadata: metadata || {}
             });
+            if (linked.duplicate) {
+              data.settings.plaidLastLinkedAt = localTimestamp();
+              data.settings.plaidLastLinkedInstitution = linked.institution_name || "Plaid item";
+              data.settings.plaidLinkStatus = "Already linked; connection refreshed";
+              await syncPlaidConnections({ silent: true });
+              await syncPlaidTransactions({ silent: true });
+              render();
+              showToast(`${linked.institution_name || "That bank"} is already connected. No duplicate was created.`);
+              return;
+            }
             data.settings.plaidLastLinkedAt = localTimestamp();
             data.settings.plaidLastLinkedInstitution = linked.institution_name || "Plaid item";
             data.settings.plaidLinkStatus = "Linked";
@@ -20816,17 +20839,43 @@ function quickAction(action) {
     const raw = account || {};
     const balances = raw.balances && typeof raw.balances === "object" ? raw.balances : {};
     const accountId = raw.account_id || raw.id || raw.accountId || "";
+    const currentRaw = raw.current_balance ?? raw.balance ?? balances.current;
+    const availableRaw = raw.available_balance ?? balances.available;
     return {
       account_id: accountId,
+      persistent_account_id: raw.persistent_account_id || "",
       name: raw.name || raw.official_name || `${connection.institution_name || "Plaid"} account`,
       official_name: raw.official_name || "",
       mask: raw.mask || raw.last4 || "----",
       type: raw.type || "depository",
       subtype: raw.subtype || "",
-      current_balance: Number(raw.current_balance ?? raw.balance ?? balances.current ?? 0),
-      available_balance: Number(raw.available_balance ?? balances.available ?? 0),
+      current_balance: plaidOptionalNumber(currentRaw),
+      available_balance: plaidOptionalNumber(availableRaw),
       iso_currency_code: raw.iso_currency_code || balances.iso_currency_code || "USD"
     };
+  }
+
+  function plaidOptionalNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function plaidMoneyOptional(value) {
+    const number = plaidOptionalNumber(value);
+    return number === null ? null : moneyNumber(number);
+  }
+
+  function plaidAccountBalance(account) {
+    const current = plaidOptionalNumber(account?.current_balance);
+    const available = plaidOptionalNumber(account?.available_balance);
+    const type = String(account?.type || "").toLowerCase();
+    // For depository accounts, available is the spendable amount users expect
+    // to act on. Credit accounts use current because Plaid's available value is
+    // usually remaining credit, not the amount owed.
+    if (type !== "credit" && Number.isFinite(available)) return moneyNumber(available);
+    if (Number.isFinite(current)) return moneyNumber(current);
+    return 0;
   }
 
   function applyPlaidConnectionResult(result) {
@@ -20841,7 +20890,9 @@ function quickAction(action) {
           name: account.name || account.official_name || "Plaid Account",
           type: plaidAccountType(account),
           last4: account.mask || "----",
-          balance: Number(account.current_balance || account.available_balance || 0),
+          balance: plaidAccountBalance(account),
+          currentBalance: plaidMoneyOptional(account.current_balance),
+          availableBalance: plaidMoneyOptional(account.available_balance),
           color: account.type === "credit" ? "coral" : "teal",
           provider: sandbox ? "Plaid Sandbox" : "Plaid",
           plaidLinked: !sandbox,
@@ -21114,7 +21165,9 @@ function quickAction(action) {
           name: account.name || account.official_name || "Plaid Account",
           type: plaidAccountType(account),
           last4: account.mask || "----",
-          balance: Number(account.current_balance || account.available_balance || 0),
+          balance: plaidAccountBalance(account),
+          currentBalance: plaidMoneyOptional(account.current_balance),
+          availableBalance: plaidMoneyOptional(account.available_balance),
           color: account.type === "credit" ? "coral" : "teal",
           provider: "Plaid",
           plaidLinked: true,

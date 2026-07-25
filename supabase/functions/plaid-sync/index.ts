@@ -264,16 +264,34 @@ async function exchangePublicToken(admin: ReturnType<typeof createClient>, userI
   const publicToken = String(body.public_token || "");
   if (!publicToken) throw new HttpError(400, "Missing public_token from Plaid Link.");
 
-  const exchanged = await plaidPost("/item/public_token/exchange", { public_token: publicToken });
-  const itemId = String(exchanged.item_id || "");
-  const accessToken = String(exchanged.access_token || "");
-  if (!itemId || !accessToken) throw new HttpError(502, "Plaid did not return an item_id and access_token.");
-
   const metadata = isRecord(body.metadata) ? body.metadata : {};
   const plaidUserId = stringValue(body.plaid_user_id);
   const linkMetadata = plaidUserId ? { ...metadata, plaid_user_id: plaidUserId } : metadata;
   const institution = isRecord(linkMetadata.institution) ? linkMetadata.institution : {};
   const accounts = Array.isArray(linkMetadata.accounts) ? linkMetadata.accounts : [];
+
+  // Check the Link metadata before exchanging the public token. Plaid warns that
+  // signing in to the same institution a second time can create a duplicate Item.
+  // An exact account match is safe to skip; a new account at the same institution
+  // is still allowed through so users can intentionally add it.
+  const duplicate = await findDuplicateConnection(admin, userId, institution, accounts);
+  if (duplicate) {
+    return {
+      linked: false,
+      duplicate: true,
+      already_linked: true,
+      item_id: stringValue(duplicate.item_id),
+      institution_name: stringValue(duplicate.institution_name) || stringValue(institution.name) || "Plaid item",
+      accounts_count: accounts.length,
+      request_id: ""
+    };
+  }
+
+  const exchanged = await plaidPost("/item/public_token/exchange", { public_token: publicToken });
+  const itemId = String(exchanged.item_id || "");
+  const accessToken = String(exchanged.access_token || "");
+  if (!itemId || !accessToken) throw new HttpError(502, "Plaid did not return an item_id and access_token.");
+
   const now = new Date().toISOString();
 
   const tokenWrite = await admin.from("billmaster_plaid_tokens").upsert({
@@ -300,6 +318,8 @@ async function exchangePublicToken(admin: ReturnType<typeof createClient>, userI
 
   return {
     linked: true,
+    duplicate: false,
+    already_linked: false,
     item_id: itemId,
     institution_name: stringValue(institution.name) || "Plaid item",
     accounts_count: accounts.length,
@@ -355,6 +375,64 @@ async function deleteUserData(admin: ReturnType<typeof createClient>, userId: st
   };
 }
 
+function normalizedLinkValue(value: unknown) {
+  return stringValue(value).trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function linkAccountMatches(existing: JsonRecord, candidate: JsonRecord) {
+  const existingPersistentId = normalizedLinkValue(existing.persistent_account_id);
+  const candidatePersistentId = normalizedLinkValue(candidate.persistent_account_id);
+  if (existingPersistentId && candidatePersistentId && existingPersistentId === candidatePersistentId) return true;
+
+  const existingId = normalizedLinkValue(existing.account_id || existing.id);
+  const candidateId = normalizedLinkValue(candidate.account_id || candidate.id);
+  if (existingId && candidateId && existingId === candidateId) return true;
+
+  const existingName = normalizedLinkValue(existing.name || existing.official_name);
+  const candidateName = normalizedLinkValue(candidate.name || candidate.official_name);
+  const existingMask = normalizedLinkValue(existing.mask || existing.last4);
+  const candidateMask = normalizedLinkValue(candidate.mask || candidate.last4);
+  return Boolean(existingName && candidateName && existingMask && candidateMask
+    && existingName === candidateName && existingMask === candidateMask);
+}
+
+async function findDuplicateConnection(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  institution: JsonRecord,
+  accounts: unknown[]
+) {
+  const candidateAccounts = recordsArray(accounts);
+  if (!candidateAccounts.length) return null;
+  const institutionId = normalizedLinkValue(institution.institution_id);
+  const institutionName = normalizedLinkValue(institution.name);
+  if (!institutionId && !institutionName) return null;
+
+  const read = await admin
+    .from("billmaster_plaid_connections")
+    .select("item_id, institution_id, institution_name, accounts")
+    .eq("user_id", userId)
+    .limit(100);
+  assertDb(read.error, "Checking for an existing Plaid connection");
+
+  for (const row of read.data || []) {
+    const rowInstitutionId = normalizedLinkValue(row.institution_id);
+    const rowInstitutionName = normalizedLinkValue(row.institution_name);
+    const sameInstitution = Boolean(
+      (institutionId && rowInstitutionId && institutionId === rowInstitutionId)
+      || (institutionName && rowInstitutionName && institutionName === rowInstitutionName)
+    );
+    if (!sameInstitution) continue;
+
+    const existingAccounts = recordsArray(row.accounts);
+    const everyAccountAlreadyLinked = candidateAccounts.every((candidate) =>
+      existingAccounts.some((existing) => linkAccountMatches(existing, candidate))
+    );
+    if (everyAccountAlreadyLinked) return row;
+  }
+  return null;
+}
+
 async function completeMultiItemLink(admin: ReturnType<typeof createClient>, userId: string, body: JsonRecord) {
   const linkToken = stringValue(body.link_token);
   if (!linkToken) throw new HttpError(400, "Missing link_token for Multi-Item Link completion.");
@@ -371,25 +449,31 @@ async function completeMultiItemLink(admin: ReturnType<typeof createClient>, use
 
   const seen = new Set<string>();
   const items = [];
+  const existingItems = [];
   for (const item of itemAdds) {
     const publicToken = stringValue(item.public_token);
     if (!publicToken || seen.has(publicToken)) continue;
     seen.add(publicToken);
-    items.push(await exchangePublicToken(admin, userId, {
+    const linked = await exchangePublicToken(admin, userId, {
       public_token: publicToken,
       plaid_user_id: plaidUserId,
       metadata: item
-    }));
+    });
+    if (linked.duplicate) existingItems.push(linked);
+    else items.push(linked);
   }
-  if (!items.length) {
+  if (!items.length && !existingItems.length) {
     throw new HttpError(409, "Plaid has not finished returning the linked accounts yet. Wait a moment and try the sync again.");
   }
+  const allItems = [...items, ...existingItems];
   return {
     linked: true,
     multi_item_link: true,
     item_count: items.length,
-    institutions: items.map((item) => item.institution_name).filter(Boolean),
-    items
+    existing_item_count: existingItems.length,
+    institutions: allItems.map((item) => item.institution_name).filter(Boolean),
+    items,
+    existing_items: existingItems
   };
 }
 
@@ -837,13 +921,14 @@ function mapPlaidAccount(account: JsonRecord) {
   const balances = isRecord(account.balances) ? account.balances : {};
   return {
     account_id: stringValue(account.account_id),
+    persistent_account_id: stringValue(account.persistent_account_id),
     name: stringValue(account.name),
     official_name: stringValue(account.official_name),
     mask: stringValue(account.mask),
     type: stringValue(account.type),
     subtype: stringValue(account.subtype),
-    current_balance: numberValue(balances.current),
-    available_balance: numberValue(balances.available),
+    current_balance: nullableNumberValue(balances.current),
+    available_balance: nullableNumberValue(balances.available),
     iso_currency_code: stringValue(balances.iso_currency_code)
   };
 }
