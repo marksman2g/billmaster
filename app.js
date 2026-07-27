@@ -20745,10 +20745,12 @@ function quickAction(action) {
       const link = await plaidFunctionFetch("create_link_token");
       if (!link.link_token) throw new Error("plaid-sync did not return a link token.");
       await loadPlaidLinkScript();
+      let multiItemSuccessCount = 0;
       const handler = window.Plaid.create({
         token: link.link_token,
         onSuccess: async (publicToken, metadata) => {
           if (link.multi_item_link) {
+            multiItemSuccessCount += 1;
             data.settings.plaidLinkStatus = "Choose another bank or finish Link";
             render();
             return;
@@ -20786,6 +20788,16 @@ function quickAction(action) {
         },
         onExit: async (error) => {
           if (link.multi_item_link) {
+            // Plaid calls onExit after a normal cancel as well as after a
+            // completed Multi-Item Link session. If onSuccess never fired,
+            // there is no new Item to finish and this is not a sync failure.
+            if (!error && multiItemSuccessCount === 0) {
+              data.settings.plaidLinkStatus = "No new bank selected";
+              data.settings.plaidSyncError = "";
+              render();
+              showToast("No new bank was added. Your existing Plaid accounts were left unchanged.");
+              return;
+            }
             try {
               await finishPlaidMultiItemLink(link);
             } catch (completionError) {
