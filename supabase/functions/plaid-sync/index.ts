@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
 
     const { user, admin } = await requireUser(req);
     if (action === "create_link_token") return json(await createLinkToken(admin, user.id));
+    if (action === "create_update_link_token") return json(await createUpdateLinkToken(admin, user.id, body));
     if (action === "exchange_public_token") return json(await exchangePublicToken(admin, user.id, body));
     if (action === "complete_multi_item_link") return json(await completeMultiItemLink(admin, user.id, body));
     if (action === "list_connections") return json(await listConnections(admin, user.id));
@@ -95,7 +96,7 @@ async function plaidHealth() {
     plaid_env: plaidEnv(),
     configured,
     database,
-    actions: ["create_link_token", "exchange_public_token", "complete_multi_item_link", "list_connections", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
+    actions: ["create_link_token", "create_update_link_token", "exchange_public_token", "complete_multi_item_link", "list_connections", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
   };
 }
 
@@ -238,6 +239,57 @@ async function createLinkToken(admin: ReturnType<typeof createClient>, userId: s
     request_id: result.request_id,
     multi_item_link: true,
     plaid_user_id: plaidUserId
+  };
+}
+
+async function createUpdateLinkToken(admin: ReturnType<typeof createClient>, userId: string, body: JsonRecord) {
+  const itemId = stringValue(body.item_id);
+  if (!itemId) throw new HttpError(400, "Choose an existing Plaid connection before updating account access.");
+
+  const [tokenRead, connectionRead] = await Promise.all([
+    admin
+      .from("billmaster_plaid_tokens")
+      .select("item_id, access_token, environment")
+      .eq("user_id", userId)
+      .eq("item_id", itemId)
+      .maybeSingle(),
+    admin
+      .from("billmaster_plaid_connections")
+      .select("item_id, institution_name, status")
+      .eq("user_id", userId)
+      .eq("item_id", itemId)
+      .maybeSingle()
+  ]);
+  assertDb(tokenRead.error, "Reading the Plaid connection token");
+  assertDb(connectionRead.error, "Reading the Plaid connection metadata");
+
+  const token = tokenRead.data;
+  const connection = connectionRead.data;
+  if (!token?.access_token || !connection) {
+    throw new HttpError(404, "That Plaid connection is no longer available. Refresh the account list and try again.");
+  }
+  const environment = stringValue(token.environment) || "unknown";
+  if (environment !== "unknown" && environment !== plaidEnv()) {
+    throw new HttpError(409, "That Plaid connection belongs to a different environment. Refresh the account list before updating it.");
+  }
+
+  // Update mode is the safe Plaid path for adding or removing accounts on an
+  // existing Item. It keeps the same Item/access token and avoids another
+  // billable duplicate connection at the same institution.
+  const result = await plaidPost("/link/token/create", {
+    client_name: Deno.env.get("PLAID_CLIENT_NAME") || "BillMaster",
+    country_codes: csvSecret("PLAID_COUNTRY_CODES", ["US"]),
+    language: "en",
+    access_token: token.access_token,
+    update: { account_selection_enabled: true }
+  });
+  return {
+    link_token: result.link_token,
+    expiration: result.expiration,
+    request_id: result.request_id,
+    update_mode: true,
+    item_id: itemId,
+    institution_name: stringValue(connection.institution_name) || "Plaid item"
   };
 }
 

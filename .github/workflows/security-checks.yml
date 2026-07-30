@@ -1,0 +1,32 @@
+name: BillMaster security checks
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-and-smoke-check:
+    name: Dependency and application checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit high-severity dependencies
+        run: npm audit --audit-level=high
+      - name: Check application syntax
+        run: node --check app.js
+      - name: Run BillMaster smoke test
+        run: node smoke-test.js

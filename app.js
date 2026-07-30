@@ -66,6 +66,8 @@
     blockSnapMinutes: "15",
     blockSelectMode: false,
     blockDrawMode: false,
+    dayToolbarCollapsed: false,
+    blockToolbarCollapsed: false,
     daySwapMode: false,
     dayCopyTargetDate: null,
     selectedTasks: [],
@@ -623,6 +625,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "cloud-refresh-media-links",
     "check-plaid-backend",
     "start-plaid-link",
+    "start-plaid-update",
     "sync-plaid-transactions",
     "sync-plaid-liabilities",
     "simulate-detect",
@@ -641,7 +644,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "reset-sandbox-review",
     "save-subscription",
     "save-subscription-media",
-    "reset-data"
+    "reset-data",
+    "start-fresh-section",
+    "start-fresh-workspace"
   ]);
   saveData({ undo: false, cloudSync: false, syncStamp: false });
 
@@ -2642,6 +2647,26 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     }
   }
 
+  function plaidDashboardCostSummary() {
+    const liveAccounts = safeArray(data.accounts).filter((account) => account.plaidLinked || account.provider === "Plaid");
+    const itemIds = new Set(liveAccounts.map((account) => String(account.plaidItemId || "").trim()).filter(Boolean));
+    const fallbackItems = new Set(liveAccounts
+      .filter((account) => !account.plaidItemId)
+      .map((account) => `${account.plaidInstitution || "Plaid"}:${account.provider || "Plaid"}`));
+    const itemCount = itemIds.size || fallbackItems.size;
+    const model = normalizeBusinessModel(data);
+    const perItem = Math.max(0, Number(model.plaidPerConnectionCost) || 0);
+    const commitment = Math.max(0, Number(model.plaidMonthlyCommitment) || 0);
+    const estimate = itemCount * perItem + commitment;
+    const itemLabel = itemCount === 1 ? "Item" : "Items";
+    const accountLabel = liveAccounts.length === 1 ? "account" : "accounts";
+    const detail = itemCount
+      ? `${itemCount} Plaid ${itemLabel} · ${liveAccounts.length} live ${accountLabel}`
+      : "No live Plaid Items yet";
+    const title = `Planning estimate: ${itemCount} Plaid ${itemLabel} × ${money(perItem)} per Item${commitment ? ` + ${money(commitment)} plan commitment` : ""}. Plaid's exact invoice is set by your Plaid plan.`;
+    return `<span class="plaid-cost-summary" title="${esc(title)}" aria-label="${esc(title)}"><strong>Plaid est. ${money(estimate)}/mo</strong><small>${esc(detail)} · planning estimate</small></span>`;
+  }
+
   function renderDashboard() {
     const income = sum(reportableTransactions("income"));
     const expenses = sum(reportableTransactions("expense"));
@@ -2724,7 +2749,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
         <div class="list dashboard-panel dashboard-panel--accounts" data-dashboard-panel="accounts" aria-label="Accounts">
           <section class="section-card">
-            <div class="section-title"><h2>Accounts</h2><button class="text-btn" data-action="open-modal" data-modal="accountConnections">Manage</button></div>
+            <div class="section-title accounts-section-heading"><h2>Accounts</h2>${plaidDashboardCostSummary()}<button class="text-btn" data-action="open-modal" data-modal="accountConnections">Manage</button></div>
             <div class="account-strip">
               ${visibleAccounts().map((acct) => `<article class="account-card clickable-card" style="border-left-color: var(--${acct.color});" data-action="open-modal" data-modal="accountDetail" data-id="${acct.id}" tabindex="0" role="button">
                 <div class="entity-title">${esc(acct.name)}</div>
@@ -3341,16 +3366,14 @@ function quickAction(action) {
   function renderHabits() {
     const today = todayIso();
     const activeHabits = data.habits.filter((habit) => habit.status === "Active");
-    const todaysHabits = activeHabits.filter((habit) => habitTrackableOn(habit, today));
+    const todaysHabits = activeHabits.filter((habit) => habitScheduledOn(habit, today));
     const completedToday = todaysHabits.filter((habit) => habitCompletedOn(habit, today)).length;
     const weekStart = startOfWeekIso(today);
-    const weekEnd = addDaysIso(weekStart, 6);
-    const weekStats = habitsCompletionSummary(data.habits, weekStart, weekEnd);
+    const weekStats = habitsCompletionSummary(data.habits, weekStart, today);
     const monthStart = `${today.slice(0, 7)}-01`;
-    const monthEnd = monthEndIso(today);
-    const monthStats = habitsCompletionSummary(data.habits, monthStart, monthEnd);
+    const monthStats = habitsCompletionSummary(data.habits, monthStart, today);
     const filtered = data.habits.filter((habit) => {
-      if (ui.habitFilter === "today") return habitTrackableOn(habit, today);
+      if (ui.habitFilter === "today") return habitScheduledOn(habit, today);
       if (ui.habitFilter === "completed") return habitCompletedOn(habit, today);
       if (ui.habitFilter === "paused") return habit.status !== "Active";
       return true;
@@ -3358,7 +3381,7 @@ function quickAction(action) {
     const selectedVisible = filtered.filter((habit) => ui.selectedHabits.includes(habit.id)).length;
     const selectedCount = ui.selectedHabits.length;
     return `<section class="screen">
-      ${header("Habit Tracker", `<button class="icon-btn" data-action="navigate" data-view="calendar" title="Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="voiceHabit" title="Add habit by voice">${icon("mic")}</button><button class="icon-btn" data-action="open-modal" data-modal="editHabit" title="Add habit">${icon("plus")}</button>`)}
+      ${header("Habit Tracker", `<button class="danger-soft-btn header-action-btn" data-action="start-fresh-section" data-section="habits" title="Remove all habits and their repeating calendar blocks" aria-label="Start fresh in Habits">${icon("trash")}<span>Start fresh</span></button><button class="icon-btn" data-action="navigate" data-view="calendar" title="Calendar">${icon("calendar")}</button><button class="icon-btn" data-action="open-modal" data-modal="voiceHabit" title="Add habit by voice">${icon("mic")}</button><button class="icon-btn" data-action="open-modal" data-modal="editHabit" title="Add habit">${icon("plus")}</button>`)}
       <section class="habit-hero">
         <div>
           <span class="status info">${icon("calendar")} First-class calendar habits</span>
@@ -3408,10 +3431,11 @@ function quickAction(action) {
   function habitCard(habit, today) {
     const media = entityImage(habit);
     const completed = habitCompletedOn(habit, today);
-    const weekStats = habitCompletionSummary(habit, addDaysIso(today, -6), today);
-    const monthStart = `${today.slice(0, 7)}-01`;
-    const monthStats = habitCompletionSummary(habit, monthStart, monthEndIso(today));
+    const weekStats = habitCompletionSummary(habit, startOfWeekIso(today), today);
+    const monthStats = habitCompletionSummary(habit, addDaysIso(today, -29), today);
     const streak = habitCurrentStreak(habit, today);
+    const offScheduleCompletions = dateRangeIso(addDaysIso(today, -29), today)
+      .filter((iso) => habitCompletedOn(habit, iso) && !habitScheduledOn(habit, iso)).length;
     const color = habit.color || taskCategoryColor("Habit");
     const selected = ui.selectedHabits.includes(habit.id);
     const durationMinutes = Math.max(0, minutes(habit.end) - minutes(habit.start));
@@ -3451,11 +3475,12 @@ function quickAction(action) {
         <span>End ${timeLabel(habit.end)} &middot; <strong class="duration-value">${durationLabel(durationMinutes)}</strong></span>
         <button class="outline-btn" data-action="adjust-habit-end" data-id="${habit.id}" data-delta="15">${icon("plus")} 15M</button>
       </div>
-      <div class="habit-stats-row">
+      <div class="habit-stats-row" aria-label="Habit adherence metrics">
         <div><label>Streak</label><strong>${streak}</strong><span>days</span></div>
         <div><label>Week</label><strong>${weekStats.rate}%</strong><span>${weekStats.completed}/${weekStats.scheduled}</span></div>
         <div><label>30 Days</label><strong>${monthStats.rate}%</strong><span>${monthStats.completed}/${monthStats.scheduled}</span></div>
       </div>
+      ${offScheduleCompletions ? `<p class="habit-stats-note">${offScheduleCompletions} completed day${offScheduleCompletions === 1 ? "" : "s"} fell outside this habit's schedule and are not included in adherence.</p>` : ""}
       ${habitHeatmap(habit, today)}
       <div class="task-time-preview habit-calendar-preview">
         <span>${icon("calendar")} Starts ${dateLabel(habit.startDate)}</span>
@@ -3492,8 +3517,9 @@ function quickAction(action) {
         const inMonth = iso.slice(0, 7) === anchorIso.slice(0, 7);
         const scheduled = habitScheduledOn(habit, iso);
         const completed = habitCompletedOn(habit, iso);
+        const offScheduleCompletion = completed && !scheduled;
         const current = iso === todayIso();
-        return `<button class="${inMonth ? "" : "outside-month"} ${scheduled ? "scheduled" : ""} ${completed ? "completed" : ""} ${current ? "today" : ""}" data-action="toggle-habit-completion" data-id="${habit.id}" data-date="${iso}" title="${dateLabel(iso)}: ${completed ? "completed" : scheduled ? "scheduled" : "not scheduled"}">${Number(iso.slice(-2))}</button>`;
+        return `<button class="${inMonth ? "" : "outside-month"} ${scheduled ? "scheduled" : ""} ${completed && !offScheduleCompletion ? "completed" : ""} ${offScheduleCompletion ? "completed-extra" : ""} ${current ? "today" : ""}" data-action="toggle-habit-completion" data-id="${habit.id}" data-date="${iso}" title="${dateLabel(iso)}: ${offScheduleCompletion ? "completed off-schedule; not counted" : completed ? "completed" : scheduled ? "scheduled" : "not scheduled"}">${Number(iso.slice(-2))}</button>`;
       }).join("")}
     </div>`;
   }
@@ -5554,12 +5580,13 @@ function quickAction(action) {
 
   function calendarCategoryBar() {
     const enabledCount = taskCategories.filter((category) => isTaskCategoryEnabled(category)).length;
+    const habitsEnabled = isTaskCategoryEnabled("Habit");
     return `<details class="calendar-category-menu">
       <summary title="Filter calendar tasks by category">${icon("filter")} <span>Categories</span><strong>${enabledCount}/${taskCategories.length}</strong></summary>
       <div class="category-filter-bar" aria-label="Calendar task categories">
         ${taskCategories.map((category) => `<button class="${isTaskCategoryEnabled(category) ? "active" : ""}" data-action="toggle-task-category" data-category="${category}" style="--category-color:${taskCategoryColor(category)}">${esc(category)}</button>`).join("")}
       </div>
-    </details>`;
+    </details><button class="outline-btn calendar-habit-toggle ${habitsEnabled ? "active" : ""}" data-action="toggle-task-category" data-category="Habit" aria-pressed="${habitsEnabled ? "true" : "false"}" title="${habitsEnabled ? "Hide repeating habits from the calendar" : "Show repeating habits in the calendar"}">${habitsEnabled ? "Hide habits" : "Show habits"}</button>`;
   }
 
   function calendarTopTools(view) {
@@ -6005,7 +6032,12 @@ function quickAction(action) {
   }
 
   function habitCompletionSummary(habit, startIso, endIso) {
-    const dates = dateRangeIso(startIso, endIso).filter((iso) => habitScheduledOn(habit, iso));
+    const today = todayIso();
+    const boundedStart = startIso <= endIso ? startIso : endIso;
+    const requestedEnd = startIso <= endIso ? endIso : startIso;
+    const boundedEnd = requestedEnd > today ? today : requestedEnd;
+    if (boundedStart > boundedEnd) return { scheduled: 0, completed: 0, rate: 0 };
+    const dates = dateRangeIso(boundedStart, boundedEnd).filter((iso) => habitScheduledOn(habit, iso));
     const completed = dates.filter((iso) => habitCompletedOn(habit, iso)).length;
     return { scheduled: dates.length, completed, rate: progressPct(completed, Math.max(1, dates.length)) };
   }
@@ -6203,7 +6235,11 @@ function quickAction(action) {
         : " - tap a date above to pick copy target"
       : "";
     const viewModePicker = `<div class="day-view-mode-picker" role="group" aria-label="Day task card view">${["regular", "compact", "gallery"].map((view) => `<button class="${ui.dayTaskView === view ? "active" : ""}" data-action="set-tab" data-key="dayTaskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}</div>`;
-    return `<div class="calendar-summary day-toolbar">${icon("bell")} <span class="calendar-summary-label">Today's Task Hours:</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(dayTasks))}</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}${selectedHint}</span>${viewModePicker}<button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button>${copyTargetButton}<button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${calendarUndoButton()}${dayTimeOfDayLegend("day-toolbar-periods")}</div>
+    const dayToolbarCollapsed = Boolean(ui.dayToolbarCollapsed);
+    const dayToolbarToggle = `<button class="outline-btn calendar-toolbar-toggle" data-action="toggle-calendar-toolbar" data-toolbar="day" aria-expanded="${dayToolbarCollapsed ? "false" : "true"}" title="${dayToolbarCollapsed ? "Show day task controls" : "Hide day task controls"}">${icon("settings")} ${dayToolbarCollapsed ? "Show controls" : "Hide controls"}</button>`;
+    const dayToolbar = `<div class="calendar-summary day-toolbar">${icon("bell")} <span class="calendar-summary-label">Today's Task Hours:</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(dayTasks))}</strong><span class="muted">${selectedDayCount}/${dayTasks.length} selected${ui.daySwapMode ? " - Swap mode on" : ""}${selectedHint}</span>${viewModePicker}<button class="primary-btn day-add-task-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button><button class="${ui.daySwapMode ? "primary-btn" : "outline-btn"}" data-action="toggle-day-swap-mode">${icon("refresh")} ${ui.daySwapMode ? "Swap On" : "Swap mode"}</button>${selectedDayCount === 2 ? `<button class="outline-btn compact-action" data-action="swap-selected-day-tasks">${icon("refresh")} Swap selected</button>` : ""}<button class="outline-btn" data-action="select-all-day-tasks">Select all</button><button class="outline-btn" data-action="deselect-all-day-tasks">Deselect all</button>${selectedDayCount ? `<button class="outline-btn compact-action" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button>${copyTargetButton}<button class="outline-btn compact-action" data-action="map-selected-day-tasks" ${selectedDayCanRoute ? "" : "disabled"}>${icon("map")} Open route</button><button class="outline-btn compact-action" data-action="copy-selected-day-task-route" ${selectedDayCanRoute ? "" : "disabled"}>${icon("note")} Copy route URL</button><button class="danger-btn compact-action" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button>` : ""}<button class="outline-btn" data-action="toggle-select-mode">${ui.selectedTasks.length ? "Actions" : "Select"}</button>${dayToolbarToggle}${calendarUndoButton()}${dayTimeOfDayLegend("day-toolbar-periods")}</div>`;
+    const dayToolbarCollapsedBar = `<div class="calendar-toolbar-collapsed calendar-toolbar-collapsed--day"><span>${icon("bell")} <strong>Today's Task Hours:</strong> <strong class="duration-total">${durationHoursLabel(totalTaskHours(dayTasks))}</strong></span><span class="muted">${selectedDayCount}/${dayTasks.length} selected</span>${dayToolbarToggle}</div>`;
+    return `${dayToolbarCollapsed ? dayToolbarCollapsedBar : dayToolbar}
       <div class="week-strip">${weekDates().map((iso) => weekDayButton(iso)).join("")}</div>
       <p class="subtle" style="margin-top:-6px;">Tap an event to edit.${ui.daySwapMode ? " Drag one task onto another to swap times." : " Turn Swap mode on before dragging tasks on touch screens."}</p>
       <div class="list day-task-grid day-tasks-${esc(ui.dayTaskView || "regular")} ${ui.daySwapMode ? "day-swap-mode" : ""}">${dayTasks.map((task) => taskDayCard(task)).join("") || `<div class="empty-state"><div><h2>No tasks for this day</h2><button class="primary-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Add Task</button></div></div>`}</div>`;
@@ -6261,6 +6297,12 @@ function quickAction(action) {
   function toggleCalendarStickyDates() {
     ui.calendarStickyDates = !ui.calendarStickyDates;
     showToast(ui.calendarStickyDates ? "Calendar dates will stay visible while you scroll." : "Calendar dates unlocked.");
+  }
+
+  function toggleCalendarToolbar(toolbar) {
+    const key = String(toolbar || "").trim().toLowerCase() === "block" ? "blockToolbarCollapsed" : "dayToolbarCollapsed";
+    ui[key] = !ui[key];
+    render();
   }
 
   function setCalendarPalette(key) {
@@ -6536,7 +6578,11 @@ function quickAction(action) {
       : "Double-tap empty grid space or tap a spot, then Timed Task. Desktop can still drag empty space.";
     const toolbarHelperText = ui.blockSelectMode ? `${selectedCount}/${tasks.length} selected` : helperText;
     const lockedRail = ui.calendarStickyDates ? calendarLockedDateRail(weekdays, "block") : "";
-    return `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted" title="${esc(toolbarHelperText)}">${toolbarHelperText}</span>${selectedActionButton}${blockSelectTools}${snapToggle}<button class="outline-btn block-timed-task-btn" data-action="open-block-quick-create">${icon("plus")} Timed Task</button><span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockUndo}</div>
+    const blockToolbarCollapsed = Boolean(ui.blockToolbarCollapsed);
+    const blockToolbarToggle = `<button class="outline-btn calendar-toolbar-toggle" data-action="toggle-calendar-toolbar" data-toolbar="block" aria-expanded="${blockToolbarCollapsed ? "false" : "true"}" title="${blockToolbarCollapsed ? "Show Block View controls" : "Hide Block View controls"}">${icon("settings")} ${blockToolbarCollapsed ? "Show controls" : "Hide controls"}</button>`;
+    const blockToolbar = `<div class="calendar-summary block-toolbar ${week2 ? "week2-toolbar" : ""}">${icon("bell")} <span class="calendar-summary-label">${week2 ? "Week 2 total:" : "Week total:"}</span><strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong><span class="muted" title="${esc(toolbarHelperText)}">${toolbarHelperText}</span>${selectedActionButton}${blockSelectTools}${snapToggle}<button class="outline-btn block-timed-task-btn" data-action="open-block-quick-create">${icon("plus")} Timed Task</button><span class="block-toolbar-break" aria-hidden="true"></span><div class="handle-style-picker"><span class="subtle">Zoom</span>${blockZoomOptions().map((option) => `<button class="${String(ui.blockZoom) === option.value ? "active" : ""}" data-action="set-tab" data-key="blockZoom" data-value="${option.value}">${option.label}</button>`).join("")}</div><div class="handle-style-picker focus-picker"><span class="subtle">Focus</span>${blockFocusOptions().map((option) => `<button class="${focusKey === option.value ? "active" : ""}" data-action="set-tab" data-key="blockTimeFocus" data-value="${option.value}" title="${esc(option.title || option.label)}">${option.iconName ? icon(option.iconName) : ""}${option.label}</button>`).join("")}</div><div class="handle-style-picker"><span class="subtle">Handles</span>${["interactive", "light", "solid"].map((styleOption) => `<button class="${handleStyle === styleOption ? "active" : ""}" data-action="set-tab" data-key="blockHandleStyle" data-value="${styleOption}">${filterLabel(styleOption)}</button>`).join("")}</div>${blockToolbarToggle}${blockUndo}</div>`;
+    const blockToolbarCollapsedBar = `<div class="calendar-toolbar-collapsed calendar-toolbar-collapsed--block"><span>${icon("bell")} <strong>${week2 ? "Week 2 total:" : "Week total:"}</strong> <strong class="duration-total">${durationHoursLabel(totalTaskHours(countedTasks))}</strong></span><span class="muted" title="${esc(toolbarHelperText)}">${toolbarHelperText}</span>${blockToolbarToggle}</div>`;
+    return `${blockToolbarCollapsed ? blockToolbarCollapsedBar : blockToolbar}
       <div class="block-mobile-actions ${drawMode ? "is-drawing" : ""} ${ui.blockSelectMode ? "is-selecting" : ""}"><button class="primary-btn block-phone-create-btn" data-action="open-block-quick-create">${icon("plus")} Phone Create</button><button class="${drawMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-draw-mode">${icon(drawMode ? "check" : "edit")} ${drawMode ? "Tap Place On" : "Tap Place"}</button><button class="${ui.blockSelectMode ? "primary-btn" : "outline-btn"}" data-action="toggle-block-select-mode">${icon("check")} ${ui.blockSelectMode ? "Selecting" : "Select tasks"}</button><button class="outline-btn" data-action="open-modal" data-modal="editTask">${icon("plus")} Full Task</button>${ui.blockSelectMode ? `<button class="outline-btn" data-action="select-visible-block-tasks">${icon("check")} Select week</button>${selectedCount ? `<button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete ${selectedCount}</button><button class="outline-btn" data-action="open-modal" data-modal="taskActions">${icon("check")} Actions</button>` : ""}<button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}<span class="subtle">${drawMode ? "Press and drag empty grid space to draw the task time. A single tap creates a one-hour task there." : ui.blockSelectMode ? "Select mode on: tap task blocks, then delete or open actions." : "Android/iPhone: double-tap to create, or double-tap and hold-drag to set the time."}</span></div>
       ${lockedRail}<div class="block-scroll ${week2 ? "week2-scroll" : ""} ${drawMode ? "block-draw-scroll" : ""} ${ui.blockSelectMode ? "block-select-scroll" : ""} ${ui.calendarStickyDates ? "calendar-dates-locked" : ""}"><div class="block-calendar ${week2 ? "block-calendar--week2" : ""} handle-${handleStyle} ${ui.blockSelectMode ? "block-select-mode" : ""} ${drawMode ? "block-draw-mode" : ""}" style="${style}">${heads}<div class="time-col">${leftLabels}</div>${cols}</div></div>`;
   }
@@ -6978,7 +7024,7 @@ function quickAction(action) {
     const selectedIds = filteredIds.filter((taskId) => ui.selectedTasks.includes(taskId));
     const allSelected = filteredIds.length > 0 && selectedIds.length === filteredIds.length;
     return `<section class="screen">
-      ${header("Tasks", `<button class="icon-btn" data-action="navigate" data-view="projects">${icon("folder")}</button>`)}
+      ${header("Tasks", `<button class="danger-soft-btn header-action-btn" data-action="start-fresh-section" data-section="tasks" title="Remove all tasks and start fresh" aria-label="Start fresh in Tasks">${icon("trash")}<span>Start fresh</span></button><button class="icon-btn" data-action="navigate" data-view="projects">${icon("folder")}</button>`)}
       <section class="workspace-command-panel workspace-command-panel--work">
         <div class="workspace-command-row">
           <div class="quick-add workspace-quick-add">
@@ -8136,7 +8182,7 @@ function quickAction(action) {
     const selectedUnassignedNotes = unassignedNotes.filter((note) => ui.selectedNotes.includes(note.id)).length;
     const organizedView = ui.notebookView === "organized";
     return `<section class="screen">
-      ${header("Notebooks", `<button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
+      ${header("Notebooks", `<button class="danger-soft-btn header-action-btn" data-action="start-fresh-section" data-section="notebooks" title="Remove all notebooks and the notes inside them" aria-label="Start fresh in Notebooks">${icon("trash")}<span>Start fresh</span></button><button class="icon-btn" data-action="open-modal" data-modal="editNotebook">${icon("plus")}</button>`)}
       <section class="workspace-command-panel workspace-command-panel--notes">
         <section class="notebook-library-head">
           <div>
@@ -8250,7 +8296,7 @@ function quickAction(action) {
     const selectedVisibleNotes = notes.filter((note) => ui.selectedNotes.includes(note.id)).length;
     const selectedNoteCount = ui.selectedNotes.length;
     return `<section class="screen">
-      ${header(nb ? nb.title : "All Notes", `<button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
+      ${header(nb ? nb.title : "All Notes", `<button class="danger-soft-btn header-action-btn" data-action="start-fresh-section" data-section="notes" title="Remove all notes and start fresh" aria-label="Start fresh in Notes">${icon("trash")}<span>Start fresh</span></button><button class="icon-btn" data-action="open-modal" data-modal="editNote" aria-label="Add note">${icon("plus")}</button><button class="icon-btn">${icon("search")}</button>`)}
       ${nb ? notebookDetailHero(nb, baseNotes, unassignedCount, noteCounts) : ""}
       <section class="workspace-command-panel workspace-command-panel--notes">
         <div class="workspace-command-row">
@@ -8741,7 +8787,7 @@ function quickAction(action) {
       .filter((loan) => matchesLendingFilter(loan, ui.lendingFilter))
       .filter((loan) => !query || String(loan.borrower || "").toLowerCase().includes(query) || String(loan.description || "").toLowerCase().includes(query));
     return `<section class="screen">
-      ${header("Money Lending Tracker", `<button class="icon-btn">${icon("bell")}</button><button class="icon-btn">${icon("filter")}</button>`)}
+      ${header("Money Lending Tracker", `<button class="danger-soft-btn header-action-btn" data-action="start-fresh-section" data-section="loans" title="Remove all loans and start fresh" aria-label="Start fresh in Loans">${icon("trash")}<span>Start fresh</span></button><button class="icon-btn">${icon("bell")}</button><button class="icon-btn">${icon("filter")}</button>`)}
       <div class="metrics-grid lending-stats" style="margin-bottom:14px;">
         <div class="stat-card" style="border-color:#ffd79d;"><span class="muted">${icon("wallet")}</span><strong class="amount-large" style="color:#ff9800">${money(summary.outstanding)}</strong><div class="subtle">Outstanding</div></div>
         <div class="stat-card" style="border-color:#cbe9ff;"><span class="muted">${icon("chart")}</span><strong class="amount-large money-blue">${money(summary.partial)}</strong><div class="subtle">Money Owed</div></div>
@@ -9674,6 +9720,7 @@ function quickAction(action) {
         <p class="muted">BillMaster uses Plaid to retrieve the bank data you authorize. Plaid access tokens stay on the secure server; BillMaster receives account, balance, and transaction data for your workspace.</p>
         <ul class="muted">
           <li>You choose the institution and accounts in Plaid Link.</li>
+          <li>Plaid may show saved institutions you already linked. Leave an existing bank unchecked if you are not changing its account access; use Manage for the safe Add / remove accounts flow.</li>
           <li>You can stop using the connection from BillMaster.</li>
           <li>Imported recurring charges first go to Review Inbox.</li>
         </ul>
@@ -10748,6 +10795,7 @@ function quickAction(action) {
       liabilitiesSynced: plaidLiabilitiesSynced,
       blocker: plaidLinkBlocker
     });
+    const updateItemsShown = new Set();
     const accountRows = safeArray(data.accounts).map((acct) => {
       const sandbox = acct.provider === "Plaid Sandbox" || acct.plaidSandbox;
       const livePlaid = acct.provider === "Plaid" || acct.plaidLinked;
@@ -10755,13 +10803,18 @@ function quickAction(action) {
       const included = plaidAccountIncluded(acct);
       const status = sandbox ? "Sandbox linked" : livePlaid ? "Plaid linked" : "Local account";
       const institution = accountInstitutionLabel(acct);
+      const canUpdate = production && livePlaid && acct.plaidItemId && !updateItemsShown.has(acct.plaidItemId);
+      if (canUpdate) updateItemsShown.add(acct.plaidItemId);
+      const accountActions = linked
+        ? `<div class="account-connection-actions"><label class="account-connection-toggle"><input type="checkbox" data-plaid-account-toggle data-id="${esc(acct.id)}" ${included ? "checked" : ""}><span>${included ? "Use in BillMaster" : "Excluded"}</span></label>${canUpdate ? `<button class="outline-btn account-update-btn" data-action="start-plaid-update" data-id="${esc(acct.plaidItemId)}" title="Add or remove accounts on this existing Plaid connection">${icon("plus")} Add / remove accounts</button>` : ""}</div>`
+        : `<span class="status info">${esc(status)}</span>`;
       return `<article class="account-connection-row ${linked && !included ? "is-excluded" : ""}">
         <span class="round-icon" style="color:${sandbox || livePlaid ? "var(--teal)" : "var(--navy)"};background:${sandbox || livePlaid ? "#e7fbff" : "#eef6ff"};">${icon(sandbox || livePlaid ? "cloud" : "wallet")}</span>
         <div>
           <strong>${esc(acct.name)}</strong>
           <small>${institution ? `${esc(institution)} &middot; ` : ""}${esc(acct.type)} ****${esc(acct.last4 || "----")} &middot; ${money(acct.balance || 0)}</small>
         </div>
-        ${linked ? `<label class="account-connection-toggle"><input type="checkbox" data-plaid-account-toggle data-id="${esc(acct.id)}" ${included ? "checked" : ""}><span>${included ? "Use in BillMaster" : "Excluded"}</span></label>` : `<span class="status info">${esc(status)}</span>`}
+        ${accountActions}
       </article>`;
     }).join("");
     return `${modalHeader("Account Connections", production ? "Production mode: connect one or more real banks or cards in one Plaid Link session, then review imported data before it becomes a bill or subscription." : "Phase 1: prove safe bank/card sync in sandbox before real credentials or production tokens.")}
@@ -10814,7 +10867,7 @@ function quickAction(action) {
           ${plaidFlowStep("4", production ? "Pull" : "Production", production ? "Sync transactions and liabilities from the linked item." : "Move to real Plaid after privacy and reconnect tests.")}
         </div>
         ${plaidSyncError ? `<div class="sync-step danger" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Latest pull-down issue</strong><p>${esc(plaidSyncError)}</p></div></div>` : ""}
-        ${production && liveAccounts.length ? `<div class="sync-step info plaid-duplicate-tip" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Already linked?</strong><p>If the bank you want is already listed below, leave it alone and choose another institution in Plaid Link. Repeating the same login can create a duplicate Item; BillMaster will report an existing connection instead of creating an exact duplicate.</p></div></div>` : ""}
+        ${production && liveAccounts.length ? `<div class="sync-step info plaid-saved-institution-tip" style="margin-top:12px;"><span>${icon("alert")}</span><div><strong>Already linked institution?</strong><p>Plaid may still show saved institutions such as Municipal Credit Union in its saved-institution list. That list belongs to Plaid and cannot be hidden by BillMaster; it does not mean you need to import that bank again. To add or remove accounts safely, use <strong>Add / remove accounts</strong> beside the existing connection below. To connect a different bank, choose Plaid's option to add a new institution.</p></div></div>` : ""}
         <div class="sheet-actions plaid-actions">
           ${production ? "" : `<button class="primary-btn" data-action="run-plaid-sandbox-import">${icon("cloud")} Run Sandbox Import</button>`}
           <button class="outline-btn" data-action="check-plaid-backend">${icon("settings")} Check Backend</button>
@@ -10830,7 +10883,7 @@ function quickAction(action) {
         </div>
       </section>
       <h3 class="section-kicker">Linked Accounts</h3>
-      <p class="muted account-selection-help">Choose which linked accounts BillMaster should show and use. Checked accounts appear on the dashboard and in account selectors and are included in future transaction, bill, and liability imports. Unchecked accounts are hidden everywhere else, remain connected in Plaid, and can be restored here later. Existing history is kept.</p>
+      <p class="muted account-selection-help">Choose which linked accounts BillMaster should show and use. Checked accounts appear on the dashboard and in account selectors and are included in future transaction, bill, and liability imports. Unchecked accounts are hidden everywhere else, remain connected in Plaid, and can be restored here later. Existing history is kept. Use <strong>Add / remove accounts</strong> to change which accounts Plaid shares on an existing bank connection without creating a duplicate Item.</p>
       <p class="subtle account-selection-summary">${workingAccounts.length} visible account${workingAccounts.length === 1 ? "" : "s"} · ${hiddenAccounts.length} hidden account${hiddenAccounts.length === 1 ? "" : "s"}</p>
       <div class="list account-connection-list">${accountRows || `<p class="muted">No accounts yet. Run the sandbox import to create safe test accounts.</p>`}</div>
       <section class="section-card account-sync-safety-card" style="box-shadow:none;">
@@ -10884,6 +10937,9 @@ function quickAction(action) {
       <div class="list">
         <button class="data-row" style="background:transparent;border:1px solid var(--line);border-radius:8px;padding:12px;width:100%;text-align:left;" data-action="download-data">
           <span class="round-icon">${icon("note")}</span><div><strong>Download Backup</strong><div class="subtle">Export the current app data as JSON.</div></div><span>${icon("check")}</span>
+        </button>
+        <button class="data-row" style="background:transparent;border:1px solid #ffc2c2;border-radius:8px;padding:12px;width:100%;text-align:left;" data-action="start-fresh-workspace">
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><div><strong>Start with a blank workspace</strong><div class="subtle">Clear local tasks, bills, money records, calendar items, notes, notebooks, loans, and demo content while keeping app settings.</div></div><span class="danger-text">${icon("alert")}</span>
         </button>
         <button class="data-row" style="background:transparent;border:1px solid #ffc2c2;border-radius:8px;padding:12px;width:100%;text-align:left;" data-action="reset-data">
           <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><div><strong>Reset Demo Data</strong><div class="subtle">Restore the original BillMaster sample workspace.</div></div><span class="danger-text">${icon("alert")}</span>
@@ -13675,6 +13731,7 @@ function quickAction(action) {
       ui.calendarColorsOpen = !ui.calendarColorsOpen;
       return render();
     }
+    if (action === "toggle-calendar-toolbar") return toggleCalendarToolbar(el.dataset.toolbar);
     if (action === "toggle-calendar-sticky-dates") return toggleCalendarStickyDates();
     if (action === "calendar-time-control-reserved") return showToast("That Time square is ready for the next calendar control.", "info");
     if (action === "set-calendar-palette") return setCalendarPalette(el.dataset.palette);
@@ -13913,6 +13970,7 @@ function quickAction(action) {
     if (action === "cloud-refresh-media-links") return refreshCloudMediaLinks();
     if (action === "check-plaid-backend") return checkPlaidBackend();
     if (action === "start-plaid-link") return startPlaidLink();
+    if (action === "start-plaid-update") return startPlaidUpdate(el.dataset.id);
     if (action === "confirm-plaid-consent") return confirmPlaidConsent();
     if (action === "sync-plaid-transactions") return syncPlaidTransactions();
     if (action === "sync-plaid-liabilities") return syncPlaidLiabilities();
@@ -13944,6 +14002,8 @@ function quickAction(action) {
     if (action === "set-backup-frequency") return setBackupFrequency(el.dataset.value);
     if (action === "download-data") return downloadData();
     if (action === "reset-data") return resetData();
+    if (action === "start-fresh-section") return startFreshSection(el.dataset.section);
+    if (action === "start-fresh-workspace") return startFreshWorkspace();
     if (action === "ai-prompt") return sendAi(el.dataset.prompt);
     if (action === "send-ai") return sendAi(document.getElementById("aiInput")?.value);
     if (action === "start-ai-voice") return startAiVoice();
@@ -14147,7 +14207,98 @@ function quickAction(action) {
 
   function confirmDelete(label) {
     if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
-    return window.confirm(`Delete ${label}? This only removes it from this local BillMaster workspace.`);
+    return window.confirm(`⚠️ DESTRUCTIVE ACTION — Delete ${label}?\n\nThis removes it from this local BillMaster workspace. Choose OK only if you are sure.`);
+  }
+
+  function confirmStartFresh(label, detail) {
+    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
+    const scope = detail || "the saved records in this section";
+    const cloudWarning = cloudAutoSyncEnabled() ? " Auto Sync is on, so this deletion may also be sent to your connected cloud workspace." : "";
+    return window.confirm(`⚠️ DESTRUCTIVE ACTION — START FRESH in ${label}?\n\nThis permanently removes ${scope} from this BillMaster workspace.${cloudWarning}\n\nChoose OK only if you are sure. Download a backup first if you may need these records later.`);
+  }
+
+  function startFreshSection(section) {
+    const key = String(section || "").trim().toLowerCase();
+    if (key === "tasks") {
+      const count = data.tasks.length;
+      if (!count) return showToast("Tasks are already empty.", "info");
+      if (!confirmStartFresh("Tasks", `${count} task${count === 1 ? "" : "s"}`)) return;
+      data.tasks = [];
+      ui.selectedTasks = [];
+      saveData();
+      render();
+      return showToast(`${count} task${count === 1 ? "" : "s"} cleared. Habits are separate and remain in the calendar until you hide or delete them.`);
+    }
+    if (key === "habits") {
+      const count = data.habits.length;
+      if (!count) return showToast("Habits are already empty.", "info");
+      if (!confirmStartFresh("Habits", `${count} repeating habit${count === 1 ? "" : "s"} and their scheduled calendar blocks`)) return;
+      data.habits = [];
+      ui.selectedHabits = [];
+      saveData();
+      render();
+      return showToast(`${count} habit${count === 1 ? "" : "s"} and their repeating calendar blocks cleared. You can start fresh now.`);
+    }
+    if (key === "notes") {
+      const count = data.notes.length;
+      if (!count) return showToast("Notes are already empty.", "info");
+      if (!confirmStartFresh("Notes", `${count} note${count === 1 ? "" : "s"}`)) return;
+      data.notes = [];
+      ui.selectedNotes = [];
+      ui.notebookId = null;
+      saveData();
+      render();
+      return showToast(`${count} note${count === 1 ? "" : "s"} cleared. You can start fresh now.`);
+    }
+    if (key === "notebooks") {
+      const notebookCount = data.notebooks.length;
+      const noteCount = data.notes.length;
+      if (!notebookCount && !noteCount) return showToast("Notebooks and notes are already empty.", "info");
+      const detail = `${notebookCount} notebook${notebookCount === 1 ? "" : "s"} and ${noteCount} note${noteCount === 1 ? "" : "s"}`;
+      if (!confirmStartFresh("Notebooks", detail)) return;
+      data.notebooks = [];
+      data.notes = [];
+      ui.selectedNotebooks = [];
+      ui.selectedNotes = [];
+      ui.notebookId = null;
+      saveData();
+      render();
+      return showToast(`${detail} cleared. You can start fresh now.`);
+    }
+    if (key === "loans") {
+      const loanCount = data.loans.length;
+      const repaymentCount = data.transactions.filter((tx) => tx.loanId || (tx.category === "Lending" && /^Repayment from /i.test(String(tx.name || "")))).length;
+      if (!loanCount && !repaymentCount) return showToast("Loans are already empty.", "info");
+      const detail = `${loanCount} loan${loanCount === 1 ? "" : "s"}${repaymentCount ? ` and ${repaymentCount} linked repayment transaction${repaymentCount === 1 ? "" : "s"}` : ""}`;
+      if (!confirmStartFresh("Loans", detail)) return;
+      data.loans = [];
+      data.transactions = data.transactions.filter((tx) => !tx.loanId && !(tx.category === "Lending" && /^Repayment from /i.test(String(tx.name || ""))));
+      saveData();
+      render();
+      return showToast(`${detail} cleared. You can start fresh now.`);
+    }
+    showToast("That start-fresh area is not available yet.", "danger");
+  }
+
+  function startFreshWorkspace() {
+    const total = syncCollectionKeys().reduce((sum, collection) => sum + safeArray(data[collection]).length, 0);
+    if (!total) return showToast("This workspace is already blank.", "info");
+    if (!confirmStartFresh("the whole workspace", "all local tasks, habits, bills, money records, accounts, calendar items, notes, notebooks, loans, and demo content")) return;
+    const previousSettings = clone(data.settings || {});
+    const previousBusinessModel = clone(data.businessModel || {});
+    data = blankWorkspace();
+    data.settings = previousSettings;
+    data.settings.deletedItems = {};
+    data.businessModel = previousBusinessModel;
+    ui.selectedTasks = [];
+    ui.selectedHabits = [];
+    ui.selectedNotes = [];
+    ui.selectedNotebooks = [];
+    ui.notebookId = null;
+    ui.modal = null;
+    saveData();
+    render();
+    return showToast("Workspace cleared. Your app settings remain, and you can start fresh now.");
   }
 
   function shouldSkipRecentWrite(key, windowMs = 3000) {
@@ -16697,13 +16848,9 @@ function quickAction(action) {
       .filter((notebook) => sourceIds.includes(notebook.id))
       .map((notebook) => notebook.title)
       .join(", ");
-    if (!confirmDelete(`${sourceIds.length} selected notebook${sourceIds.length === 1 ? "" : "s"} (${selectedNames})`)) return;
-    data.notes.forEach((note) => {
-      if (sourceIds.includes(note.notebookId)) {
-        note.notebookId = null;
-        note.updatedAt = new Date().toISOString();
-      }
-    });
+    const noteCount = data.notes.filter((note) => sourceIds.includes(note.notebookId)).length;
+    if (!confirmStartFresh(`${sourceIds.length} selected notebook${sourceIds.length === 1 ? "" : "s"} (${selectedNames})`, `${sourceIds.length} notebook${sourceIds.length === 1 ? "" : "s"} and the ${noteCount} note${noteCount === 1 ? "" : "s"} inside them`)) return;
+    data.notes = data.notes.filter((note) => !sourceIds.includes(note.notebookId));
     data.notebooks = data.notebooks.filter((notebook) => !sourceIds.includes(notebook.id));
     ui.selectedNotebooks = [];
     ui.selectedNotes = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
@@ -16711,7 +16858,7 @@ function quickAction(action) {
     const saved = saveData();
     if (!saved) return showToast(ui.lastSaveError, "danger");
     render();
-    showToast(`${sourceIds.length} notebook${sourceIds.length === 1 ? "" : "s"} deleted. Notes are now unassigned. Undo is available.`);
+    showToast(`${sourceIds.length} notebook${sourceIds.length === 1 ? "" : "s"} deleted with ${noteCount} note${noteCount === 1 ? "" : "s"}. Undo is available.`);
   }
 
   function duplicateNotebooks(notebookIds) {
@@ -16752,19 +16899,18 @@ function quickAction(action) {
 
   function deleteNotebook(notebookId) {
     const notebook = data.notebooks.find((item) => item.id === notebookId);
-    if (!notebook || !confirmDelete(notebook.title)) return;
-    data.notes.forEach((note) => {
-      if (note.notebookId === notebookId) {
-        note.notebookId = null;
-        note.updatedAt = new Date().toISOString();
-      }
-    });
+    if (!notebook) return;
+    const noteCount = data.notes.filter((note) => note.notebookId === notebookId).length;
+    if (!confirmStartFresh(notebook.title, `this notebook and the ${noteCount} note${noteCount === 1 ? "" : "s"} inside it`)) return;
+    data.notes = data.notes.filter((note) => note.notebookId !== notebookId);
     data.notebooks = data.notebooks.filter((item) => item.id !== notebookId);
     if (ui.notebookId === notebookId) ui.notebookId = null;
+    ui.selectedNotes = ui.selectedNotes.filter((noteId) => data.notes.some((note) => note.id === noteId));
+    ui.selectedNotebooks = ui.selectedNotebooks.filter((idValue) => idValue !== notebookId);
     ui.modal = null;
     const saved = saveData();
     if (!saved) return showToast(ui.lastSaveError, "danger");
-    showToast("Notebook deleted. Its notes are now unassigned. Undo is available.");
+    showToast(`Notebook deleted with ${noteCount} note${noteCount === 1 ? "" : "s"}. Undo is available.`);
   }
 
   function deleteGoal(goalId) {
@@ -17710,7 +17856,11 @@ function quickAction(action) {
     setHabitCompletion(habit.id, iso, !completed);
     saveData();
     render();
-    showToast(completed ? "Habit completion removed." : "Habit marked complete.");
+    showToast(completed
+      ? "Habit completion removed."
+      : habitScheduledOn(habit, iso)
+        ? "Habit marked complete."
+        : "Habit marked complete off-schedule; it will not affect adherence percentages.");
   }
 
   function habitCalendarDate(habit) {
@@ -20824,6 +20974,78 @@ function quickAction(action) {
     }
   }
 
+  async function startPlaidUpdate(itemId) {
+    if (!itemId) {
+      showToast("Choose an existing Plaid connection first.", "danger");
+      return;
+    }
+    if (!cloudConfigured()) {
+      showToast("Finish Supabase setup before updating Plaid accounts.", "danger");
+      openModal("cloudSetup");
+      return;
+    }
+    if (!cloudSignedIn()) {
+      showToast("Sign in to BillMaster before updating Plaid accounts.", "danger");
+      openModal("cloudAuth");
+      return;
+    }
+    if (!data.settings.plaidBackendReady) {
+      showToast("Check the Plaid backend first.", "danger");
+      return;
+    }
+    try {
+      data.settings.plaidLinkStatus = "Preparing account selection";
+      data.settings.plaidSyncError = "";
+      render();
+      const link = await plaidFunctionFetch("create_update_link_token", { item_id: itemId });
+      if (!link.link_token) throw new Error("plaid-sync did not return an account-update link token.");
+      await loadPlaidLinkScript();
+      let completed = false;
+      const handler = window.Plaid.create({
+        token: link.link_token,
+        onSuccess: async () => {
+          completed = true;
+          try {
+            data.settings.plaidLinkStatus = "Refreshing selected accounts";
+            data.settings.plaidSyncError = "";
+            render();
+            await syncPlaidConnections({ silent: true });
+            await syncPlaidTransactions({ silent: true });
+            data.settings.plaidLinkStatus = `${link.institution_name || "Plaid"} account selection updated`;
+            render();
+            showToast(`${link.institution_name || "Plaid"} account selection updated. Existing connection kept; no duplicate Item created.`);
+          } catch (error) {
+            data.settings.plaidLinkStatus = "Account selection saved; refresh pending";
+            data.settings.plaidSyncError = error?.message || "Plaid account refresh failed.";
+            render();
+            showToast(data.settings.plaidSyncError, "danger");
+          }
+        },
+        onExit: (error) => {
+          if (error) {
+            data.settings.plaidLinkStatus = "Account update exited with error";
+            data.settings.plaidSyncError = error.display_message || error.error_message || "Plaid account update failed.";
+            render();
+            showToast(data.settings.plaidSyncError, "danger");
+          } else if (!completed) {
+            data.settings.plaidLinkStatus = "Account update canceled";
+            data.settings.plaidSyncError = "";
+            render();
+            showToast("No account selection changes were made.", "info");
+          }
+        }
+      });
+      data.settings.plaidLinkStatus = "Plaid account selection open";
+      render();
+      handler.open();
+    } catch (error) {
+      data.settings.plaidLinkStatus = "Account update setup failed";
+      data.settings.plaidSyncError = error?.message || "Plaid account update could not start.";
+      render();
+      showToast(data.settings.plaidSyncError, "danger");
+    }
+  }
+
   function plaidBackendEnvironment() {
     const env = String(data.settings?.plaidBackendEnv || "").toLowerCase();
     return env === "production" ? "production" : "sandbox";
@@ -22026,16 +22248,20 @@ function copyPlaidProductionPlan() {
 
   function aiCalendarItems(startIso, endIso) {
     const items = [];
-    safeArray(data.tasks).forEach((task) => {
-      const date = aiDateKey(task.date);
-      if (date && aiDateInRange(date, startIso, endIso)) {
-        items.push({ type: "Task", title: task.title, date, time: task.start || "", end: task.end || "", detail: task.description || task.category || task.status || "" });
-      }
-    });
-    safeArray(data.habits).forEach((habit) => {
-      for (let iso = startIso; parseLocalDate(iso) <= parseLocalDate(endIso); iso = addDaysIso(iso, 1)) {
-        if (aiHabitOccursOn(habit, iso)) items.push({ type: "Habit", title: habit.title, date: iso, time: habit.start || "", end: habit.end || "", detail: habit.type || habit.schedule || "" });
-      }
+    // Calendar/Today already expands recurring habits, normalizes times, and
+    // applies the user's visible-category filters. Use that same source so AI
+    // counts cannot disagree with the blocks the user can actually see.
+    calendarItemsForRange(startIso, endIso).forEach((calendarItem) => {
+      const date = aiDateKey(calendarItem.date);
+      if (!date) return;
+      items.push({
+        type: calendarItem.isHabit ? "Habit" : "Task",
+        title: calendarItem.title,
+        date,
+        time: calendarItem.start || "",
+        end: calendarItem.end || "",
+        detail: calendarItem.description || calendarItem.category || calendarItem.status || ""
+      });
     });
     safeArray(data.bills).forEach((bill) => {
       const date = aiDateKey(bill.dueDate);
@@ -22059,6 +22285,10 @@ function copyPlaidProductionPlan() {
   }
 
   function aiCalendarAnswer(prompt) {
+    // A background tab can miss the midnight timer. Re-check the local date
+    // whenever the assistant answers a calendar question so "today" never
+    // points at yesterday's selected column.
+    refreshDateContext();
     const lower = aiNorm(prompt);
     const timeWindow = aiCalendarTimeWindow(prompt);
     const range = aiCalendarRange(lower, timeWindow);

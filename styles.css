@@ -273,6 +273,14 @@ video {
   gap: 8px;
 }
 
+.header-action-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -489,6 +497,57 @@ video {
   text-decoration: none;
   background: transparent;
   border: 0;
+}
+
+.accounts-section-heading {
+  gap: 8px;
+}
+
+.accounts-section-heading h2 {
+  flex: 0 0 auto;
+}
+
+.plaid-cost-summary {
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 9px;
+  color: var(--navy-2);
+  background: #eefaff;
+  border: 1px solid #b9e8f5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.plaid-cost-summary strong,
+.plaid-cost-summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plaid-cost-summary strong {
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.plaid-cost-summary small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+@media (max-width: 620px) {
+  .accounts-section-heading {
+    flex-wrap: wrap;
+  }
+
+  .accounts-section-heading .plaid-cost-summary {
+    order: 3;
+    flex-basis: 100%;
+  }
 }
 
 .mode-toggle {
@@ -4099,6 +4158,21 @@ button.round-icon {
   border-radius: 8px;
 }
 
+.account-connection-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-update-btn {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .account-connection-row.is-excluded {
   opacity: 0.7;
   background: #fbfcfe;
@@ -4145,6 +4219,17 @@ button.round-icon {
 .account-connection-row strong {
   line-height: 1.2;
   white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .account-connection-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .account-connection-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 
 .account-sync-safety-card {
@@ -10040,6 +10125,27 @@ canvas {
   z-index: 1;
 }
 
+/* Calendar navigation is an action, so its clickable boundary stays visible even at rest. */
+.calendar-controls > .icon-btn[data-action="calendar-nav"] {
+  width: 40px;
+  height: 40px;
+  color: var(--navy);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #c8e2ff;
+  border-radius: 8px;
+  box-shadow: 0 5px 14px rgba(26, 31, 54, 0.06);
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.calendar-controls > .icon-btn[data-action="calendar-nav"]:hover,
+.calendar-controls > .icon-btn[data-action="calendar-nav"]:focus-visible {
+  color: var(--workspace-accent-2);
+  background: #eef6ff;
+  border-color: #8fc6f7;
+  box-shadow: 0 7px 18px rgba(33, 150, 243, 0.14);
+  outline: none;
+}
+
 .calendar-screen {
   padding-top: 8px;
 }
@@ -10053,6 +10159,24 @@ canvas {
   align-items: flex-start;
   gap: 6px;
   min-width: 0;
+}
+
+.calendar-habit-toggle {
+  min-height: 42px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+.calendar-habit-toggle.active {
+  color: var(--workspace-accent-2);
+  background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
+  border-color: var(--workspace-border);
+}
+
+.calendar-habit-toggle:not(.active) {
+  color: var(--workspace-accent-2);
+  background: #ffffff;
+  border-color: color-mix(in srgb, var(--workspace-accent) 44%, #ffffff 56%);
 }
 
 .calendar-left-tools .mini-tabs {
@@ -10386,6 +10510,10 @@ canvas {
     padding-inline: 7px;
   }
 
+  .calendar-habit-toggle {
+    padding-inline: 7px;
+  }
+
   .calendar-category-menu > summary > span {
     position: absolute;
     width: 1px;
@@ -10452,17 +10580,23 @@ canvas {
 
 .calendar-title-button {
   min-width: 0;
+  padding: 5px 12px;
   color: var(--text);
-  background: transparent;
-  border: 0;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #c8e2ff;
   border-radius: 8px;
+  box-shadow: 0 5px 14px rgba(26, 31, 54, 0.06);
+  cursor: pointer;
   font-size: 1.45rem;
   font-weight: 850;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .calendar-title-button:hover,
 .calendar-title-button:focus-visible {
   background: #eef6ff;
+  border-color: #8fc6f7;
+  box-shadow: 0 7px 18px rgba(33, 150, 243, 0.14);
   outline: none;
 }
 
@@ -13532,6 +13666,49 @@ canvas {
   font-size: 0.74rem;
 }
 
+.calendar-toolbar-collapsed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+  margin: 7px 0 8px;
+  padding: 6px 10px;
+  color: var(--workspace-accent-2);
+  background: #eaf4ff;
+  border: 1px solid #c8e2ff;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(26, 31, 54, 0.05);
+}
+
+.calendar-toolbar-collapsed > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.calendar-toolbar-collapsed > .muted {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-toolbar-toggle {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 9px;
+  white-space: nowrap;
+}
+
+.calendar-toolbar-collapsed--block {
+  background: #f3f9ff;
+  border-color: #cfe6ff;
+}
+
 .floating-fab {
   position: fixed;
   right: 18px;
@@ -15448,6 +15625,21 @@ canvas {
   color: #fff;
   background: var(--green);
   border-color: var(--green);
+}
+
+.habit-heatmap span.completed-extra,
+.habit-heatmap button.completed-extra {
+  color: #7a4b00;
+  background: #fff1c7;
+  border-color: #f2b94b;
+}
+
+.habit-stats-note {
+  margin: -4px 0 10px;
+  color: #7a4b00;
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1.35;
 }
 
 .habit-heatmap button.today {
@@ -17547,6 +17739,18 @@ canvas {
   .bottom-nav .nav-item,
   .today-badge {
     min-height: 44px;
+  }
+
+  .header-action-btn {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  .header-action-btn span {
+    display: none;
   }
 
   .day-toolbar {
@@ -21256,4 +21460,236 @@ canvas {
     drop-shadow(0 0 4px rgba(56, 189, 248, 0.42))
     drop-shadow(0 0 6px rgba(239, 68, 68, 0.32)) !important;
   animation: bmActiveDayEdgeSpin var(--calendar-current-day-edge-speed) linear infinite reverse, bmActiveDayEdgeFlash var(--calendar-current-day-flash-speed) ease-in-out infinite !important;
+}
+
+/* Unified cross-view visual system: the calendar's calm, grouped surfaces carry through every workspace. */
+.app-shell {
+  --view-radius: 12px;
+  --view-shadow: 0 10px 24px rgba(26, 31, 54, 0.07);
+}
+
+.app-shell .screen-header {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--workspace-panel) 76%, #ffffff 24%), rgba(255, 255, 255, 0.86));
+  border-bottom: 1px solid color-mix(in srgb, var(--workspace-border) 78%, #dfe6ee 22%);
+  box-shadow: 0 6px 18px rgba(26, 31, 54, 0.045);
+  backdrop-filter: blur(14px);
+}
+
+.app-shell .screen-header h1 {
+  color: var(--text);
+  text-align: left;
+  font-size: clamp(1.25rem, 3vw, 1.72rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.app-shell .header-actions {
+  margin-left: auto;
+}
+
+.app-shell .section-card,
+.app-shell .card,
+.app-shell .list-card,
+.app-shell .stat-card,
+.app-shell .action-tile,
+.app-shell .task-card,
+.app-shell .bill-card,
+.app-shell .subscription-card,
+.app-shell .loan-card,
+.app-shell .note-card,
+.app-shell .address-card,
+.app-shell .project-card {
+  border-radius: var(--view-radius);
+  box-shadow: var(--view-shadow);
+}
+
+.app-shell .section-card {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--workspace-panel) 42%, #ffffff 58%), #ffffff);
+}
+
+.app-shell .section-title {
+  min-height: 34px;
+}
+
+.app-shell .section-title h2,
+.app-shell .panel-title,
+.app-shell .entity-title {
+  letter-spacing: -0.015em;
+}
+
+.app-shell .metrics-grid > .stat-card {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--workspace-panel) 55%, #ffffff 45%), #ffffff);
+  border-color: color-mix(in srgb, var(--workspace-border) 78%, #dfe6ee 22%);
+}
+
+.app-shell .filter-row,
+.app-shell .mini-tabs,
+.app-shell .toolbar,
+.app-shell .segmented,
+.app-shell .notes-control-panel,
+.app-shell .project-bulk-toolbar,
+.app-shell .project-task-toolbar,
+.app-shell .note-action-bar {
+  border-radius: 10px;
+  border-color: var(--workspace-border);
+  background: color-mix(in srgb, var(--workspace-panel) 88%, #ffffff 12%);
+  box-shadow: 0 7px 16px rgba(26, 31, 54, 0.045);
+}
+
+.app-shell .filter-row,
+.app-shell .mini-tabs,
+.app-shell .toolbar,
+.app-shell .segmented {
+  padding: 5px;
+}
+
+.app-shell .filter-row button,
+.app-shell .mini-tabs button,
+.app-shell .segmented button,
+.app-shell .toolbar button,
+.app-shell .notes-control-panel button,
+.app-shell .project-bulk-toolbar button,
+.app-shell .project-task-toolbar button,
+.app-shell .note-action-bar button {
+  border-radius: 9px;
+  border-color: color-mix(in srgb, var(--workspace-border) 78%, #ffffff 22%);
+  font-weight: 820;
+}
+
+.app-shell .filter-row button:hover,
+.app-shell .mini-tabs button:hover,
+.app-shell .segmented button:hover,
+.app-shell .toolbar button:hover,
+.app-shell .notes-control-panel button:hover,
+.app-shell .project-bulk-toolbar button:hover,
+.app-shell .project-task-toolbar button:hover,
+.app-shell .note-action-bar button:hover {
+  border-color: color-mix(in srgb, var(--workspace-accent) 48%, #ffffff 52%);
+  background: color-mix(in srgb, var(--workspace-panel) 66%, #ffffff 34%);
+}
+
+.app-shell .search-field,
+.app-shell input,
+.app-shell select,
+.app-shell textarea {
+  border-radius: 10px;
+}
+
+.app-shell .data-row,
+.app-shell .activity-row,
+.app-shell .week-row,
+.app-shell .address-row,
+.app-shell .task-address-row {
+  border-radius: 9px;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.app-shell .data-row:hover,
+.app-shell .activity-row:hover,
+.app-shell .week-row:hover,
+.app-shell .address-row:hover,
+.app-shell .task-address-row:hover {
+  background: color-mix(in srgb, var(--workspace-panel) 55%, #ffffff 45%);
+}
+
+.app-shell .action-tile {
+  border-color: color-mix(in srgb, var(--workspace-border) 70%, #dfe6ee 30%);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--workspace-panel) 62%, #ffffff 38%), #ffffff);
+}
+
+.app-shell .action-tile:hover,
+.app-shell .task-card:hover,
+.app-shell .bill-card:hover,
+.app-shell .subscription-card:hover,
+.app-shell .loan-card:hover,
+.app-shell .note-card:hover,
+.app-shell .address-card:hover,
+.app-shell .project-card:hover {
+  border-color: color-mix(in srgb, var(--workspace-accent) 42%, #ffffff 58%);
+  box-shadow: 0 13px 28px rgba(26, 31, 54, 0.1);
+}
+
+@media (max-width: 640px) {
+  .app-shell .screen-header h1 {
+    font-size: 1.18rem;
+  }
+
+  .app-shell .section-card {
+    padding: 14px;
+  }
+}
+
+/* Destructive-action guardrails: visible red warning lights make irreversible scope clears hard to miss. */
+@keyframes destructive-warning-button {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.08), 0 4px 12px rgba(239, 68, 68, 0.06);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.15), 0 7px 18px rgba(239, 68, 68, 0.18);
+  }
+}
+
+@keyframes destructive-warning-light {
+  0%, 44%, 100% {
+    opacity: 0.26;
+    transform: scale(0.78);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+  48%, 82% {
+    opacity: 1;
+    transform: scale(1.12);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16), 0 0 10px rgba(239, 68, 68, 0.74);
+  }
+}
+
+.app-shell .header-action-btn[data-action="start-fresh-section"],
+.app-shell [data-action="start-fresh-workspace"] {
+  position: relative;
+  isolation: isolate;
+  animation: destructive-warning-button 1.35s ease-in-out infinite;
+}
+
+.app-shell .header-action-btn[data-action="start-fresh-section"]::before,
+.app-shell .header-action-btn[data-action="start-fresh-section"]::after,
+.app-shell [data-action="start-fresh-workspace"]::before,
+.app-shell [data-action="start-fresh-workspace"]::after {
+  position: absolute;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  content: "";
+  background: #ef4444;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: destructive-warning-light 1.05s steps(1, end) infinite;
+}
+
+.app-shell .header-action-btn[data-action="start-fresh-section"]::before,
+.app-shell [data-action="start-fresh-workspace"]::before {
+  right: 9px;
+}
+
+.app-shell .header-action-btn[data-action="start-fresh-section"]::after,
+.app-shell [data-action="start-fresh-workspace"]::after {
+  right: -4px;
+  animation-delay: 0.52s;
+}
+
+.app-shell .danger-btn[data-action^="delete-"]:hover,
+.app-shell .danger-btn[data-action^="delete-"]:focus-visible {
+  animation: destructive-warning-button 1.05s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .header-action-btn[data-action="start-fresh-section"],
+  .app-shell [data-action="start-fresh-workspace"],
+  .app-shell .header-action-btn[data-action="start-fresh-section"]::before,
+  .app-shell .header-action-btn[data-action="start-fresh-section"]::after,
+  .app-shell [data-action="start-fresh-workspace"]::before,
+  .app-shell [data-action="start-fresh-workspace"]::after,
+  .app-shell .danger-btn[data-action^="delete-"]:hover,
+  .app-shell .danger-btn[data-action^="delete-"]:focus-visible {
+    animation: none;
+  }
 }
