@@ -6,6 +6,13 @@ Baseline: main at c747c39; clean working tree; JavaScript syntax and 18-route sm
 
 Completed: all four checkpoints. See PROJECT_STATE.md for verified results and follow-up risks.
 
+## Follow-up hardening — 20260908-3
+- Reproduced three storage/undo/notification failures with isolated fixtures; corrected them and retained temporary-tab recovery.
+- Failed writes do not create phantom undo history. Failed undo saves keep their recovery point available for retry.
+- Storage warnings and the Backup action reappear when a toast expires, without replacing active forms.
+- Route smoke checks now reject logged render errors and recovery screens. Syntax checks cover the app, worker, and preview server.
+- Verified all 18 route checks and 22 behavioral tests. Updated local build only; public deployment remains separate.
+
 ## Checkpoints
 1. Reproduce current-date and AI count failures with isolated fixtures.
 2. Fix date handling, AI range/count behavior, unnecessary rendering, and destructive-action safeguards.

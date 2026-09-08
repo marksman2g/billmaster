@@ -1,9 +1,10 @@
 # Checkpoint: BillMaster stabilization
 
-Version: 20260908-2
+Version: 20260908-3
 Status: local stabilization complete; not published
 Date: 2026-09-08
 Baseline: main / c747c39
+Previous local checkpoint: be17358 (20260908-2)
 
 ## Complete
 - Current-date task filters, bill date calculations, and new transaction/loan/note defaults (historical seed and existing records preserved).
@@ -17,26 +18,30 @@ Baseline: main / c747c39
 - Versioned app-shell cache with warm cache reuse, exact offline asset versions, local development network-first, and cleanup limited to BillMaster caches.
 - Preview binds to loopback by default; static allowlist blocks repository/secret paths and handles malformed requests safely.
 - npm test command plus regression tests added to CI.
+- Save/undo hardening: failed writes do not advance history; failed undo saves remain retryable; successful temporary-tab recovery retains the prior snapshot.
+- Storage warning and Backup action restored after notification expiry without a full render; redundant undo render removed.
+- Route smoke checks reject internal render errors/recovery screens; test cache/preview URLs track the actual index asset version.
 
 ## Validation
 - node --check app.js, service-worker.js, scripts/serve-billmaster.js: pass.
 - 18-route smoke test: pass.
-- 18 behavioral tests: pass, including current dates/DST, AI counts, monthly expense routing, destructive cancellation, notebook scope, cash totals, today bills, cache failures and preview server.
-- npm audit --audit-level=high: 0 vulnerabilities reported.
+- 22 behavioral tests: pass, including current dates/DST, AI counts, monthly expense routing, destructive cancellation, notebook scope, cash totals, today bills, cache failures, preview server, blocked storage, temporary recovery, failed undo retry, and persistent save warnings.
+- npm audit --audit-level=high: 0 vulnerabilities reported at the preceding checkpoint; dependencies are unchanged.
 - Browser: public app opened successfully; improved local dashboard inspected at desktop width; Tasks and Week Calendar inspected at 390×844. No live data was changed in these checks.
 - Test fixtures reproduced 9 original failures before fixes. Full live Plaid, TTS, cloud conflict, and mobile-device end-to-end tests were not performed.
+- Follow-up fixtures reproduced 3 additional failures before fixes. No real user records, bank connections, or paid APIs were changed during verification.
 
 ## Verified access
-- Updated local preview: http://127.0.0.1:4180/index.html?cachebust=20260908-2#dashboard
+- Updated local preview: http://127.0.0.1:4180/index.html?cachebust=20260908-3#dashboard
 - Published app (previous version): https://marksman2g.github.io/billmaster/index.html
 - Repository remote: https://github.com/marksman2g/billmaster.git
 - Local repository: C:\Users\Black Excellence\Documents\Codex\2026-07-15\billmaster-active-clean\work\billmaster
 - Start preview in this directory: npm.cmd start (or npm start).
 
 ## Next priorities
-1. Publish this verified checkpoint when GitHub synchronization is requested; verify Pages serves version 20260908-2 afterward.
+1. Publish this verified checkpoint when GitHub synchronization is requested; verify Pages serves app.js version 20260908-3 afterward.
 2. Test and deploy the Plaid backend update-mode code separately. Audit account-removal reconciliation, swallowed refresh errors, transaction cursor durability, and sandbox/production separation with isolated fixtures before live verification.
-3. Expand habit completion/streak, cloud save-conflict, and storage-full testing; reduce additional full-app renders incrementally.
+3. Expand habit completion/streak and cloud save-conflict testing; reduce additional full-app renders incrementally. Isolated storage-full and recovery tests are now in place.
 4. Replace remaining sample weather/demo content with clearly labeled or verified sources before production onboarding.
 
 Recovery: read PLAN.md and this file, inspect git status, run npm.cmd test. Local preview may need restarting after a reboot. Do not reset real user data to run QA.

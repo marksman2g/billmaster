@@ -97,13 +97,19 @@ for (const view of views) {
       },
       revokeObjectURL() {}
     },
-    console
+    console: {
+      ...console,
+      error(message) { failures.push(`${view}: logged application error: ${String(message)}`); }
+    }
   };
 
   try {
     vm.runInNewContext(code, sandbox, { filename: "app.js" });
     if (!app.innerHTML || app.innerHTML.length < 1000) {
       failures.push(`${view}: rendered output was unexpectedly small`);
+    }
+    if (app.innerHTML.includes("BillMaster hit a local data issue")) {
+      failures.push(`${view}: displayed recovery screen instead of the requested view`);
     }
     if (view === "goals") {
       const requiredBusinessSignals = [

@@ -10,34 +10,56 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
   }
   let renders = 0;
   let html = '';
-  const app = { get innerHTML() { return html; }, set innerHTML(value) { html = value; renders++; } };
+  const overlayNodes = [];
+  const app = {
+    get innerHTML() { return html; },
+    set innerHTML(value) { html = value; overlayNodes.length = 0; renders++; },
+    appendChild(node) { overlayNodes.push(node); }
+  };
   const timers = [];
   const storage = new Map();
+  const temporaryStorage = new Map();
+  const warnings = [];
   const sandbox = {
     Date: FixedDate,
     document: {
       getElementById(id) { return id === 'app' ? app : null; },
-      addEventListener() {}, querySelectorAll() { return []; },
-      createElement() { return { click() {} }; }
+      addEventListener() {},
+      querySelectorAll(selector) {
+        return overlayNodes.filter((node) => !node.removed && node.html.includes(`class="${selector.slice(1)}"`));
+      },
+      createElement(tag) {
+        if (tag !== 'template') return { click() {} };
+        return {
+          innerHTML: '',
+          get content() { return { firstElementChild: { html: this.innerHTML, remove() { this.removed = true; } } }; }
+        };
+      }
     },
     localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
+    sessionStorage: { getItem: (key) => temporaryStorage.get(key) || null, setItem: (key, value) => temporaryStorage.set(key, value), removeItem: (key) => temporaryStorage.delete(key) },
     window: { location: { hash: '#dashboard' }, history: { pushState() {} }, addEventListener() {}, open() {}, confirm },
     requestAnimationFrame(callback) { callback(); },
     setTimeout(callback) { timers.push(callback); return timers.length; }, clearTimeout() {},
-    structuredClone, Blob, URL, console
+    structuredClone, Blob, URL, console: { ...console, warn: (...args) => warnings.push(args) }
   };
   const exports = `globalThis.testHooks = {
     get data() { return data; }, set data(value) { data = value; }, ui,
     aiAppDataAnswer, aiCalendarAnswer, aiCalendarTopic, aiCalendarRange, aiLeastEventsAnswer,
     daysBetween, nextBillMonthlyDate, nextBillIntervalDate, nextBillYearlyDate,
     visibleTaskListIds, renderTasks, render, showToast, confirmDelete, confirmStartFresh,
-    startFreshSection, resetData, saveData,
+    startFreshSection, resetData, saveData, resetUndoBaseline, undoLastChange, renderSaveWarning,
+    get undoCount() { return undoStack.length; }, get savedSnapshot() { return lastSavedSnapshot; },
     habitCompletionSummary, habitInstancesForRange, dashboardCashBalance, renderDashboard, todayBriefingCard,
     deleteTask, deleteNote, deleteHabitSeries, deleteSelectedTasks
   };`;
   const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, `${exports}\n})();`), sandbox, { timeout: 10000 });
-  return { hooks: sandbox.testHooks, sandbox, storage, timers, get renders() { return renders; }, get html() { return html; } };
+  return {
+    hooks: sandbox.testHooks, sandbox, storage, temporaryStorage, warnings, timers,
+    get renders() { return renders; }, get html() { return html; },
+    get overlayHtml() { return overlayNodes.filter((node) => !node.removed).map((node) => node.html).join(''); }
+  };
 }
 
 function scheduleFixture(app) {

@@ -1,7 +1,7 @@
-BillMaster stabilization checkpoint: 20260908-2
+BillMaster stabilization checkpoint: 20260908-3
 
 The improvements are available locally, not yet on the published app.
-Local: http://127.0.0.1:4180/index.html?cachebust=20260908-2#dashboard
+Local: http://127.0.0.1:4180/index.html?cachebust=20260908-3#dashboard
 Published previous version: https://marksman2g.github.io/billmaster/index.html
 Folder: C:\Users\Black Excellence\Documents\Codex\2026-07-15\billmaster-active-clean\work\billmaster
 Restart the local preview from that folder with: npm.cmd start
@@ -12,8 +12,13 @@ dashboard balance double-counting, fixed sync claims, due-today counts, narrow
 account-card layouts, dark-card contrast, static cache behavior, and local server
 exposure of non-public project files. Existing user records were not reset.
 
-Validation: 18 route checks and 18 behavioral tests pass. Dependency audit reports
-zero vulnerabilities. Desktop dashboard and phone-width Tasks/Week Calendar were
+Follow-up hardening: failed writes no longer create phantom undo history. A failed
+undo save remains retryable. Storage warnings and Backup reappear after a toast
+without interrupting an active form. Smoke checks reject hidden render failures.
+
+Validation: 18 route checks and 22 behavioral tests pass. The preceding dependency
+audit reported zero vulnerabilities; dependencies are unchanged. Desktop dashboard
+and phone-width Tasks/Week Calendar were
 visually checked. Paid APIs and live bank actions were not tested or performed.
 
 The cash total includes selected checking/savings/cash/money-market/CD/depository

@@ -2186,7 +2186,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function undoLastChange() {
-    const entry = undoStack.pop();
+    const entry = undoStack[undoStack.length - 1];
     if (!entry) {
       showToast("Nothing to undo.", "danger");
       return;
@@ -2197,8 +2197,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       ui.dayCopyTargetDate = null;
       ui.selectedHabits = ui.selectedHabits.filter((habitId) => data.habits.some((habit) => habit.id === habitId));
       ui.modal = null;
-      saveData({ undo: false });
-      render();
+      // Keep the recovery point available if the restored workspace cannot be saved.
+      if (saveData({ undo: false })) undoStack.pop();
       showToast("Last change undone.");
     } catch (error) {
       console.warn("BillMaster could not undo the last change.", error);
@@ -2208,6 +2208,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function saveData(options = {}) {
     let serialized = "";
+    const previousSnapshot = lastSavedSnapshot;
     try {
       stampLocalSyncChanges(data, options);
       data = normalizeData(data);
@@ -2217,11 +2218,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         setCloudSyncState("queued", "Local change saved. BillMaster will smart-merge it to the cloud in a moment.", { queued: true });
       }
       serialized = JSON.stringify(data);
-      if (options.undo !== false && lastSavedSnapshot && serialized !== lastSavedSnapshot) {
-        pushUndoSnapshot(lastSavedSnapshot);
-      }
       localStorage.setItem(profileDataKey(), serialized);
       clearSessionFallback();
+      if (options.undo !== false && previousSnapshot && serialized !== previousSnapshot) {
+        pushUndoSnapshot(previousSnapshot);
+      }
       lastSavedSnapshot = serialized;
       ui.lastSaveError = "";
       broadcastLocalWorkspaceChange(serialized, options);
@@ -2230,7 +2231,12 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     } catch (error) {
       console.warn("BillMaster could not save local data.", error);
       const savedTemporarily = serialized ? setSessionFallback(serialized) : false;
-      if (savedTemporarily) lastSavedSnapshot = serialized;
+      if (savedTemporarily) {
+        if (options.undo !== false && previousSnapshot && serialized !== previousSnapshot) {
+          pushUndoSnapshot(previousSnapshot);
+        }
+        lastSavedSnapshot = serialized;
+      }
       ui.lastSaveError = savedTemporarily
         ? "Saved temporarily in this tab, but browser storage is full. Remove large uploaded photos or use image links so it can save permanently."
         : "BillMaster could not save this change. Browser storage may be full or blocked.";
@@ -14201,6 +14207,17 @@ function quickAction(action) {
     if (toast) app.appendChild(toast);
   }
 
+  function paintSaveWarningWithoutRender() {
+    if (typeof document === "undefined" || !app) return;
+    document.querySelectorAll(".save-warning").forEach((warning) => warning.remove());
+    const html = renderSaveWarning();
+    if (!html) return;
+    const template = document.createElement("template");
+    template.innerHTML = html.trim();
+    const warning = template.content.firstElementChild;
+    if (warning) app.appendChild(warning);
+  }
+
   function showToast(message, type = "success", options = {}) {
     if (type === "success" && ui.lastSaveError) {
       message = ui.lastSaveError;
@@ -14208,12 +14225,15 @@ function quickAction(action) {
     }
     ui.toast = { message, type };
     if (toastTimer) clearTimeout(toastTimer);
-    if (options.render === false) paintToastWithoutRender();
-    else render();
+    if (options.render === false) {
+      paintToastWithoutRender();
+      paintSaveWarningWithoutRender();
+    } else render();
     toastTimer = setTimeout(() => {
       ui.toast = null;
       // A notification expiring must never replace a form the user is editing.
       document.querySelectorAll(".toast").forEach((toast) => toast.remove());
+      paintSaveWarningWithoutRender();
       toastTimer = null;
     }, 2400);
   }

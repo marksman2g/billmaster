@@ -1,10 +1,10 @@
-const CACHE_NAME = "billmaster-shell-v98";
+const CACHE_NAME = "billmaster-shell-v99";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260908-2",
   "./billmaster-config.js?v=20260601-1",
-  "./app.js?v=20260908-2",
+  "./app.js?v=20260908-3",
   "./manifest.json",
   "./billmaster-icon-192.png",
   "./billmaster-icon-512.png",
