@@ -1,0 +1,25 @@
+BillMaster stabilization checkpoint: 20260908-2
+
+The improvements are available locally, not yet on the published app.
+Local: http://127.0.0.1:4180/index.html?cachebust=20260908-2#dashboard
+Published previous version: https://marksman2g.github.io/billmaster/index.html
+Folder: C:\Users\Black Excellence\Documents\Codex\2026-07-15\billmaster-active-clean\work\billmaster
+Restart the local preview from that folder with: npm.cmd start
+
+Fixed AI task/event counts, real-date filters and new-record defaults, bill dates,
+notification-expiry redraws, unsafe reset confirmations, notebook deletion scope,
+dashboard balance double-counting, fixed sync claims, due-today counts, narrow
+account-card layouts, dark-card contrast, static cache behavior, and local server
+exposure of non-public project files. Existing user records were not reset.
+
+Validation: 18 route checks and 18 behavioral tests pass. Dependency audit reports
+zero vulnerabilities. Desktop dashboard and phone-width Tasks/Week Calendar were
+visually checked. Paid APIs and live bank actions were not tested or performed.
+
+The cash total includes selected checking/savings/cash/money-market/CD/depository
+balances only. Credit, loan, and investment accounts are excluded; transaction
+history is not added again. This is saved data, not guaranteed live bank funds.
+
+Next: publish on GitHub when requested, then separately verify Plaid backend
+deployment and live account reconciliation. Full production-readiness is not
+claimed. See PROJECT_STATE.md and PLAN.md for technical checkpoint details.

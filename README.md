@@ -19,14 +19,14 @@ BillMaster is a responsive, dependency-free web prototype for the personal finan
 
 ## Run
 
-Open `index.html` in a browser.
+Run `npm start` (Windows: `npm.cmd start`) and open [BillMaster locally](http://127.0.0.1:4180/index.html). Use HTTP rather than opening the HTML file directly, so modules and browser storage use a consistent origin.
 
 No build step is required.
 
 For a cloud preview in GitHub Codespaces or another remote terminal:
 
 ```bash
-node scripts/serve-billmaster.js --port 4176
+node scripts/serve-billmaster.js --port 4180
 ```
 
 To update the hosted Supabase publishable key without hand-editing the config file:

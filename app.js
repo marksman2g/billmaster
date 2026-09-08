@@ -9,7 +9,6 @@
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
   const FRIEND_ALPHA_CACHE_VERSION = "20260629-14";
-  const SAMPLE_NOW = new Date("2026-05-06T12:00:00");
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
   const ui = {
@@ -2361,7 +2360,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
   function daysBetween(iso) {
     const due = new Date(`${iso}T12:00:00`);
-    return Math.round((due - SAMPLE_NOW) / 86400000);
+    return Math.round((due - parseLocalDate(todayIso())) / 86400000);
   }
 
   function dateDiffDays(startIso, endIso) {
@@ -2597,7 +2596,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
         <p class="subtle">${esc(error && error.message ? error.message : "Unknown render error")}</p>
         <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
           <button class="outline-btn" data-action="reload-app">${icon("check")} Reload</button>
-          <button class="danger-btn" data-action="reset-data">${icon("trash")} Reset Demo Data</button>
+          <button class="danger-btn" data-action="reset-data">${icon("trash")} Replace with sample data</button>
         </div>
       </section>
     </main>`;
@@ -2667,12 +2666,21 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return `<span class="plaid-cost-summary" title="${esc(title)}" aria-label="${esc(title)}"><strong>Plaid est. ${money(estimate)}/mo</strong><small>${esc(detail)} · planning estimate</small></span>`;
   }
 
+  function dashboardCashBalance() {
+    // Account balances already reflect posted transactions. Never add the
+    // transaction ledger again or count borrowing capacity as cash.
+    const accounts = visibleAccounts().filter((account) => /^(checking|savings|cash|money market|cd|depository)$/i.test(String(account.type || "")));
+    return accounts.reduce((cents, account) => cents + Math.round((Number(account.balance) || 0) * 100), 0) / 100;
+  }
+
   function renderDashboard() {
     const income = sum(reportableTransactions("income"));
     const expenses = sum(reportableTransactions("expense"));
-    const balance = sum(data.accounts.filter((account) => plaidAccountIncluded(account)), "balance") + income - expenses;
+    const balance = dashboardCashBalance();
+    const bankRefresh = data.settings.plaidLastAccountRefreshAt || data.settings.plaidLastBackendSyncAt;
+    const balanceSource = bankRefresh ? `Last bank refresh: ${bankRefresh}` : "Saved balances — bank freshness not verified";
     const upcomingBills = data.bills
-      .filter((bill) => daysBetween(bill.dueDate) <= 14)
+      .filter((bill) => bill.status !== "Paid" && daysBetween(bill.dueDate) >= 0 && daysBetween(bill.dueDate) <= 6)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
       .slice(0, 4);
     const overdueTasks = data.tasks.filter((task) => task.status !== "Completed" && daysBetween(task.date) < 0);
@@ -2715,7 +2723,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
           <section class="section-card">
             <div class="section-title"><h2>This Week</h2><button class="text-btn" data-action="navigate" data-view="calendar">View All</button></div>
-            ${upcomingBills.map((bill) => weekBillRow(bill)).join("")}
+            ${upcomingBills.map((bill) => weekBillRow(bill)).join("") || `<p class="muted">No unpaid bills due in the next 7 days.</p>`}
           </section>
         </div>
 
@@ -2723,22 +2731,22 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           <article class="section-card balance-panel">
             <div class="balance-row">
               <div>
-                <div class="balance-label">Available Balance</div>
+                <div class="balance-label">Selected cash balances</div>
                 <div class="balance-amount">${money(balance)}</div>
-                <div class="small-label">Last synced 2m ago</div>
+                <div class="small-label">${esc(balanceSource)}</div>
               </div>
-              <span class="pill dark">${icon("filter")} Comfortable</span>
+              <span class="pill dark">${icon("filter")} Saved data</span>
             </div>
             <div class="balance-meta">
               <span>${icon("wallet")} Income ${money(income)}</span>
               <span>${icon("receipt")} Expenses ${money(expenses)}</span>
-              <span>${icon("chart")} Goals on track</span>
+              <span>${icon("chart")} Credit, loans, and investments excluded</span>
             </div>
           </article>
 
           ${cloudDashboardPrompt()}
 
-          ${todayBriefingCard(today, todayItems, upcomingBills, reviewCount, routeCount)}
+          ${todayBriefingCard(today, todayItems, data.bills, reviewCount, routeCount)}
 
           <div class="quick-add">
             <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
@@ -2782,17 +2790,17 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           </section>
 
           <section class="section-card">
-            <div class="section-title"><h2>AI Predictions</h2><button class="text-btn" data-action="navigate" data-view="ai">Open</button></div>
+            <div class="section-title"><h2>Planning reminders</h2><button class="text-btn" data-action="navigate" data-view="ai">Open</button></div>
             <div class="suggestion-strip">
               <article class="suggestion-card" style="border-color:#f4c36d;">
                 <span class="round-icon" style="color:#c47d00;background:#fff3d0;">${icon("ai")}</span>
                 <h3 class="entity-title">Smart Suggestion</h3>
-                <p class="muted">Cancel unused subscriptions to save ${money(45)} per month.</p>
+                <p class="muted">Review your saved subscriptions for services you no longer use. Savings depend on what you choose to cancel.</p>
               </article>
               <article class="suggestion-card" style="border-color:#bdebd0;">
                 <span class="round-icon" style="color:#14874a;background:#e7f9ef;">${icon("chart")}</span>
                 <h3 class="entity-title">Goal Progress</h3>
-                <p class="muted">Emergency Fund is on track for December 2026.</p>
+                <p class="muted">${data.goals.length ? `${data.goals.length} saved goal${data.goals.length === 1 ? "" : "s"}. Review balances and target dates before making a plan.` : "Add a goal to start tracking your progress."}</p>
               </article>
             </div>
           </section>
@@ -2864,7 +2872,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       <span class="round-icon">${icon(item.isHabit ? "check" : "calendar")}</span>
       <span><strong>${esc(item.title)}</strong><small>${timeLabel(item.start)}${item.end ? ` - ${timeLabel(item.end)}` : ""}</small></span>
     </div>`).join("");
-    const dueBills = bills.filter((bill) => daysBetween(bill.dueDate) <= 7);
+    const dueBills = bills.filter((bill) => bill.dueDate === today && bill.status !== "Paid");
     return `<section class="section-card today-briefing">
       <div class="briefing-head">
         <div>
@@ -5094,8 +5102,8 @@ function quickAction(action) {
   }
 
   function nextBillMonthlyDate(bill) {
-    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
-    const due = parseLocalDate(bill.dueDate || isoDate(SAMPLE_NOW));
+    const reference = parseLocalDate(todayIso());
+    const due = parseLocalDate(bill.dueDate || todayIso());
     const day = due.getDate();
     const candidate = new Date(reference.getFullYear(), reference.getMonth(), 1, 12, 0, 0, 0);
     const maxDay = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 0).getDate();
@@ -5109,16 +5117,17 @@ function quickAction(action) {
   }
 
   function nextBillIntervalDate(bill, intervalDays) {
-    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
-    const anchor = parseLocalDate(bill.scheduledPayDate || bill.dueDate || isoDate(SAMPLE_NOW));
+    const reference = parseLocalDate(todayIso());
+    const anchor = parseLocalDate(bill.scheduledPayDate || bill.dueDate || todayIso());
     const candidate = new Date(anchor);
+    if (!Number.isFinite(intervalDays) || intervalDays <= 0) return isoDate(candidate);
     while (candidate < reference) candidate.setDate(candidate.getDate() + intervalDays);
     return isoDate(candidate);
   }
 
   function nextBillYearlyDate(bill) {
-    const reference = parseLocalDate(isoDate(SAMPLE_NOW));
-    const due = parseLocalDate(bill.scheduledPayDate || bill.dueDate || isoDate(SAMPLE_NOW));
+    const reference = parseLocalDate(todayIso());
+    const due = parseLocalDate(bill.scheduledPayDate || bill.dueDate || todayIso());
     const candidate = new Date(reference.getFullYear(), due.getMonth(), due.getDate(), 12, 0, 0, 0);
     if (candidate < reference) candidate.setFullYear(candidate.getFullYear() + 1);
     return isoDate(candidate);
@@ -5887,13 +5896,14 @@ function quickAction(action) {
     return visibleCalendarTasks([...data.tasks.filter((task) => task.date === iso), ...habitInstancesForDay(iso)]);
   }
 
-  function calendarItemsForRange(startIso, endIso) {
+  function calendarItemsForRange(startIso, endIso, { includeHidden = false } = {}) {
     const start = startIso <= endIso ? startIso : endIso;
     const end = endIso >= startIso ? endIso : startIso;
-    return visibleCalendarTasks([
+    const items = [
       ...data.tasks.filter((task) => task.date >= start && task.date <= end),
       ...habitInstancesForRange(start, end)
-    ]);
+    ];
+    return includeHidden ? items.map(normalizeCalendarItemTime) : visibleCalendarTasks(items);
   }
 
   function calendarExportItems() {
@@ -5920,7 +5930,8 @@ function quickAction(action) {
   }
 
   function habitInstancesForRange(startIso, endIso) {
-    return data.habits.flatMap((habit) => dateRangeIso(startIso, endIso)
+    const dates = dateRangeIso(startIso, endIso);
+    return data.habits.flatMap((habit) => dates
       .filter((iso) => habitScheduledOn(habit, iso))
       .map((iso) => habitInstance(habit, iso)));
   }
@@ -7014,12 +7025,7 @@ function quickAction(action) {
   function renderTasks() {
     const done = data.tasks.filter((task) => task.status === "Completed").length;
     const pct = progressPct(done, data.tasks.length);
-    const filtered = sortedTaskList(data.tasks.filter((task) => {
-      if (ui.taskFilter === "today") return task.date === "2026-05-06";
-      if (ui.taskFilter === "week") return weekDates().includes(task.date);
-      if (ui.taskFilter === "done") return task.status === "Completed";
-      return true;
-    }));
+    const filtered = visibleTaskList();
     const filteredIds = filtered.map((task) => task.id);
     const selectedIds = filteredIds.filter((taskId) => ui.selectedTasks.includes(taskId));
     const allSelected = filteredIds.length > 0 && selectedIds.length === filteredIds.length;
@@ -7992,13 +7998,19 @@ function quickAction(action) {
     showToast(ui.projectDragSelectMode ? "Drag select is on. Draw across task cards to select just what you need." : "Drag select is off. You can drag cards onto project tiles again.");
   }
 
-  function visibleTaskListIds() {
+  function visibleTaskList() {
+    const today = todayIso();
+    const week = ui.taskFilter === "week" ? new Set(weekDates(today)) : null;
     return sortedTaskList(data.tasks.filter((task) => {
-      if (ui.taskFilter === "today") return task.date === "2026-05-06";
-      if (ui.taskFilter === "week") return weekDates().includes(task.date);
+      if (ui.taskFilter === "today") return task.date === today;
+      if (week) return week.has(task.date);
       if (ui.taskFilter === "done") return task.status === "Completed";
       return true;
-    })).map((task) => task.id);
+    }));
+  }
+
+  function visibleTaskListIds() {
+    return visibleTaskList().map((task) => task.id);
   }
 
   function selectVisibleTasks() {
@@ -9172,7 +9184,7 @@ function quickAction(action) {
   }
 
   function modalTransaction(txId) {
-    const tx = data.transactions.find((item) => item.id === txId) || { type: ui.trackingTab === "income" ? "income" : "expense", date: "2026-05-06", frequency: "Monthly" };
+    const tx = data.transactions.find((item) => item.id === txId) || { type: ui.trackingTab === "income" ? "income" : "expense", date: todayIso(), frequency: "Monthly" };
     const income = tx.type === "income";
     const categoryOptions = transactionCategoryOptions(tx.type, tx.category || (income ? "Salary" : "Utilities"));
     const currentCategory = normalizeCategoryName(tx.category || (income ? "Salary" : "Utilities"));
@@ -9187,7 +9199,7 @@ function quickAction(action) {
         </section>
         ${field("txAmount", "Actual Amount", tx.amount || "", "0.00", "number")}
         ${field("txProjected", "Projected Amount", tx.projected || "", "0.00", "number")}
-        ${field("txDate", "Date", tx.date || "2026-05-06", "", "date")}
+        ${field("txDate", "Date", tx.date || todayIso(), "", "date")}
         ${selectField("txFrequency", "Frequency", ["One time", "Weekly", "Bi-weekly", "Monthly", "Quarterly", "Yearly"], tx.frequency || "Monthly")}
         ${textArea("txNotes", "Notes", tx.notes || "", "Notes (optional)")}
       </div>
@@ -9349,7 +9361,7 @@ function quickAction(action) {
         ${editing ? field("loanRepaid", "Repaid to Date", loan.repaid || 0, "0.00", "number") : ""}
         ${editing ? field("loanForgiven", "Forgiven Amount", loan.forgiven || 0, "0.00", "number") : ""}
         ${field("loanDescription", "Description", loan.description || "", "Description (optional)")}
-        ${field("loanDate", "Loan Date", loan.date || "2026-05-06", "", "date")}
+        ${field("loanDate", "Loan Date", loan.date || todayIso(), "", "date")}
         ${field("loanDue", "Due Date", loan.dueDate || "", "", "date")}
         ${imageAttachmentField("loan", loan.image || "", "Lending Picture / Graphic", loan.imageZoom, loan.imageX, loan.imageY, loan.imageFit, loan.imageOpacity)}
       </div>
@@ -9363,7 +9375,7 @@ function quickAction(action) {
     return `${modalHeader("Record Repayment", `Outstanding: ${money(outstanding)}`)}
       <div class="field-grid">
         ${field("repayAmount", "Repayment Amount", "", "Repayment Amount", "number")}
-        ${field("repayDate", "Repayment Date", "2026-05-06", "", "date")}
+        ${field("repayDate", "Repayment Date", todayIso(), "", "date")}
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;"><button class="outline-btn" data-action="open-modal" data-modal="addLoan" data-id="${loan.id}">${icon("edit")} Edit Loan</button><button class="outline-btn" data-action="open-modal" data-modal="forgiveLoan" data-id="${loan.id}">Forgive</button><button class="secondary-btn" data-action="save-repayment" data-id="${loan.id}" style="grid-column:1 / -1;">Save Repayment</button></div>`;
   }
@@ -9380,7 +9392,7 @@ function quickAction(action) {
       </div>
       <div class="field-grid">
         <div class="field"><label for="forgiveAmount">Forgiven Amount</label><input id="forgiveAmount" type="number" min="0.01" max="${esc(outstanding)}" step="0.01" value="" placeholder="Amount to forgive"></div>
-        ${field("forgiveDate", "Forgiven Date", "2026-05-06", "", "date")}
+        ${field("forgiveDate", "Forgiven Date", todayIso(), "", "date")}
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;"><button class="outline-btn" data-action="close-modal">Cancel</button><button class="success-btn" data-action="save-forgiveness" data-id="${loan.id}">Save Forgiveness</button></div>`;
   }
@@ -10466,14 +10478,14 @@ function quickAction(action) {
   function modalNote(noteId) {
     const defaultNotebookId = ui.notebookId || "";
     const defaultProjectId = ui.modal?.projectId || (ui.view === "projects" ? ui.projectId : "") || "";
-    const note = data.notes.find((item) => item.id === noteId) || { date: "2026-05-06", importance: "Low", notebookId: defaultNotebookId, projectId: defaultProjectId, color: "#6c63ff", icon: "note" };
+    const note = data.notes.find((item) => item.id === noteId) || { date: todayIso(), importance: "Low", notebookId: defaultNotebookId, projectId: defaultProjectId, color: "#6c63ff", icon: "note" };
     const insideNotebook = !note.id && ui.notebookId;
     const project = data.projects.find((item) => item.id === (note.projectId || defaultProjectId));
     return `${modalHeader(note.id ? "Edit Note" : "New Note")}
       <div class="field-grid">
         ${field("noteTitle", "Note Title", note.title || "", "Note Title")}
         ${textArea("noteContent", "Content", note.content || "", "Content (optional)")}
-        ${field("noteDate", "Note Date", note.date || "2026-05-06", "", "date")}
+        ${field("noteDate", "Note Date", note.date || todayIso(), "", "date")}
         ${noteSubjectField(note)}
         ${selectField("noteImportance", "Importance Level", ["Low", "Medium", "High", "Critical"], note.importance || "Low")}
         ${noteNotebookField(note)}
@@ -10942,7 +10954,7 @@ function quickAction(action) {
           <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><div><strong>Start with a blank workspace</strong><div class="subtle">Clear local tasks, bills, money records, calendar items, notes, notebooks, loans, and demo content while keeping app settings.</div></div><span class="danger-text">${icon("alert")}</span>
         </button>
         <button class="data-row" style="background:transparent;border:1px solid #ffc2c2;border-radius:8px;padding:12px;width:100%;text-align:left;" data-action="reset-data">
-          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><div><strong>Reset Demo Data</strong><div class="subtle">Restore the original BillMaster sample workspace.</div></div><span class="danger-text">${icon("alert")}</span>
+          <span class="round-icon" style="color:var(--red);background:#fff0f0;">${icon("trash")}</span><div><strong>Replace workspace with sample data</strong><div class="subtle">Deletes your current records and loads examples. Download a backup first.</div></div><span class="danger-text">${icon("alert")}</span>
         </button>
       </div>`;
   }
@@ -14200,21 +14212,27 @@ function quickAction(action) {
     else render();
     toastTimer = setTimeout(() => {
       ui.toast = null;
-      if (options.render === false) document.querySelectorAll(".toast").forEach((toast) => toast.remove());
-      else render();
+      // A notification expiring must never replace a form the user is editing.
+      document.querySelectorAll(".toast").forEach((toast) => toast.remove());
+      toastTimer = null;
     }, 2400);
   }
 
   function confirmDelete(label) {
-    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
-    return window.confirm(`⚠️ DESTRUCTIVE ACTION — Delete ${label}?\n\nThis removes it from this local BillMaster workspace. Choose OK only if you are sure.`);
+    if (typeof window === "undefined" || typeof window.confirm !== "function") return false;
+    const cloudWarning = cloudAutoSyncEnabled() ? " Auto Sync is on, so this deletion can also reach your other devices." : "";
+    try {
+      return window.confirm(`⚠️ DESTRUCTIVE ACTION — Delete ${label}?\n\nThis removes it from this BillMaster workspace.${cloudWarning} Choose OK only if you are sure.`) === true;
+    } catch { return false; }
   }
 
   function confirmStartFresh(label, detail) {
-    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
+    if (typeof window === "undefined" || typeof window.confirm !== "function") return false;
     const scope = detail || "the saved records in this section";
     const cloudWarning = cloudAutoSyncEnabled() ? " Auto Sync is on, so this deletion may also be sent to your connected cloud workspace." : "";
-    return window.confirm(`⚠️ DESTRUCTIVE ACTION — START FRESH in ${label}?\n\nThis permanently removes ${scope} from this BillMaster workspace.${cloudWarning}\n\nChoose OK only if you are sure. Download a backup first if you may need these records later.`);
+    try {
+      return window.confirm(`⚠️ DESTRUCTIVE ACTION — START FRESH in ${label}?\n\nThis removes ${scope} from this BillMaster workspace.${cloudWarning}\n\nChoose OK only if you are sure. Download a backup first if you may need these records later.`) === true;
+    } catch { return false; }
   }
 
   function startFreshSection(section) {
@@ -14235,6 +14253,7 @@ function quickAction(action) {
       if (!confirmStartFresh("Habits", `${count} repeating habit${count === 1 ? "" : "s"} and their scheduled calendar blocks`)) return;
       data.habits = [];
       ui.selectedHabits = [];
+      ui.selectedTasks = ui.selectedTasks.filter((taskId) => !isHabitInstanceId(taskId));
       saveData();
       render();
       return showToast(`${count} habit${count === 1 ? "" : "s"} and their repeating calendar blocks cleared. You can start fresh now.`);
@@ -14251,13 +14270,14 @@ function quickAction(action) {
       return showToast(`${count} note${count === 1 ? "" : "s"} cleared. You can start fresh now.`);
     }
     if (key === "notebooks") {
+      const notebookIds = new Set(data.notebooks.map((notebook) => notebook.id));
       const notebookCount = data.notebooks.length;
-      const noteCount = data.notes.length;
+      const noteCount = data.notes.filter((note) => notebookIds.has(note.notebookId)).length;
       if (!notebookCount && !noteCount) return showToast("Notebooks and notes are already empty.", "info");
       const detail = `${notebookCount} notebook${notebookCount === 1 ? "" : "s"} and ${noteCount} note${noteCount === 1 ? "" : "s"}`;
       if (!confirmStartFresh("Notebooks", detail)) return;
       data.notebooks = [];
-      data.notes = [];
+      data.notes = data.notes.filter((note) => !notebookIds.has(note.notebookId));
       ui.selectedNotebooks = [];
       ui.selectedNotes = [];
       ui.notebookId = null;
@@ -14288,7 +14308,6 @@ function quickAction(action) {
     const previousBusinessModel = clone(data.businessModel || {});
     data = blankWorkspace();
     data.settings = previousSettings;
-    data.settings.deletedItems = {};
     data.businessModel = previousBusinessModel;
     ui.selectedTasks = [];
     ui.selectedHabits = [];
@@ -14375,8 +14394,8 @@ function quickAction(action) {
       id: id("task"),
       title,
       description: "",
-      date: ui.selectedDate || "2026-05-06",
-      endDate: ui.selectedDate || "2026-05-06",
+      date: ui.selectedDate || todayIso(),
+      endDate: ui.selectedDate || todayIso(),
       start: "09:00",
       end: "10:00",
       priority: "Medium",
@@ -16301,7 +16320,7 @@ function quickAction(action) {
       category,
       amount: numberValue("txAmount"),
       projected: numberValue("txProjected") || numberValue("txAmount"),
-      date: value("txDate") || "2026-05-06",
+      date: value("txDate") || todayIso(),
       frequency: value("txFrequency") || "Monthly",
       method: "Chase Checking",
       status: value("txType") === "income" ? "Received" : "Paid",
@@ -16343,8 +16362,8 @@ function quickAction(action) {
     const account = data.accounts.find((item) => item.id === accountId);
     if (!sub || !account) return;
     account.balance -= sub.amount;
-    data.subscriptionHistory.unshift({ id: id("sth"), subId: sub.id, name: sub.name, date: "2026-05-06", amount: sub.amount, status: "Paid", code: `CONF-${sub.name.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-6)}` });
-    data.transactions.unshift({ id: id("tx"), type: "expense", name: sub.name, merchant: sub.name, category: "Subscriptions", amount: sub.amount, projected: sub.projected, date: "2026-05-06", frequency: sub.cycle, method: account.name, status: "Paid", notes: "Subscription payment." });
+    data.subscriptionHistory.unshift({ id: id("sth"), subId: sub.id, name: sub.name, date: todayIso(), amount: sub.amount, status: "Paid", code: `CONF-${sub.name.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-6)}` });
+    data.transactions.unshift({ id: id("tx"), type: "expense", name: sub.name, merchant: sub.name, category: "Subscriptions", amount: sub.amount, projected: sub.projected, date: todayIso(), frequency: sub.cycle, method: account.name, status: "Paid", notes: "Subscription payment." });
     saveData();
     closeModal();
   }
@@ -16483,7 +16502,7 @@ function quickAction(action) {
       showToast("Enter a repayment amount first.", "danger");
       return;
     }
-    const repaymentDate = value("repayDate") || "2026-05-06";
+    const repaymentDate = value("repayDate") || todayIso();
     const writeKey = `repayment:${loanId}:${amount}:${repaymentDate}`;
     if (shouldSkipRecentWrite(writeKey)) {
       showToast("That repayment was already saved.", "danger");
@@ -16608,6 +16627,7 @@ function quickAction(action) {
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task && isHabitInstanceId(taskId)) return deleteHabit(taskId);
     if (!task) return;
+    if (!confirmDelete(`task "${task.title}"`)) return;
     data.tasks = data.tasks.filter((item) => item.id !== taskId);
     ui.selectedTasks = ui.selectedTasks.filter((item) => item !== taskId);
     ui.modal = null;
@@ -16618,6 +16638,7 @@ function quickAction(action) {
   function deleteNote(noteId) {
     const note = data.notes.find((item) => item.id === noteId);
     if (!note) return;
+    if (!confirmDelete(`note "${note.title}"`)) return;
     data.notes = data.notes.filter((item) => item.id !== noteId);
     ui.selectedNotes = ui.selectedNotes.filter((idValue) => idValue !== noteId);
     ui.modal = null;
@@ -17840,6 +17861,7 @@ function quickAction(action) {
   function deleteHabitSeries(habitId) {
     const habit = data.habits.find((item) => item.id === habitId);
     if (!habit) return;
+    if (!confirmStartFresh(`habit "${habit.title}"`, "this entire habit series, its completion history, and all its repeating calendar blocks")) return;
     data.habits = data.habits.filter((item) => item.id !== habitId);
     ui.selectedTasks = ui.selectedTasks.filter((item) => parseHabitInstanceId(item)?.habitId !== habitId);
     ui.selectedHabits = ui.selectedHabits.filter((item) => item !== habitId);
@@ -19199,6 +19221,7 @@ function quickAction(action) {
       return;
     }
     const selectedIds = [...ui.selectedTasks];
+    if (!confirmDelete(`${count} selected task or habit occurrence${count === 1 ? "" : "s"}`)) return;
     data.tasks = data.tasks.filter((task) => !selectedIds.includes(task.id));
     selectedIds.forEach((taskId) => {
       const parsed = parseHabitInstanceId(taskId);
@@ -19259,7 +19282,7 @@ function quickAction(action) {
       projectId,
       title: value("noteTitle") || "Note",
       content: value("noteContent"),
-      date: value("noteDate") || "2026-05-06",
+      date: value("noteDate") || todayIso(),
       subject,
       importance: value("noteImportance") || "Low",
       color: ui.noteColor || note?.color || "#6c63ff",
@@ -22248,10 +22271,9 @@ function copyPlaidProductionPlan() {
 
   function aiCalendarItems(startIso, endIso) {
     const items = [];
-    // Calendar/Today already expands recurring habits, normalizes times, and
-    // applies the user's visible-category filters. Use that same source so AI
-    // counts cannot disagree with the blocks the user can actually see.
-    calendarItemsForRange(startIso, endIso).forEach((calendarItem) => {
+    // Share recurrence rules with Calendar, but temporary display filters must
+    // not make the assistant forget saved tasks or habits.
+    calendarItemsForRange(startIso, endIso, { includeHidden: true }).forEach((calendarItem) => {
       const date = aiDateKey(calendarItem.date);
       if (!date) return;
       items.push({
@@ -22298,13 +22320,14 @@ function copyPlaidProductionPlan() {
     if (timeWindow) items = items.filter((item) => aiCalendarItemMatchesTimeWindow(item, timeWindow));
     items = items.filter((item) => aiCalendarItemMatchesScope(item, prompt));
     const topic = aiCalendarTopic(prompt);
-    if (/\bdoctor|dr\b|appointment|appt/.test(lower)) {
+    const medicalQuestion = /\b(doctor|dr|medical|dentist|clinic)\b/.test(lower);
+    if (medicalQuestion) {
       items = items.filter((item) => aiNorm(`${item.title} ${item.detail}`).match(/\bdoctor|dr\b|appointment|appt|medical|dentist|clinic/));
     } else if (topic) {
       items = items.filter((item) => aiCalendarItemMatchesTopic(item, topic));
     }
     if (aiQuestionWantsCount(prompt)) return aiCountLabel(items.length);
-    if (/\bdoctor|dr\b|appointment|appt/.test(lower) && !items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see a doctor or appointment item.`;
+    if (medicalQuestion && !items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see a medical appointment.`;
     if (topic && !items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see anything matching "${topic}" on your calendar.`;
     if (!items.length) return `${aiCalendarRangeIntro(startIso, endIso, timeWindow)}, I don't see any saved calendar items.`;
     return aiCalendarSummary(items, startIso, endIso, timeWindow);
@@ -22324,12 +22347,12 @@ function copyPlaidProductionPlan() {
 
   function aiLeastEventsAnswer(prompt) {
     const lower = aiNorm(prompt);
-    const base = aiDateKey(ui.selectedDate) || todayIso();
-    const startIso = lower.includes("week") ? startOfWeekIso(base) : startOfWeekIso(todayIso());
-    const endIso = addDaysIso(startIso, 6);
+    const { startIso, endIso } = aiCalendarRange(lower.includes("week") || lower.includes("month") ? lower : "this week");
+    const counts = new Map();
+    aiCalendarItems(startIso, endIso).filter((item) => ["Task", "Habit"].includes(item.type)).forEach((item) => counts.set(item.date, (counts.get(item.date) || 0) + 1));
     const days = dateRangeIso(startIso, endIso).map((date) => {
-      const count = aiCalendarItems(date, date).filter((item) => ["Task", "Habit"].includes(item.type)).length;
-      return { date, count, label: weekdayLabels[parseLocalDate(date).getDay()] || dateLabel(date) };
+      const count = counts.get(date) || 0;
+      return { date, count, label: `${weekdayLabels[parseLocalDate(date).getDay()]} (${shortDate(date)})` };
     });
     const least = Math.min(...days.map((day) => day.count));
     const matches = days.filter((day) => day.count === least);
@@ -22340,7 +22363,8 @@ function copyPlaidProductionPlan() {
   function aiCalendarTopic(prompt) {
     const lower = aiNorm(prompt);
     const generic = new Set("what whats everything do i have going on this week events event tasks task todos todo calendar schedule scheduled coming up appointment appointments appt doctor dr any have is are the a an my me to for from with and or of in on at this next week today tomorrow due bills bill after before later than past until till by around between am pm clock o noon midnight morning afternoon evening tonight day days can could would please tell hey hi hello billmaster assistant number count many least fewest".split(" "));
-    const words = lower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !generic.has(word));
+    "how much total amount you your we our does has there happen happening scheduled yesterday last month months year subscriptions subscription".split(" ").forEach((word) => generic.add(word));
+    const words = lower.split(/\s+/).filter((word) => word.length > 2 && !/^\d+$/.test(word) && !generic.has(word));
     return words.slice(0, 3).join(" ");
   }
 
@@ -22391,7 +22415,7 @@ function copyPlaidProductionPlan() {
   }
 
   function aiCalendarRange(lower, timeWindow = null) {
-    const base = aiDateKey(ui.selectedDate) || todayIso();
+    const base = todayIso();
     if (/\btoday\b/.test(lower) || /\bto do today\b/.test(lower) || /\bhave to do today\b/.test(lower)) {
       const today = todayIso();
       return { startIso: today, endIso: today };
@@ -22400,9 +22424,22 @@ function copyPlaidProductionPlan() {
       const tomorrow = addDaysIso(todayIso(), 1);
       return { startIso: tomorrow, endIso: tomorrow };
     }
+    if (/\byesterday\b/.test(lower)) {
+      const yesterday = addDaysIso(base, -1);
+      return { startIso: yesterday, endIso: yesterday };
+    }
     if (lower.includes("this week") || /\bweek\b/.test(lower)) {
-      const startIso = startOfWeekIso(base);
+      const offset = /\bnext week\b/.test(lower) ? 7 : /\blast week\b/.test(lower) ? -7 : 0;
+      const startIso = addDaysIso(startOfWeekIso(base), offset);
       return { startIso, endIso: addDaysIso(startIso, 6) };
+    }
+    if (/\bmonth\b/.test(lower)) {
+      const date = parseLocalDate(base);
+      date.setDate(1);
+      if (/\bnext month\b/.test(lower)) date.setMonth(date.getMonth() + 1);
+      if (/\blast month\b/.test(lower)) date.setMonth(date.getMonth() - 1);
+      const startIso = isoDate(date);
+      return { startIso, endIso: monthEndIso(startIso) };
     }
     const startIso = todayIso();
     return { startIso, endIso: timeWindow ? startIso : addDaysIso(startIso, 14) };
@@ -22450,7 +22487,7 @@ function copyPlaidProductionPlan() {
       if (startIso === addDaysIso(today, 1)) return `For tomorrow${timeText}`;
       return `For ${dateLabel(startIso)}${timeText}`;
     }
-    const weekStart = startOfWeekIso(ui.selectedDate || today);
+    const weekStart = startOfWeekIso(today);
     if (startIso === weekStart && endIso === addDaysIso(weekStart, 6)) return `For this week${timeText}`;
     return `From ${dateLabel(startIso)} to ${dateLabel(endIso)}${timeText}`;
   }
@@ -22526,15 +22563,18 @@ function copyPlaidProductionPlan() {
     return `I found ${notes.length} note${notes.length === 1 ? "" : "s"} and ${notebooks.length} notebook${notebooks.length === 1 ? "" : "s"}${subject ? ` about "${subject}"` : ""}. ${[...noteText, ...notebookText].join(" ")}`;
   }
 
-  function aiExpenseAnswer() {
+  function aiExpenseAnswer(prompt = "") {
+    const lower = aiNorm(prompt);
+    const range = /\b(today|tomorrow|yesterday|week|month)\b/.test(lower) ? aiCalendarRange(lower) : null;
     const totals = new Map();
-    safeArray(data.transactions).filter((tx) => tx.type === "expense").forEach((tx) => {
+    reportableTransactions("expense").filter((tx) => !range || aiDateInRange(tx.date, range.startIso, range.endIso)).forEach((tx) => {
       const category = tx.category || "Uncategorized";
       totals.set(category, (totals.get(category) || 0) + Number(tx.amount || 0));
     });
     const ranked = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (!ranked.length) return "I don't see saved expense transactions in BillMaster yet.";
-    return `Your biggest saved expense categories are ${ranked.map(([category, amount]) => `${category} at ${money(amount)}`).join(", ")}.`;
+    if (!ranked.length) return range ? `${aiCalendarRangeIntro(range.startIso, range.endIso)}, I don't see saved expense transactions.` : "I don't see saved expense transactions in BillMaster yet.";
+    const intro = range ? `${aiCalendarRangeIntro(range.startIso, range.endIso)}, your` : "Your";
+    return `${intro} biggest saved expense categories are ${ranked.map(([category, amount]) => `${category} at ${money(amount)}`).join(", ")}.`;
   }
 
   function aiSubscriptionAnswer() {
@@ -22548,14 +22588,18 @@ function copyPlaidProductionPlan() {
     if ((/\b(least|fewest|lowest)\b/.test(lower) && /\b(events?|calendar|schedule)\b/.test(lower)) || /\bwhat day\b.*\b(least|fewest)\b/.test(lower)) return aiLeastEventsAnswer(prompt);
     if (lower.includes("goal")) return aiGoalAnswer();
     if (/\b(note|notebook|subject)\b/.test(lower)) return aiNotesAnswer(prompt);
-    if (/\b(events?|calendar|appointments?|appt|doctor|week|today|tomorrow|coming up|due|tasks?|todos?|to do|schedule|scheduled|have to do|going on)\b/.test(lower)) return aiCalendarAnswer(prompt);
+    if (/\b(expenses?|spending)\b/.test(lower) && !/\b(events?|tasks?|calendar|appointments?)\b/.test(lower)) return aiExpenseAnswer(prompt);
+    if (/\b(events?|calendar|appointments?|appt|doctor|week|month|today|tomorrow|yesterday|coming up|due|tasks?|todos?|to do|schedule|scheduled|have to do|going on)\b/.test(lower)) return aiCalendarAnswer(prompt);
     if (lower.includes("subscription") || lower.includes("cancel")) return aiSubscriptionAnswer();
-    if (lower.includes("expense") || lower.includes("biggest") || lower.includes("spending")) return aiExpenseAnswer();
+    if (lower.includes("expense") || lower.includes("biggest") || lower.includes("spending")) return aiExpenseAnswer(prompt);
     return "I can help with what is saved in BillMaster: goals, calendar events, doctor appointments, bills, subscriptions, expenses, tasks, projects, notes, and notebooks. Try asking, \"What do I have today?\" or \"How close am I to my goals?\"";
   }
 
   function resetData() {
+    if (!confirmStartFresh("sample-data replacement", "ALL current workspace records and replaces them with sample data")) return;
+    const previousSettings = clone(data.settings || {});
     data = clone(seed);
+    data.settings = previousSettings;
     saveData();
     closeModal();
   }

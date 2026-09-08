@@ -580,6 +580,7 @@ video {
 
 .balance-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
@@ -4097,7 +4098,7 @@ button.round-icon {
 }
 
 .dashboard-panel--accounts .account-strip {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 8px;
 }
 
@@ -21503,7 +21504,7 @@ canvas {
   box-shadow: var(--view-shadow);
 }
 
-.app-shell .section-card {
+.app-shell .section-card:not(.balance-panel) {
   background: linear-gradient(135deg, color-mix(in srgb, var(--workspace-panel) 42%, #ffffff 58%), #ffffff);
 }
 
@@ -21556,14 +21557,14 @@ canvas {
   font-weight: 820;
 }
 
-.app-shell .filter-row button:hover,
-.app-shell .mini-tabs button:hover,
-.app-shell .segmented button:hover,
-.app-shell .toolbar button:hover,
-.app-shell .notes-control-panel button:hover,
-.app-shell .project-bulk-toolbar button:hover,
-.app-shell .project-task-toolbar button:hover,
-.app-shell .note-action-bar button:hover {
+.app-shell .filter-row button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .mini-tabs button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .segmented button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .toolbar button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .notes-control-panel button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .project-bulk-toolbar button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .project-task-toolbar button:not(.active):not(.primary-btn):not(.danger-btn):hover,
+.app-shell .note-action-bar button:not(.active):not(.primary-btn):not(.danger-btn):hover {
   border-color: color-mix(in srgb, var(--workspace-accent) 48%, #ffffff 52%);
   background: color-mix(in srgb, var(--workspace-panel) 66%, #ffffff 34%);
 }

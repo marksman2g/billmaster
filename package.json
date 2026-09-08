@@ -1,6 +1,10 @@
 {
   "name": "billmaster",
   "private": true,
+  "scripts": {
+    "start": "node scripts/serve-billmaster.js --port 4180",
+    "test": "node --check app.js && node smoke-test.js && node --test tests/*.test.js"
+  },
   "devDependencies": {
     "supabase": "latest"
   }
