@@ -1,10 +1,21 @@
 # Checkpoint: BillMaster stabilization
 
 Version: 20260908-3
-Status: local stabilization complete; not published
+Status: release validated; publication blocked by GitHub write authentication
 Date: 2026-09-08
 Baseline: main / c747c39
 Previous local checkpoint: be17358 (20260908-2)
+Latest application checkpoint: 1961f4e (20260908-3)
+
+## Publication attempt — 2026-09-08
+- User authorized proceeding with review, publication, and live verification.
+- Refreshed origin/main safely using Git's OpenSSL backend; remote main is c747c39, with no conflicting updates.
+- Reran 18 route checks, 22 behavioral tests, syntax checks, and dependency audit: all passed; audit found zero vulnerabilities.
+- Reviewed release changes and scanned added lines for common private-key/token patterns: no matches.
+- GitHub Pages is configured and its existing public deployment is confirmed. Public HTML still loads app.js 20260729-1, not the new release.
+- Native Git upload stalled; authenticated helper had no usable token. The GitHub API upload alternative returned HTTP 401 before creating any release objects or updating the branch.
+- Started GitHub's browser/device reauthorization flow. Owner sign-in is required; no credentials or one-time codes are stored in this checkpoint.
+- Exact recovery: finish GitHub reauthorization, confirm gh auth status, fetch origin again, compare heads, rerun npm.cmd test if source changes, push main without force, wait for CI/Pages, then verify public HTML and asset content match 20260908-3. Update this checkpoint only after deployment succeeds.
 
 ## Complete
 - Current-date task filters, bill date calculations, and new transaction/loan/note defaults (historical seed and existing records preserved).
@@ -39,7 +50,7 @@ Previous local checkpoint: be17358 (20260908-2)
 - Start preview in this directory: npm.cmd start (or npm start).
 
 ## Next priorities
-1. Publish this verified checkpoint when GitHub synchronization is requested; verify Pages serves app.js version 20260908-3 afterward.
+1. Finish the owner GitHub reauthorization, publish the already-authorized release, and verify Pages serves app.js version 20260908-3 afterward.
 2. Test and deploy the Plaid backend update-mode code separately. Audit account-removal reconciliation, swallowed refresh errors, transaction cursor durability, and sandbox/production separation with isolated fixtures before live verification.
 3. Expand habit completion/streak and cloud save-conflict testing; reduce additional full-app renders incrementally. Isolated storage-full and recovery tests are now in place.
 4. Replace remaining sample weather/demo content with clearly labeled or verified sources before production onboarding.

@@ -1,6 +1,8 @@
 BillMaster stabilization checkpoint: 20260908-3
 
 The improvements are available locally, not yet on the published app.
+Publication is authorized and release checks pass, but GitHub write authentication
+requires owner reauthorization. No new release has reached the public app.
 Local: http://127.0.0.1:4180/index.html?cachebust=20260908-3#dashboard
 Published previous version: https://marksman2g.github.io/billmaster/index.html
 Folder: C:\Users\Black Excellence\Documents\Codex\2026-07-15\billmaster-active-clean\work\billmaster
@@ -25,6 +27,7 @@ The cash total includes selected checking/savings/cash/money-market/CD/depositor
 balances only. Credit, loan, and investment accounts are excluded; transaction
 history is not added again. This is saved data, not guaranteed live bank funds.
 
-Next: publish on GitHub when requested, then separately verify Plaid backend
+Next: complete GitHub reauthorization and publish the approved release, then verify
+the public app loads version 20260908-3. Separately verify Plaid backend
 deployment and live account reconciliation. Full production-readiness is not
 claimed. See PROJECT_STATE.md and PLAN.md for technical checkpoint details.

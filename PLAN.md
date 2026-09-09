@@ -6,6 +6,9 @@ Baseline: main at c747c39; clean working tree; JavaScript syntax and 18-route sm
 
 Completed: all four checkpoints. See PROJECT_STATE.md for verified results and follow-up risks.
 
+## Public release — 2026-09-08
+Publication authorized by the owner. Release validation and remote reconciliation are complete; GitHub write authentication is the only current blocker. The public app has not changed. A browser/device sign-in flow is prepared; resume by confirming authentication, refetching main, pushing the reviewed commits without force, and verifying CI plus live asset versions. No user bank data or paid provider calls were involved.
+
 ## Follow-up hardening — 20260908-3
 - Reproduced three storage/undo/notification failures with isolated fixtures; corrected them and retained temporary-tab recovery.
 - Failed writes do not create phantom undo history. Failed undo saves keep their recovery point available for retry.
@@ -27,6 +30,7 @@ Completed: all four checkpoints. See PROJECT_STATE.md for verified results and f
 - PR / 2026-09-08: Dashboard cash balances sum selected checking/savings/cash/money-market/CD/depository balances in cents. They exclude debt/investment accounts and do not add transaction history again. They are saved balances, not a guarantee of current bank funds.
 - PD / 2026-09-08: Remove fixed “Last synced 2m ago,” unverified “Comfortable/on track,” and invented savings predictions. Today briefing counts unpaid bills due on that date, not the truncated next-week list.
 - PD / 2026-09-08: Keep public deployment separate from local verification. No bank reconnect, chargeable API calls, or user-data reset was performed.
+- PD / 2026-09-08: Proceed with the existing GitHub Pages release after owner authorization; do not migrate hosting. Stop publication on authentication failure rather than replacing history or claiming a successful deployment.
 
 ## Remaining risks
 Backend bank-sync deployment, live provider billing, and real-account correctness require a separate end-to-end checkpoint. A successful route render alone is not proof of those workflows.
