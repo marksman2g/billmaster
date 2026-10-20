@@ -1,3 +1,7 @@
+# Release update — 2026-10-20
+
+The four Financial Watch recommendations and pending stabilization fixes are implemented for the initial in-app release. See RELEASE_NOTES_20261020.md. Remaining work: explicit mailbox/document integration, chosen closed-app notification channel, server-enforced cloud revision control for legacy clients, and delivery-journal snapshot compaction. Historical backlog below is retained for context.
+
 # BillMaster Backlog
 
 This file keeps the running product requests in one place so ideas do not get lost while the prototype keeps moving.

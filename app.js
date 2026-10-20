@@ -98,8 +98,9 @@
 
   let lastKnownTodayIso = ui.selectedDate;
   let dateBoundaryTimer = null;
+  let plaidWorkspaceEpoch = 0;
 
-  const validViews = new Set(["dashboard", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
+  const validViews = new Set(["dashboard", "financial-watch", "tracking", "analytics", "bills", "inbox", "sync", "subscriptions", "calendar", "tasks", "habits", "projects", "goals", "notebooks", "notes", "contacts", "addresses", "lending", "ai"]);
   const ADD_TASK_ADDRESS_VALUE = "__add_task_address__";
   const ADD_TASK_CATEGORY_VALUE = "__add_task_category__";
   const ADD_TRANSACTION_CATEGORY_VALUE = "__add_transaction_category__";
@@ -306,6 +307,9 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     notificationLog: [],
     alphaFeedback: [],
     cancellations: [],
+    financialWatchRecords: [],
+    financialSchedules: [],
+    financialAlertStates: [],
     subscriptionHistory: [
       { id: "sth_1", subId: "sub_1", name: "Netflix", date: "2026-04-30", amount: 15.99, status: "Paid", code: "CONF-NF-20240402" },
       { id: "sth_2", subId: "sub_2", name: "Spotify Premium", date: "2026-04-23", amount: 9.99, status: "Paid", code: "CONF-SP-20240325" },
@@ -1272,6 +1276,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     normalizeContacts(nextData);
     normalizeTasks(nextData);
     normalizeNotificationLog(nextData);
+    normalizeFinancialWatch(nextData);
     nextData.transactions = dedupeLendingTransactions(nextData.transactions || []);
     return nextData;
   }
@@ -2340,7 +2345,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function reportableTransactions(type = "") {
-    return data.transactions.filter((tx) => !tx.isTransfer && String(tx.status || "").toLowerCase() !== "voided" && (!type || tx.type === type));
+    return data.transactions.filter((tx) => !tx.isTransfer && !["voided", "removed"].includes(String(tx.status || "").toLowerCase()) && (!type || tx.type === type));
   }
 
   function dateLabel(iso) {
@@ -2445,6 +2450,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   }
 
   function activeRoot() {
+    if (ui.view === "financial-watch") return "tracking";
     if (ui.view === "lending") return "tracking";
     if (ui.view === "inbox") return "bills";
     if (ui.view === "subscriptions") return "bills";
@@ -2467,6 +2473,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           ["notes", "note", "Notes"]
         ]],
         ["Money", [
+          ["financial-watch", "bell", "Financial Watch"],
           ["goals", "chart", "Goals"],
           ["lending", "loan", "Lending"],
           ["inbox", "receipt", "Review Inbox"],
@@ -2629,6 +2636,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   function renderView() {
     switch (ui.view) {
       case "dashboard": return renderDashboard();
+      case "financial-watch": return renderFinancialWatch();
       case "tracking": return renderTracking();
       case "analytics": return renderAnalytics();
       case "bills": return renderBills();
@@ -2679,12 +2687,331 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return accounts.reduce((cents, account) => cents + Math.round((Number(account.balance) || 0) * 100), 0) / 100;
   }
 
+  // Review-only Financial Watch: local records, no unattended delivery or provider actions.
+  function watchDate(value) {
+    const text = String(value || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+    const date = new Date(`${text}T12:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text ? text : "";
+  }
+
+  function watchDays(date, today = todayIso()) {
+    return watchDate(date) && watchDate(today) ? Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000) : null;
+  }
+
+  function watchSafeUrl(value) {
+    try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : ""; } catch { return ""; }
+  }
+
+  function watchRecords() { return safeArray(data.financialWatchRecords); }
+
+  function watchOffsets(value, fallback = [90, 60, 30, 7, 1]) {
+    const values = String(value || "").split(",").map((v) => v.trim()).filter(Boolean).map(Number).filter((v) => Number.isInteger(v) && v >= 0 && v <= 365);
+    return values.length ? [...new Set(values)].sort((a, b) => b - a) : fallback;
+  }
+
+  function financialWatchItems(today = todayIso()) {
+    return watchRecords().map((record) => ({ ...record, days: watchDays(record.deadline, today) }))
+      .sort((a, b) => (a.days ?? Infinity) - (b.days ?? Infinity));
+  }
+
+  function financialWatchNotices(today = todayIso()) {
+    return financialWatchItems(today).filter((r) => !["Redeemed", "Dismissed"].includes(r.status)
+      && r.days !== null && r.days <= Math.max(...watchOffsets(r.offsets))
+      && (!watchDate(r.snoozeUntil) || r.snoozeUntil <= today))
+      .map((r) => ({ ...r, reminderStage: r.days < 0 ? "Deadline passed" : r.days === 0 ? "Due today" : `${Math.min(...watchOffsets(r.offsets).filter((offset) => offset >= r.days))}-day reminder` }));
+  }
+
+  function watchUpsert(record) {
+    if (!String(record.program || "").trim() || !String(record.issuer || "").trim() || !watchDate(record.deadline)
+      || !/^\d{4}$/.test(String(record.year || "")) || !String(record.source || "").trim()
+      || !watchDate(record.observedAt) || record.observedAt > todayIso()) return { ok: false, message: "Add a program, issuer, certificate year, valid deadline, source, and a source date no later than today." };
+    const amountText = String(record.amount ?? "").trim();
+    if (amountText && (!Number.isFinite(Number(amountText)) || Number(amountText) < 0)) return { ok: false, message: "Enter a nonnegative amount or leave it blank." };
+    if (record.sourceUrl && !watchSafeUrl(record.sourceUrl)) return { ok: false, message: "Use an HTTPS source link without embedded sign-in details." };
+    const key = [record.issuer, record.program, record.year].map((v) => String(v).trim().toLowerCase()).join("|");
+    const existing = watchRecords().find((r) => r.key === key);
+    if (existing && existing.id !== record.id) return { ok: false, message: "This program and certificate year already exist. Edit that record to merge another notice." };
+    const item = { ...record, id: `watch_${encodeURIComponent(key)}`, key, program: record.program.trim(), issuer: record.issuer.trim(),
+      amount: amountText ? Math.round(Number(amountText) * 100) / 100 : null, unit: record.unit === "points" ? "points" : "USD",
+      sourceUrl: watchSafeUrl(record.sourceUrl), status: ["Needs verification", "Active", "Redeemed", "Dismissed"].includes(record.status) ? record.status : "Needs verification",
+      offsets: watchOffsets(record.offsets).join(","), snoozeUntil: existing?.snoozeUntil || "", updatedAt: new Date().toISOString() };
+    data.financialWatchRecords = [...watchRecords().filter((r) => r.id !== record.id && r.id !== item.id), item];
+    return { ok: true, item };
+  }
+
+  function watchUpdateStatus(recordId, status, today = todayIso()) {
+    const record = watchRecords().find((r) => r.id === recordId);
+    if (!record || !["Active", "Redeemed", "Dismissed", "snooze"].includes(status)) return false;
+    if (status === "snooze") {
+      const until = addDaysIso(today, 7);
+      record.snoozeUntil = watchDate(record.deadline) && record.deadline < until ? record.deadline : until;
+    }
+    else { record.status = status; record.snoozeUntil = ""; }
+    record.updatedAt = new Date().toISOString();
+    return true;
+  }
+
+  function watchWithdrawalItems(today = todayIso()) {
+    const items = [];
+    const seen = new Set();
+    const build = (kind, item) => {
+      const schedule = financialScheduleFor(kind, item.id);
+      const savedDate = kind === "bill" ? billScheduledPaymentDate(item) : item.nextDate;
+      const date = watchDate(schedule?.date || savedDate);
+      const days = watchDays(date, today);
+      if (days === null || days > 30) return;
+      const key = `${kind}:${item.id}:${date}`;
+      if (seen.has(key) || (kind === "subscription" && item.billId && seen.has(`bill:${item.billId}:${date}`))) return;
+      seen.add(key);
+      const amount = schedule?.amount !== null && schedule?.amount !== undefined ? Number(schedule.amount) : kind === "bill" ? nextBillPaymentAmount(item) : Number(item.amount);
+      const verified = Boolean(schedule?.source && watchDate(schedule?.observedAt) && schedule.observedAt <= today);
+      const stale = !verified || watchDays(schedule.observedAt, today) > 30;
+      const pendingCancellation = kind === "subscription" && subscriptionCancellationState(item) === "requested";
+      items.push({ key, id: item.id, kind, name: item.name, date, dueDate: kind === "bill" ? watchDate(item.dueDate) : "", days, amount,
+        method: item.method || item.paymentMethod || "Account not specified", autopay: Boolean(item.autopay),
+        label: item.autopay ? kind === "bill" ? "Autopay plan" : "Auto-renewal" : kind === "bill" ? "Payment plan" : "Manual renewal",
+        source: schedule?.source || (kind === "bill" ? "Saved bill plan" : "Saved subscription"), sourceUrl: schedule?.sourceUrl || "", observedAt: schedule?.observedAt || "",
+        dateMeaning: verified ? "User-confirmed expected date" : "Saved planned date", amountConfidence: verified && schedule?.amount != null && Number.isFinite(Number(schedule.amount)) ? "User confirmed" : "Estimate",
+        offsets: schedule?.offsets || data.settings.financialWatchWithdrawalOffsets || "7,3,1", verified, stale,
+        status: days < 0 ? "Date passed — refresh needed" : pendingCancellation ? "Cancellation requested — charges may continue" : stale ? "Unverified or stale — check provider" : "User-confirmed schedule; bank settlement not verified" });
+    };
+    for (const bill of safeArray(data.bills)) if (!["paid", "cancelled", "canceled"].includes(String(bill.status || "").toLowerCase())) build("bill", bill);
+    for (const sub of safeArray(data.subscriptions)) if (subscriptionStillRecurring(sub)) build("subscription", sub);
+    return items.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function watchAmount(record) { return record.amount === null || !Number.isFinite(Number(record.amount)) ? "Amount unknown" : record.unit === "points" ? `${Number(record.amount).toLocaleString()} points` : money(record.amount); }
+  function watchLink(url, label) { const safe = watchSafeUrl(url); return safe ? `<a class="text-btn" href="${esc(safe)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : ""; }
+
+  function financialWatchDashboardCard() {
+    const count = financialWatchNotices().length + watchWithdrawalNotices().length;
+    return `<section class="section-card watch-summary"><div class="section-title"><h2>${icon("bell")} Financial Watch</h2><span class="status info">${count} heads-up${count === 1 ? "" : "s"}</span></div><p>Review upcoming obligations, expiring rewards and source-backed next steps.</p><button class="primary-btn" data-action="navigate" data-view="financial-watch">Open Financial Watch</button></section>`;
+  }
+
+  function renderFinancialWatch() {
+    const today = todayIso(), records = financialWatchItems(today), notices = financialWatchNotices(today), withdrawals = watchWithdrawalItems(today), alerts = watchWithdrawalNotices(today);
+    const edit = watchRecords().find((r) => r.id === ui.watchEditId) || {};
+    const input = (name, label, type = "text", fallback = "") => field(`watch-${name}`, label, edit[name] ?? fallback, "", type);
+    const selected = ui.watchScheduleKind && (ui.watchScheduleKind === "bill" ? data.bills : data.subscriptions).find((r) => r.id === ui.watchScheduleId);
+    const schedule = selected ? financialScheduleFor(ui.watchScheduleKind, selected.id) || {} : {};
+    const cancellation = selected ? safeArray(data.cancellations).find((r) => r.subscriptionId === selected.id) || {} : {};
+    const guidance = financialWatchGuidance(today);
+    return `<section class="screen watch-screen">${header("Financial Watch")}
+      <section class="section-card watch-hero"><h2>Keep what you earned. Know what is coming.</h2><p>Reward deadlines, upcoming obligations and practical next steps.</p><p class="muted">Heads-ups appear when you open the app. Sources and dates show what has been checked. No money moves from this screen.</p>${activeProfile()?.id === "profile_demo" ? '<p class="muted">Demo workspace: existing bills and subscriptions may be sample data. Check each source before acting.</p>' : ""}</section>
+      <div class="watch-metrics"><div class="section-card"><strong>${notices.length}</strong><span>Reward deadlines to review</span></div><div class="section-card"><strong>${alerts.length}</strong><span>Obligation heads-ups</span></div><div class="section-card"><strong>${withdrawals.filter((r) => r.days < 0).length}</strong><span>Passed dates to refresh</span></div></div>
+      <section class="section-card"><h2>Your financial heads-up</h2>${notices.map((r) => `<p><strong>${esc(r.reminderStage)}:</strong> Check ${esc(r.issuer)}'s ${esc(r.year)} ${esc(r.program)} (${esc(watchAmount(r))}). ${r.days < 0 ? "Confirm redemption history." : `If unredeemed, plan redemption before ${esc(r.deadline)}.`}</p>`).join("")}${alerts.map((r) => `<article class="watch-obligation"><div><strong>${esc(r.stage)} · ${esc(r.name)}</strong><p>${esc(r.date)} · ${Number.isFinite(r.amount) ? money(r.amount) : "Amount unknown"} · ${esc(r.amountConfidence)}</p><p class="muted">${esc(r.status)}</p><div class="watch-actions"><button class="outline-btn" data-action="watch-resolve" data-key="${esc(r.key)}">Reviewed this occurrence</button><button class="outline-btn" data-action="watch-snooze-obligation" data-key="${esc(r.key)}">Snooze 1 day</button></div></div></article>`).join("")}${!notices.length && !alerts.length ? "<p>No heads-ups due under your saved lead times.</p>" : ""}
+      <p class="muted">Rewards are separate from bank cash. Each certificate year is tracked separately. Reviewed obligations remain in the timeline; future occurrences can alert again.</p></section>
+      ${guidance.length ? `<section class="section-card"><h2>Useful next steps</h2>${guidance.map((s) => `<p>${esc(s)}</p>`).join("")}</section>` : ""}
+      <div class="watch-columns"><div><h2>Rewards & deadlines</h2>${records.map((r) => `<article class="section-card watch-record"><div class="section-title"><h3>${esc(r.program)} · ${esc(r.year)}</h3><strong>${esc(watchAmount(r))}</strong></div><p>${esc(r.issuer)} · Deadline ${esc(r.deadline)} · ${r.days < 0 ? "Deadline passed" : r.days === null ? "Check date" : `${r.days} days remaining`}</p><p><span class="status info">${esc(r.status)}</span> ${r.status === "Needs verification" ? "Confirm whether still unredeemed." : ""}</p><p class="muted">${esc(r.source)} · dated ${esc(r.observedAt)}${watchDays(r.observedAt, today) > 30 ? " · Source over 30 days old; refresh status." : ""}</p><p>${esc(r.note || "")}${r.snoozeUntil > today ? ` Snoozed until ${esc(r.snoozeUntil)}.` : ""}</p>${watchLink(r.sourceUrl, "Open source")}<div class="watch-actions"><button class="outline-btn" data-action="watch-edit" data-id="${esc(r.id)}">Edit</button>${!["Redeemed", "Dismissed"].includes(r.status) ? `<button class="outline-btn" data-action="watch-status" data-status="Redeemed" data-id="${esc(r.id)}">Mark redeemed</button><button class="outline-btn" data-action="watch-status" data-status="snooze" data-id="${esc(r.id)}">Snooze 7 days</button>` : `<button class="outline-btn" data-action="watch-status" data-status="Active" data-id="${esc(r.id)}">Reopen</button>`}</div></article>`).join("") || `<section class="section-card"><p>Add a reward notice with its source to start tracking.</p></section>`}
+      <section class="section-card"><h2>Upcoming obligations</h2><p class="muted">Next 30 days and passed dates needing review. Plans and estimates are distinct from bank settlement.</p>${withdrawals.map((r) => `<article class="watch-obligation"><div><strong>${esc(r.name)}</strong><p>${esc(r.label)} · ${esc(r.date)}${r.dueDate ? ` · Due ${esc(r.dueDate)}` : ""}</p><p>${esc(r.dateMeaning)} · ${esc(r.method)}</p><p class="muted">${esc(r.source)}${r.observedAt ? ` · ${esc(r.observedAt)}` : ""} · ${esc(r.status)}</p>${watchLink(r.sourceUrl, "Open source")}<button class="text-btn" data-action="watch-schedule" data-kind="${esc(r.kind)}" data-id="${esc(r.id)}">Verify schedule / cancellation</button></div><strong>${Number.isFinite(r.amount) ? money(r.amount) : "Unknown"}<small class="muted">${esc(r.amountConfidence)}</small></strong></article>`).join("") || "<p>No obligations in this window.</p>"}</section>
+      <section class="section-card"><h2>Cancellations & refunds</h2>${safeArray(data.cancellations).map((r) => `<article class="watch-obligation"><div><strong>${esc(r.name)}</strong><p>${esc(r.status)}${r.confirmationSource ? ` · ${esc(r.confirmationSource)} · ${esc(r.confirmationDate || "")}` : " · Provider confirmation needed"}</p><p class="muted">${esc(r.refundStatus || "Refund status unknown")}</p>${r.subscriptionId ? `<button class="text-btn" data-action="watch-schedule" data-kind="subscription" data-id="${esc(r.subscriptionId)}">Update evidence / refund</button>` : ""}</div></article>`).join("") || "<p>No recorded cancellations.</p>"}</section></div>
+      <div><section class="section-card watch-editor" id="watch-editor"><h2>${edit.id ? "Edit reward record" : "Add a reward record"}</h2>${input("program", "Program / certificate")}${input("issuer", "Issuer")}${input("year", "Certificate year", "number", new Date().getFullYear())}${input("amount", "Value (blank if unknown)", "number")}${selectField("watch-unit", "Value type", ["USD", "points"], edit.unit || "USD")}${input("deadline", "Expiration date", "date")}${input("source", "Source description")}${input("sourceUrl", "Source link (HTTPS)", "url")}${input("observedAt", "Source date", "date", today)}${selectField("watch-status", "Redemption status", ["Needs verification", "Active", "Redeemed", "Dismissed"], edit.status || "Needs verification")}${input("offsets", "Alert lead times in days", "text", "90,60,30,7,1")}${input("note", "Notes / next step")}<button class="primary-btn" data-action="watch-save">Save reward record</button>${edit.id ? '<button class="outline-btn" data-action="watch-edit">Cancel edit</button>' : ""}</section>
+      <section class="section-card"><h2>Obligation reminders</h2>${field("watch-withdrawal-offsets", "Default lead times in days", data.settings.financialWatchWithdrawalOffsets || "7,3,1")}<button class="outline-btn" data-action="watch-settings">Save timing</button><p class="muted">Each verified schedule can use its own timing. Snooze never hides a deadline-day heads-up.</p></section>
+      ${selected ? `<section class="section-card watch-editor" id="watch-schedule-editor"><h2>Verify ${esc(selected.name)}</h2><p class="muted">Record what you checked with the provider. This does not cancel service, send money or request a refund.</p>${field("watch-schedule-date", "Expected payment / renewal date", schedule.date || (ui.watchScheduleKind === "bill" ? billScheduledPaymentDate(selected) : selected.nextDate), "", "date")}${field("watch-schedule-amount", "Confirmed amount (blank if unknown)", schedule.amount ?? "", "", "number")}${field("watch-schedule-source", "Source / confirmation you checked", schedule.source || "")}${field("watch-schedule-url", "Source link (HTTPS)", schedule.sourceUrl || "", "", "url")}${field("watch-schedule-observed", "Source date", schedule.observedAt || today, "", "date")}${field("watch-schedule-offsets", "Lead times in days", schedule.offsets || data.settings.financialWatchWithdrawalOffsets || "7,3,1")}${ui.watchScheduleKind === "subscription" ? `${selectField("watch-cancellation", "Cancellation evidence", ["none", "requested", "confirmed"], subscriptionCancellationState(selected), (v) => ({none:"No cancellation",requested:"Requested — not confirmed",confirmed:"Provider confirmed"}[v]))}${field("watch-cancellation-ref", "Provider confirmation reference", cancellation.confirmationReference || "")}${field("watch-refund-expected", "Refund expected (blank if unknown)", cancellation.refundExpected ?? "", "", "number")}${field("watch-refund-received", "Refund reported received", cancellation.refundReceived ?? "", "", "number")}` : ""}<button class="primary-btn" data-action="watch-save-schedule">Save evidence</button></section>` : ""}</div></div></section>`;
+  }
+
+  function handleFinancialWatchAction(el) {
+    const action = el.dataset.action;
+    if (action === "watch-edit") { ui.watchEditId = el.dataset.id || ""; render(); document.getElementById("watch-editor")?.scrollIntoView?.({ block: "start" }); return; }
+    if (action === "watch-schedule") { ui.watchScheduleKind = el.dataset.kind; ui.watchScheduleId = el.dataset.id; render(); document.getElementById("watch-schedule-editor")?.scrollIntoView?.({ block: "start" }); return; }
+    const before = clone(data);
+    if (action === "watch-save") {
+      const record = { id: ui.watchEditId || "" };
+      for (const name of ["program", "issuer", "year", "amount", "unit", "deadline", "source", "sourceUrl", "observedAt", "status", "offsets", "note"]) record[name] = value(`watch-${name}`);
+      const result = watchUpsert(record);
+      if (!result.ok) return showToast(result.message, "danger");
+    } else if (action === "watch-status") { if (!watchUpdateStatus(el.dataset.id, el.dataset.status)) return;
+    } else if (["watch-resolve", "watch-snooze-obligation"].includes(action)) { if (!watchResolveObligation(el.dataset.key, action === "watch-resolve" ? "resolve" : "snooze")) return;
+    } else if (action === "watch-settings") { data.settings.financialWatchWithdrawalOffsets = watchOffsets(value("watch-withdrawal-offsets"), [7,3,1]).join(",");
+    } else if (action === "watch-save-schedule") {
+      const result = saveWatchSchedule({ kind: ui.watchScheduleKind, targetId: ui.watchScheduleId, date: value("watch-schedule-date"), amount: value("watch-schedule-amount"), source: value("watch-schedule-source"), sourceUrl: value("watch-schedule-url"), observedAt: value("watch-schedule-observed"), offsets: value("watch-schedule-offsets"), cancellationState: value("watch-cancellation"), reference: value("watch-cancellation-ref"), refundExpected: value("watch-refund-expected"), refundReceived: value("watch-refund-received") });
+      if (!result.ok) return showToast(result.message, "danger");
+    } else return;
+    if (!saveData()) { data = before; render(); return showToast(ui.lastSaveError || "Could not save. Try again.", "danger"); }
+    ui.watchEditId = ""; ui.watchScheduleId = ""; ui.watchScheduleKind = "";
+    render(); showToast("Financial Watch saved.");
+  }
+
+  function normalizeFinancialWatch(next) {
+    const migrated = safeArray(next.settings.financialWatch?.records);
+    const records = [...safeArray(next.financialWatchRecords), ...migrated];
+    const byKey = new Map();
+    for (const record of records) {
+      const key = [record.issuer, record.program, record.year].map((v) => String(v || "").trim().toLowerCase()).join("|");
+      if (key === "||") continue;
+      const item = { ...record, key, id: `watch_${encodeURIComponent(key)}` };
+      if (!byKey.has(key) || String(item.updatedAt || "") > String(byKey.get(key).updatedAt || "")) byKey.set(key, item);
+    }
+    next.financialWatchRecords = [...byKey.values()];
+    next.financialSchedules = safeArray(next.financialSchedules);
+    next.financialAlertStates = safeArray(next.financialAlertStates);
+    if (next.settings.financialWatch?.records) {
+      next.settings.financialWatch = { ...next.settings.financialWatch };
+      delete next.settings.financialWatch.records;
+    }
+    return next;
+  }
+
+  function subscriptionCancellationState(sub) {
+    if (sub.cancellationState) return sub.cancellationState;
+    if (!["Cancelled", "Canceled"].includes(sub.status)) return "none";
+    const proof = safeArray(data.cancellations).find((r) => r.subscriptionId === sub.id && r.status === "Completed" && r.confirmationSource);
+    return proof ? "confirmed" : "requested";
+  }
+
+  function subscriptionStillRecurring(sub) {
+    return subscriptionCancellationState(sub) !== "confirmed" && !["Inactive", "Expired"].includes(sub.status);
+  }
+
+  function financialScheduleFor(kind, id) { return safeArray(data.financialSchedules).find((r) => r.id === `${kind}:${id}`); }
+
+  function watchWithdrawalNotices(today = todayIso()) {
+    return watchWithdrawalItems(today).filter((item) => {
+      const state = safeArray(data.financialAlertStates).find((r) => r.id === item.key);
+      return item.days <= Math.max(...watchOffsets(item.offsets, [7, 3, 1])) && state?.status !== "resolved"
+        && (!watchDate(state?.snoozeUntil) || state.snoozeUntil <= today);
+    }).map((item) => ({ ...item, stage: item.days < 0 ? "Date passed" : item.days === 0 ? "Today" : `${Math.min(...watchOffsets(item.offsets, [7, 3, 1]).filter((v) => v >= item.days))}-day heads-up` }));
+  }
+
+  function watchResolveObligation(key, action, today = todayIso()) {
+    const item = watchWithdrawalItems(today).find((r) => r.key === key);
+    if (!item) return false;
+    const snoozeUntil = action === "snooze" ? (addDaysIso(today, 1) < item.date ? addDaysIso(today, 1) : item.date) : "";
+    upsertById(data.financialAlertStates, { id: key, status: action === "resolve" ? "resolved" : "open", snoozeUntil, updatedAt: new Date().toISOString() });
+    return true;
+  }
+
+  function saveWatchSchedule(input) {
+    const kind = input.kind === "bill" ? "bill" : "subscription";
+    const item = (kind === "bill" ? data.bills : data.subscriptions).find((r) => r.id === input.targetId);
+    if (!item || !watchDate(input.date) || !watchDate(input.observedAt) || input.observedAt > todayIso() || !String(input.source || "").trim()) return { ok: false, message: "Add valid dates and the source you checked." };
+    if (input.sourceUrl && !watchSafeUrl(input.sourceUrl)) return { ok: false, message: "Enter an HTTPS source link." };
+    const optionalAmount = (v) => String(v ?? "").trim() === "" ? null : Number(v);
+    const amount = optionalAmount(input.amount), expected = optionalAmount(input.refundExpected), received = optionalAmount(input.refundReceived);
+    if ([amount, expected, received].some((v) => v !== null && (!Number.isFinite(v) || v < 0))) return { ok: false, message: "Amounts must be nonnegative or blank." };
+    const schedule = { id: `${kind}:${item.id}`, targetId: item.id, kind, date: input.date, amount, source: input.source.trim(), sourceUrl: watchSafeUrl(input.sourceUrl), observedAt: input.observedAt, offsets: watchOffsets(input.offsets, [7,3,1]).join(","), updatedAt: new Date().toISOString() };
+    upsertById(data.financialSchedules, schedule);
+    if (kind === "subscription" && ["requested", "confirmed"].includes(input.cancellationState)) {
+      item.cancellationState = input.cancellationState;
+      item.status = input.cancellationState === "confirmed" ? "Cancelled" : "Cancellation requested";
+      if (input.cancellationState === "confirmed") item.autopay = false;
+      upsertById(data.cancellations, { id: `cancellation:${item.id}`, subscriptionId: item.id, name: item.name, provider: item.name,
+        status: input.cancellationState === "confirmed" ? "Completed" : "Started", date: todayIso(), confirmationSource: input.cancellationState === "confirmed" ? input.source.trim() : "",
+        confirmationDate: input.observedAt, confirmationReference: input.reference || "", refundExpected: expected, refundReceived: received,
+        refundStatus: received !== null ? expected !== null && received < expected ? "Partial — verify remainder" : "Reported received — reconcile bank transaction" : expected !== null ? "Expected — not received" : "Unknown", updatedAt: new Date().toISOString() });
+    }
+    return { ok: true, schedule };
+  }
+
+  function financialWatchGuidance(today = todayIso()) {
+    const insights = [];
+    for (const sub of safeArray(data.subscriptions)) {
+      if (subscriptionCancellationState(sub) === "requested") insights.push(`Verify ${sub.name}'s cancellation with the provider. Its charges remain in recurring costs until confirmation.`);
+      const days = watchDays(sub.nextDate, today);
+      if (sub.status === "Trial" && days !== null && days >= 0 && days <= 30) insights.push(`${sub.name}'s saved trial/renewal date is ${sub.nextDate}. Review the terms before that date; the saved amount is ${money(sub.amount)}.`);
+    }
+    for (const item of safeArray(data.cancellations)) {
+      if (Number(item.refundExpected) > Number(item.refundReceived || 0)) insights.push(`${item.name}: ${money(Number(item.refundExpected) - Number(item.refundReceived || 0))} of the recorded refund is still unreconciled. Check the provider and bank record.`);
+    }
+    const fresh = watchWithdrawalItems(today).filter((r) => r.days >= 0 && r.days <= 7 && r.autopay && r.verified && !r.stale && r.amountConfidence === "User confirmed");
+    const bankTime = Date.parse(data.settings.plaidLastAccountRefreshAt || "");
+    const freshCash = Number.isFinite(bankTime) && Date.now() >= bankTime && Date.now() - bankTime < 86400000 && !data.settings.plaidAccountRefreshError;
+    const total = fresh.reduce((n, r) => n + (Number.isFinite(r.amount) ? r.amount : 0), 0);
+    if (freshCash && total > dashboardCashBalance()) insights.push(`Confirmed saved autopay plans total ${money(total)} over seven days, above selected saved cash of ${money(dashboardCashBalance())}. Verify the paying accounts, upcoming deposits and transfers; this is not a balance forecast.`);
+    if (data.settings.plaidAccountRefreshError || data.settings.plaidSyncError) insights.push("Bank refresh needs attention. Keep using source-backed plans, and verify balances with your bank before deciding what is available.");
+    return [...new Set(insights)];
+  }
+
+  function plaidRecordEnvironment(record) { return record?.plaidEnvironment || (record?.plaidSandbox ? "sandbox" : "production"); }
+  function plaidRecordMatches(record, item) {
+    const account = record?.accountId ? data.accounts.find((r) => r.id === record.accountId) : null;
+    return (record?.plaidItemId || account?.plaidItemId) === item.item_id && plaidRecordEnvironment(record) === (item.environment || "production");
+  }
+  function plaidScopedAccount(accountId, item) { return data.accounts.find((r) => r.plaidAccountId === accountId && plaidRecordMatches(r, item)); }
+  function plaidObservedTime(value) { const time = Date.parse(value || ""); return Number.isFinite(time) ? time : 0; }
+
+  function reconcilePlaidAccounts(item) {
+    const sandbox = item.environment === "sandbox";
+    const observed = item.accounts_refreshed_at || item.synced_at || "";
+    const observedTime = plaidObservedTime(observed);
+    const currentIds = new Set(safeArray(item.accounts).map((a) => a.account_id));
+    let removed = 0;
+    if (item.accounts_complete === true && !item.accounts_refresh_error) {
+      for (const account of safeArray(data.accounts)) {
+        if (!plaidRecordMatches(account, item) || currentIds.has(account.plaidAccountId) || plaidObservedTime(account.plaidMembershipObservedAt || account.plaidLastSeenAt) > observedTime) continue;
+        if (!account.plaidRemoved) account.plaidWasIncludedBeforeRemoval = account.plaidIncluded !== false;
+        account.plaidRemoved = true; account.plaidIncluded = false;
+        account.plaidRemovedAt = item.accounts_refreshed_at || item.synced_at || new Date().toISOString(); account.plaidMembershipObservedAt = observed; removed++;
+      }
+    }
+    let count = 0;
+    for (const raw of safeArray(item.accounts)) {
+      const account = plaidConnectionAccount(raw, item);
+      if (!account.account_id) continue;
+      const previous = plaidScopedAccount(account.account_id, item);
+      if (previous && Math.max(plaidObservedTime(previous.plaidLastSeenAt), plaidObservedTime(previous.plaidMembershipObservedAt)) > observedTime) continue;
+      const included = previous?.plaidRemoved ? previous.plaidWasIncludedBeforeRemoval !== false : previous?.plaidIncluded !== false;
+      upsertById(data.accounts, { id: previous?.id || plaidStableId("acct_plaid", `${item.environment || "production"}__${item.item_id}__${account.account_id}`), name: account.name || account.official_name || "Plaid Account", type: plaidAccountType(account),
+        last4: account.mask || "----", balance: plaidAccountBalance(account), currentBalance: plaidMoneyOptional(account.current_balance), availableBalance: plaidMoneyOptional(account.available_balance),
+        color: account.type === "credit" ? "coral" : "teal", provider: sandbox ? "Plaid Sandbox" : "Plaid", plaidLinked: !sandbox, plaidSandbox: sandbox,
+        plaidItemId: item.item_id || "", plaidAccountId: account.account_id, plaidInstitution: item.institution_name || previous?.plaidInstitution || "Plaid", currency: account.iso_currency_code || "USD",
+        plaidIncluded: included, plaidRemoved: false, plaidRemovedAt: "", plaidLastSeenAt: item.accounts_refreshed_at || item.synced_at || "",
+        plaidEnvironment: item.environment || "production", plaidMembershipObservedAt: item.accounts_complete === true ? observed : previous?.plaidMembershipObservedAt || "",
+        plaidAccountsStale: item.accounts_stale === true || Boolean(item.accounts_refresh_error) });
+      count++;
+    }
+    return { accounts: count, removedAccounts: removed };
+  }
+
+  function plaidDeviceDeliveryState() {
+    const storageKey = `billmaster-plaid-device:${currentProfileId || "default"}`;
+    let deviceId = localStorage.getItem(storageKey);
+    if (!deviceId) { deviceId = id("device"); localStorage.setItem(storageKey, deviceId); }
+    data.settings.plaidDeviceDeliveries = data.settings.plaidDeviceDeliveries || {};
+    const namespace = `${deviceId}:${cloudSession?.user?.id || "local"}:${plaidBackendEnvironment()}`;
+    data.settings.plaidDeviceDeliveries[namespace] = data.settings.plaidDeviceDeliveries[namespace] || { markers: {}, pendingAcks: [] };
+    return data.settings.plaidDeviceDeliveries[namespace];
+  }
+
+  function plaidWorkspaceContext() {
+    const profile = currentProfileId, owner = cloudSession?.user?.id, environment = plaidBackendEnvironment(), epoch = plaidWorkspaceEpoch;
+    return () => profile === currentProfileId && owner === cloudSession?.user?.id && environment === plaidBackendEnvironment() && epoch === plaidWorkspaceEpoch;
+  }
+
+  async function acknowledgeSavedPlaidBatches(transport = plaidFunctionFetch, stillCurrent = plaidWorkspaceContext()) {
+    const state = plaidDeviceDeliveryState();
+    for (const pending of [...state.pendingAcks]) {
+      if (!stillCurrent()) throw new Error("The active workspace changed. Bank sync stopped.");
+      if (!saveData({ undo: false, cloudSync: false })) throw new Error("Pending bank data is not permanently saved. No acknowledgement was sent.");
+      const acknowledgement = await transport("ack_transactions", pending);
+      if (!stillCurrent()) throw new Error("The active workspace changed. Bank sync stopped.");
+      if (acknowledgement?.acknowledged !== true) throw new Error("The bank backend did not confirm the saved delivery. Retry sync; the local data remains saved.");
+      state.pendingAcks = state.pendingAcks.filter((p) => p.item_id !== pending.item_id || p.batch_id !== pending.batch_id);
+      // If this cleanup cannot persist, the next sync safely repeats the idempotent ACK.
+      if (!saveData({ undo: false, cloudSync: false })) throw new Error("Bank data saved, but delivery confirmation could not be stored. Fix browser storage before retrying.");
+    }
+  }
+
+  async function persistPlaidDelivery(item, syncedAt, transport = plaidFunctionFetch, stillCurrent = plaidWorkspaceContext()) {
+    if (!stillCurrent()) throw new Error("The active workspace changed. Bank sync stopped.");
+    if (!item.batch_id || !item.item_id) throw new Error("Bank backend returned an unjournaled delivery. Deploy the current backend before importing.");
+    const before = clone(data);
+    const summary = applyPlaidSyncResult({ items: [item], synced_at: syncedAt });
+    const state = plaidDeviceDeliveryState();
+    state.markers[item.item_id] = item.batch_id;
+    if (!state.pendingAcks.some((r) => r.item_id === item.item_id && r.batch_id === item.batch_id)) state.pendingAcks.push({ item_id: item.item_id, batch_id: item.batch_id });
+    if (!saveData({ undo: false })) { data = before; throw new Error("Bank delivery was not saved permanently. No cursor acknowledgement was sent. Fix storage and retry."); }
+    await acknowledgeSavedPlaidBatches(transport, stillCurrent);
+    return summary;
+  }
+
   function renderDashboard() {
     const income = sum(reportableTransactions("income"));
     const expenses = sum(reportableTransactions("expense"));
     const balance = dashboardCashBalance();
     const bankRefresh = data.settings.plaidLastAccountRefreshAt || data.settings.plaidLastBackendSyncAt;
-    const balanceSource = bankRefresh ? `Last bank refresh: ${bankRefresh}` : "Saved balances — bank freshness not verified";
+    const balanceSource = data.settings.plaidAccountRefreshError ? `Bank refresh needs attention: ${data.settings.plaidAccountRefreshError}` : bankRefresh ? `Last bank refresh: ${bankRefresh}` : "Saved balances — bank freshness not verified";
     const upcomingBills = data.bills
       .filter((bill) => bill.status !== "Paid" && daysBetween(bill.dueDate) >= 0 && daysBetween(bill.dueDate) <= 6)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
@@ -2753,6 +3080,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
           ${cloudDashboardPrompt()}
 
           ${todayBriefingCard(today, todayItems, data.bills, reviewCount, routeCount)}
+          ${financialWatchDashboardCard()}
 
           <div class="quick-add">
             <button class="round-icon quick-voice-btn" data-action="open-modal" data-modal="voiceTask" aria-label="Add task by voice" title="Add task by voice">${icon("mic")}</button>
@@ -5526,10 +5854,12 @@ function quickAction(action) {
   }
 
   function monthlySubAmount(sub) {
+    if (!subscriptionStillRecurring(sub)) return 0;
     return sub.cycle === "yearly" ? Number(sub.amount || 0) / 12 : Number(sub.amount || 0);
   }
 
   function monthlySubProjected(sub) {
+    if (!subscriptionStillRecurring(sub)) return 0;
     return sub.cycle === "yearly" ? Number(sub.projected || 0) / 12 : Number(sub.projected || 0);
   }
 
@@ -5562,7 +5892,7 @@ function quickAction(action) {
         <div><label>6 Months</label><strong>${money(six)}</strong><span class="subtle">proj ${money(projectedSix)}</span></div>
         <div><label>Yearly</label><strong>${money(year)}</strong><span class="subtle">proj ${money(projectedYear)}</span></div>
       </div>
-      <button class="outline-btn" style="color:#14a85c;border-color:#14a85c;" data-action="open-modal" data-modal="paySubscription" data-id="${sub.id}">${icon("wallet")} Pay Now</button>
+      <button class="outline-btn" style="color:#14a85c;border-color:#14a85c;" data-action="open-modal" data-modal="paySubscription" data-id="${sub.id}">${icon("wallet")} Record payment</button>
       <div class="positive">${sub.autopay ? "Auto-renewal enabled" : "Manual renewal"}</div>
     </article>`;
   }
@@ -5753,20 +6083,8 @@ function quickAction(action) {
   }
 
   function weatherForDate(iso) {
-    const stored = (data.weather || []).find((item) => item.date === iso);
-    if (stored) return stored;
-    const date = parseLocalDate(iso);
-    const seedValue = date.getFullYear() + date.getMonth() * 7 + date.getDate();
-    const patterns = [
-      { condition: "sunny", temp: 72 },
-      { condition: "cloudy", temp: 66 },
-      { condition: "sunny", temp: 76 },
-      { condition: "rain", temp: 63, rainStart: "2:00 PM", rainEnd: "5:00 PM" },
-      { condition: "cloudy", temp: 69 },
-      { condition: "sunny", temp: 74 },
-      { condition: "windy", temp: 70 }
-    ];
-    return { date: iso, ...patterns[Math.abs(seedValue) % patterns.length] };
+    const stored = safeArray(data.weather).find((item) => item.date === iso);
+    return stored ? { ...stored, unverified: !stored.source || !stored.observedAt } : {date:iso,condition:"unavailable",unavailable:true};
   }
 
   function weatherIconName(weather) {
@@ -5857,6 +6175,7 @@ function quickAction(action) {
 
   function weatherChip(iso, size = "mini") {
     const weather = weatherForDate(iso);
+    if (weather.unavailable || weather.unverified) return `<span class="weather-chip weather-${esc(size)}" aria-label="Weather not verified">Weather not verified</span>`;
     const iconName = weatherIconName(weather);
     const condition = weatherConditionLabel(weather);
     const rain = condition === "Rain";
@@ -5871,6 +6190,7 @@ function quickAction(action) {
 
   function weatherMotionLayer(iso, extraClass = "", range = null) {
     const weather = weatherForDate(iso);
+    if (weather.unavailable || weather.unverified) return "";
     const type = weatherIconName(weather);
     const safeExtraClass = String(extraClass || "").split(/\s+/).filter(Boolean).map(esc).join(" ");
     if (safeExtraClass.includes("weather-motion-grid")) {
@@ -9301,13 +9621,15 @@ function quickAction(action) {
   function modalPaySubscription(subId) {
     const sub = data.subscriptions.find((item) => item.id === subId);
     if (!sub) return "";
-    return `${modalHeader(`Pay ${sub.name}`, `${money(sub.amount)} / ${sub.cycle}`)}
+    return `${modalHeader(`Record payment · ${sub.name}`, `${money(sub.amount)} / ${sub.cycle}`)}
       <section class="section-card" style="box-shadow:none;background:#eef3f9;margin-bottom:16px;"><div class="card-row"><div><span class="subtle">Payment Amount</span><div class="amount-large money-blue">${money(sub.amount)}</div></div><div><span class="subtle">Billing Cycle</span><div><strong>${filterLabel(sub.cycle)}</strong></div></div></div></section>
-      <div class="section-title"><h2>Pay From</h2><button class="text-btn">${icon("plus")} Link Account</button></div>
+      <div class="section-title"><h2>Account used for an existing payment</h2></div>
+      ${field("subscriptionPaymentDate", "Actual payment date", todayIso(), "", "date")}
+      ${field("subscriptionPaymentReference", "Your payment reference", "")}
       <div class="list">${visibleAccounts().map((acct) => `<button class="data-row" style="background:transparent;width:100%;text-align:left;border:1px solid var(--line);border-radius:8px;padding:12px;" data-action="pay-subscription" data-id="${sub.id}" data-account="${acct.id}">
         <span class="round-icon">${icon("wallet")}</span><div><strong>${esc(acct.name)}</strong><div class="subtle">${esc(accountInstitutionLabel(acct))}${accountInstitutionLabel(acct) ? " · " : ""}****${esc(acct.last4)} - ${money(acct.balance)}</div></div><span class="status ${acct.type === "Credit" ? "muted" : "success"}">${esc(acct.type)}</span>
       </button>`).join("") || `<p class="muted">No accounts are selected for payments. Open Manage to show one.</p>`}</div>
-      <p class="muted">${icon("check")} Payments are secured with 256-bit encryption via Stripe.</p>`;
+      <p class="muted">${icon("check")} This records a payment you already made. No money is sent and bank-reported balances are not changed.</p>`;
   }
 
   function modalSubscriptionTransactions() {
@@ -9328,7 +9650,7 @@ function quickAction(action) {
     const statuses = ["Active", "Trial", "Expiring Soon", "Cancelled"];
     return `${modalHeader("Change Status", sub.name)}
       <div class="list">${statuses.map((status) => `<button class="data-row" style="background:transparent;border:1px solid var(--line);border-radius:8px;padding:12px;width:100%;text-align:left;" data-action="set-sub-status" data-id="${sub.id}" data-status="${status}">
-        <span class="status ${statusClass(status)}">${esc(status)}</span><span>${status === "Cancelled" ? "Cancel Subscription" : `Set ${status}`}</span><span>${sub.status === status ? icon("check") : ""}</span>
+        <span class="status ${statusClass(status)}">${esc(status)}</span><span>${status === "Cancelled" ? "Record cancellation request" : `Set ${status}`}</span><span>${sub.status === status ? icon("check") : ""}</span>
       </button>`).join("")}</div>`;
   }
 
@@ -10733,10 +11055,10 @@ function quickAction(action) {
 
   function modalImportStatement() {
     return `${modalHeader("Import Card Statement")}
-      <div class="section-card" style="box-shadow:none;background:#e9f8ef;color:#0b7b4b;margin-bottom:16px;">${icon("check")} Last synced: 15:48 - tap to re-scan for new/cancelled subscriptions</div>
-      <div class="section-card" style="box-shadow:none;background:#eef6ff;color:#1871d6;margin-bottom:16px;">${icon("alert")} Import a card statement, bill PDF, screenshot, or email forward. BillMaster will stage detections in Review Inbox before creating anything.</div>
+      <div class="section-card" style="box-shadow:none;background:#e9f8ef;color:#0b7b4b;margin-bottom:16px;">${icon("check")} Sample import preview — no document has been scanned</div>
+      <div class="section-card" style="box-shadow:none;background:#eef6ff;color:#1871d6;margin-bottom:16px;">${icon("alert")} This demo stages sample detections in Review Inbox. Document, Drive and mailbox ingestion are not connected.</div>
       ${selectField("statementCard", "Select Card", visibleAccounts().map((acct) => acct.id), visibleAccounts()[0]?.id, (value) => accountDisplayLabel(data.accounts.find((acct) => acct.id === value)) || "Choose a card")}
-      <div class="sheet-actions"><button class="secondary-btn" data-action="simulate-import">${icon("note")} Import from Device</button><button class="outline-btn" data-action="simulate-import">${icon("camera")} Screenshot / PDF</button><button class="outline-btn" data-action="simulate-import">${icon("note")} Google Drive / Email</button></div>`;
+      <div class="sheet-actions"><button class="secondary-btn" data-action="simulate-import">${icon("note")} Load sample detections</button><button class="outline-btn" data-action="simulate-import">${icon("camera")} Sample PDF flow</button><button class="outline-btn" data-action="simulate-import">${icon("note")} Sample email flow</button></div>`;
   }
 
   function modalAccountConnections() {
@@ -13718,6 +14040,7 @@ function quickAction(action) {
 
   function handleAction(el) {
     const action = el.dataset.action;
+    if (action.startsWith("watch-")) return handleFinancialWatchAction(el);
     if (action === "navigate-root") return navigate(el.dataset.view, true);
     if (action === "navigate") return navigate(el.dataset.view);
     if (action === "back") return back();
@@ -16378,36 +16701,28 @@ function quickAction(action) {
   }
 
   function paySubscription(subId, accountId) {
-    const sub = data.subscriptions.find((item) => item.id === subId);
-    const account = data.accounts.find((item) => item.id === accountId);
-    if (!sub || !account) return;
-    account.balance -= sub.amount;
-    data.subscriptionHistory.unshift({ id: id("sth"), subId: sub.id, name: sub.name, date: todayIso(), amount: sub.amount, status: "Paid", code: `CONF-${sub.name.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-6)}` });
-    data.transactions.unshift({ id: id("tx"), type: "expense", name: sub.name, merchant: sub.name, category: "Subscriptions", amount: sub.amount, projected: sub.projected, date: todayIso(), frequency: sub.cycle, method: account.name, status: "Paid", notes: "Subscription payment." });
-    saveData();
+    const sub=data.subscriptions.find((r)=>r.id===subId), account=data.accounts.find((r)=>r.id===accountId);
+    if(!sub||!account) return;
+    const date=watchDate(value("subscriptionPaymentDate")), reference=value("subscriptionPaymentReference");
+    if(!date||date>todayIso()) return showToast("Enter a valid payment date no later than today.","danger");
+    if(!reference) return showToast("Add your payment reference to distinguish this from other payments.","danger");
+    if(data.subscriptionHistory.some((r)=>r.subId===sub.id&&r.date===date&&r.code===reference)) return showToast("That payment reference is already recorded.","danger");
+    const before=clone(data);
+    data.subscriptionHistory.unshift({id:id("sth"),subId:sub.id,name:sub.name,date,amount:sub.amount,status:"Recorded locally",code:reference,source:"User-reported payment"});
+    data.transactions.unshift({id:id("tx"),type:"expense",name:sub.name,merchant:sub.name,category:"Subscriptions",amount:sub.amount,projected:sub.projected,date,frequency:sub.cycle,method:account.name,status:"Paid",notes:"User-reported payment; verify against bank import. Reference: "+reference,source:"Manual payment record",reference,subId:sub.id});
+    if(!saveData()){data=before;render();return showToast(ui.lastSaveError,"danger");}
     closeModal();
   }
 
   function setSubscriptionStatus(subId, status) {
     const sub = data.subscriptions.find((item) => item.id === subId);
     if (!sub) return;
-    sub.status = status;
     if (status === "Cancelled") {
-      sub.autopay = false;
-      if (!data.cancellations.some((item) => item.subscriptionId === sub.id && item.status !== "Completed")) {
-        data.cancellations.unshift({
-          id: id("cancel"),
-          subscriptionId: sub.id,
-          name: sub.name,
-          provider: sub.name,
-          status: "Started",
-          date: todayIso(),
-          notes: "Provider cancellation started in BillMaster. Upload confirmation or mark completed after provider confirms."
-        });
-      }
-    }
-    saveData();
-    closeModal();
+      sub.cancellationState = "requested";
+      sub.status = "Cancellation requested";
+      upsertById(data.cancellations, { id: "cancellation:" + sub.id, subscriptionId: sub.id, name: sub.name, provider: sub.name, status: "Started", date: todayIso(), notes: "Recorded intention only. Confirm cancellation directly with provider, then attach evidence in Financial Watch." });
+    } else { sub.status = status; sub.cancellationState = "none"; }
+    if (saveData()) closeModal();
   }
 
   function saveLoan(loanId) {
@@ -19561,6 +19876,7 @@ function quickAction(action) {
       showToast(ui.lastSaveError, "danger");
       return;
     }
+    plaidWorkspaceEpoch += 1;
     currentProfileId = profile.id;
     if (!persistActiveProfileId(currentProfileId)) {
       currentProfileId = previousProfileId;
@@ -19597,6 +19913,7 @@ function quickAction(action) {
       showToast(ui.lastSaveError, "danger");
       return;
     }
+    plaidWorkspaceEpoch += 1;
     currentProfileId = profile.id;
     data = loadData();
     resetUndoBaseline();
@@ -19616,6 +19933,7 @@ function quickAction(action) {
       showToast(ui.lastSaveError, "danger");
       return;
     }
+    plaidWorkspaceEpoch += 1;
     currentProfileId = "";
     ui.modal = null;
     render();
@@ -20357,7 +20675,6 @@ function quickAction(action) {
       setCloudSyncState("pushing", "Smart-merging this device with the cloud now.");
       saveData({ undo: false, cloudSync: false, syncStamp: false });
       await pushWorkspaceToCloud("auto");
-      cloudHasLocalUnsyncedChanges = false;
       if (ui.view === "sync") render();
       scheduleCloudAutoPull(30000);
     } catch (error) {
@@ -20431,63 +20748,114 @@ function quickAction(action) {
     scheduleCloudAutoPull(delay);
   }
 
-  async function pushWorkspaceToCloud(direction = "push", options = {}) {
-    const remoteRow = await fetchCloudWorkspaceRow();
-    let payloadSource = normalizeData(clone(data));
-    if (remoteRow?.payload && !options.force) {
-      payloadSource = mergeWorkspacePayloads(remoteRow.payload, payloadSource, { prefer: "local" });
-      data = normalizeData(mergeSeed(clone(seed), payloadSource));
-    }
-    if (options.force) clearCloudConflict();
-    const pushedAt = new Date().toISOString();
-    const profile = activeProfile();
-    const payload = normalizeData(clone(payloadSource));
-    const pushedMessage = direction === "auto"
-      ? "Auto sync smart-merged this device with the cloud."
-      : direction === "smart-merge"
-        ? "Smart merge finished. This device and the cloud now share the same workspace."
-        : direction === "force"
-          ? "This device was force-pushed to the cloud."
-          : "This device was pushed to the cloud.";
-    payload.settings = {
-      ...(payload.settings || {}),
-      cloudLastSyncAt: pushedAt,
-      cloudLastDirection: direction,
-      cloudRemoteUpdatedAt: pushedAt,
-      cloudLastAutoCheckAt: data.settings?.cloudLastAutoCheckAt || "",
-      cloudLastQueuedAt: data.settings?.cloudLastQueuedAt || "",
-      cloudLastPushedAt: pushedAt,
-      cloudLastPulledAt: data.settings?.cloudLastPulledAt || "",
-      cloudSyncState: "synced",
-      cloudSyncMessage: pushedMessage,
-      cloudSyncError: "",
-      cloudSyncConflictAt: "",
-      cloudSyncConflictRemoteAt: "",
-      cloudSyncConflictMessage: ""
-    };
-    const workspace = {
-      user_id: cloudSession.user.id,
-      profile_id: currentProfileId,
-      profile_name: profile?.displayName || "BillMaster User",
-      payload,
-      updated_at: pushedAt
-    };
-    await cloudFetch("/rest/v1/billmaster_workspaces?on_conflict=user_id", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(workspace)
+  // BEGIN BILLMASTER CLOUD CAS
+  function cloudPushContentFingerprint(payload) {
+    const content = clone(payload);
+    Object.keys(content.settings || {}).forEach((key) => {
+      if (key.startsWith("cloud") && key !== "cloudAutoSync") delete content.settings[key];
     });
-    data.settings.cloudLastSyncAt = pushedAt;
-    data.settings.cloudLastDirection = direction;
-    data.settings.cloudRemoteUpdatedAt = pushedAt;
-    data.settings.cloudLastAutoCheckAt = new Date().toISOString();
-    data.settings.cloudLastPushedAt = pushedAt;
-    setCloudSyncState("synced", pushedMessage, { pushed: true, checked: true, at: pushedAt });
-    data.settings.cloudSyncError = "";
-    clearCloudConflict();
-    cloudHasLocalUnsyncedChanges = false;
-    saveData({ undo: false, cloudSync: false, syncStamp: false });
+    return syncFingerprint(content);
   }
+
+  function cloudPreserveInFlightEdits(savedPayload, beforeRequest, currentPayload) {
+    const merged = mergeWorkspacePayloads(savedPayload, currentPayload, { prefer: "incoming" });
+    syncCollectionKeys().forEach((collection) => {
+      const beforeById = new Map(safeArray(beforeRequest[collection]).map((item) => [syncItemId(collection, item), item]).filter(([key]) => key));
+      const currentById = new Map(safeArray(currentPayload[collection]).map((item) => [syncItemId(collection, item), item]).filter(([key]) => key));
+      const savedById = new Map(safeArray(savedPayload[collection]).map((item) => [syncItemId(collection, item), item]).filter(([key]) => key));
+      currentById.forEach((item, itemId) => {
+        const before = beforeById.get(itemId);
+        if (before && syncFingerprint(before) === syncFingerprint(item)) return;
+        // An edit made during the request is causally later than the snapshot just
+        // written, even when the device clock is behind another device's clock.
+        const updatedAt = new Date(Math.max(Date.now(), syncItemTime(item) + 1,
+          syncItemTime(savedById.get(itemId)) + 1,
+          cloudTimeValue(merged.settings?.deletedItems?.[collection]?.[itemId]) + 1)).toISOString();
+        merged[collection] = safeArray(merged[collection]).filter((candidate) => syncItemId(collection, candidate) !== itemId);
+        merged[collection].push({ ...clone(item), updatedAt });
+      });
+      beforeById.forEach((item, itemId) => {
+        if (currentById.has(itemId)) return;
+        merged[collection] = safeArray(merged[collection]).filter((candidate) => syncItemId(collection, candidate) !== itemId);
+        merged.settings.deletedItems[collection] = merged.settings.deletedItems[collection] || {};
+        merged.settings.deletedItems[collection][itemId] = new Date(Math.max(Date.now(),
+          syncItemTime(savedById.get(itemId)) + 1,
+          cloudTimeValue(merged.settings.deletedItems[collection][itemId]) + 1)).toISOString();
+      });
+    });
+    return normalizeData(merged);
+  }
+
+  async function pushWorkspaceToCloud(direction = "push", options = {}) {
+    const ownerId = cloudSession?.user?.id;
+    const profileId = currentProfileId;
+    if (!ownerId) throw new Error("Sign in to cloud sync first.");
+    const stillCurrentWorkspace = () => cloudSession?.user?.id === ownerId && currentProfileId === profileId;
+    cloudHasLocalUnsyncedChanges = true;
+    let remoteRow = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      remoteRow = await fetchCloudWorkspaceRow();
+      if (!stillCurrentWorkspace()) throw new Error("The active workspace changed during sync. Retry from the current workspace.");
+      if (remoteRow && (!remoteRow.updated_at || !cloudTimeValue(remoteRow.updated_at))) {
+        throw new Error("Cloud did not return a usable workspace revision. Local edits remain saved on this device.");
+      }
+      const beforeRequest = normalizeData(clone(data));
+      const payloadSource = remoteRow?.payload && !options.force
+        ? mergeWorkspacePayloads(beforeRequest, remoteRow.payload, { prefer: "local" })
+        : beforeRequest;
+      // Advance the revision even when two saves happen within one clock tick.
+      const pushedAt = new Date(Math.max(Date.now(), cloudTimeValue(remoteRow?.updated_at) + 1)).toISOString();
+      const profile = activeProfile();
+      const pushedMessage = direction === "auto"
+        ? "Auto sync merged this device with the cloud."
+        : direction === "force" ? "This device replaced the cloud workspace."
+          : "This device was merged and saved to the cloud.";
+      const payload = normalizeData(clone(payloadSource));
+      payload.settings = { ...(payload.settings || {}), cloudLastSyncAt: pushedAt,
+        cloudLastDirection: direction, cloudRemoteUpdatedAt: pushedAt, cloudLastPushedAt: pushedAt,
+        cloudSyncState: "synced", cloudSyncMessage: pushedMessage, cloudSyncError: "",
+        cloudSyncConflictAt: "", cloudSyncConflictRemoteAt: "", cloudSyncConflictMessage: "" };
+      const workspace = { user_id: ownerId, profile_id: profileId,
+        profile_name: profile?.displayName || "BillMaster User", payload, updated_at: pushedAt };
+      const userFilter = `user_id=eq.${encodeURIComponent(ownerId)}`;
+      const path = remoteRow
+        ? `/rest/v1/billmaster_workspaces?${userFilter}&updated_at=eq.${encodeURIComponent(remoteRow.updated_at)}&select=updated_at`
+        : "/rest/v1/billmaster_workspaces?on_conflict=user_id&select=updated_at";
+      const savedRows = await cloudFetch(path, { method: remoteRow ? "PATCH" : "POST",
+        headers: { Prefer: remoteRow ? "return=representation" : "resolution=ignore-duplicates,return=representation" },
+        body: JSON.stringify(workspace) });
+      if (!stillCurrentWorkspace()) throw new Error("The active workspace changed during sync. Retry from the current workspace.");
+      if (Array.isArray(savedRows) && savedRows.length === 0) continue;
+      if (!Array.isArray(savedRows) || savedRows.length !== 1 || !cloudTimeValue(savedRows[0]?.updated_at)) {
+        throw new Error("Cloud did not confirm the saved revision. Local edits remain available for retry.");
+      }
+      const savedAt = savedRows[0].updated_at;
+      const current = normalizeData(clone(data));
+      const editedInFlight = cloudPushContentFingerprint(current) !== cloudPushContentFingerprint(beforeRequest);
+      data = editedInFlight ? cloudPreserveInFlightEdits(payload, beforeRequest, current) : normalizeData(clone(payload));
+      data.settings.cloudLastSyncAt = savedAt;
+      data.settings.cloudLastDirection = direction;
+      data.settings.cloudRemoteUpdatedAt = savedAt;
+      data.settings.cloudLastPushedAt = savedAt;
+      clearCloudConflict();
+      cloudHasLocalUnsyncedChanges = editedInFlight;
+      setCloudSyncState(editedInFlight ? "queued" : "synced", editedInFlight
+        ? "Cloud saved. Newer edits on this device are queued for another sync." : pushedMessage,
+      { pushed: true, checked: true, at: savedAt, queued: editedInFlight });
+      if (!saveData({ undo: false, cloudSync: false, syncStamp: false })) {
+        cloudHasLocalUnsyncedChanges = true;
+        const message = "Cloud saved, but this device could not store the merged copy. Keep this tab open and retry after fixing browser storage.";
+        setCloudSyncState("error", message);
+        data.settings.cloudSyncError = message;
+        throw new Error(message);
+      }
+      if (editedInFlight && cloudAutoSyncEnabled()) scheduleCloudAutoPush(600);
+      return { pushed: true, pendingLocalChanges: editedInFlight };
+    }
+    markCloudConflict(remoteRow);
+    throw new Error("Cloud changed repeatedly while syncing. Local edits are preserved. Retry Smart Merge.");
+  }
+  // END BILLMASTER CLOUD CAS
 
   async function fetchCloudWorkspaceRow() {
     const rows = await cloudFetch(`/rest/v1/billmaster_workspaces?select=payload,updated_at&user_id=eq.${encodeURIComponent(cloudSession.user.id)}&limit=1`, {
@@ -21156,96 +21524,74 @@ function quickAction(action) {
   }
 
   function applyPlaidConnectionResult(result) {
-    let accountCount = 0;
-    safeArray(result?.connections).forEach((connection) => {
-      const sandbox = String(connection.environment || "").toLowerCase() === "sandbox";
-      safeArray(connection.accounts).map((account) => plaidConnectionAccount(account, connection)).forEach((account) => {
-        if (!account.account_id) return;
-        accountCount += 1;
-        upsertById(data.accounts, {
-          id: plaidStableId("acct_plaid", account.account_id),
-          name: account.name || account.official_name || "Plaid Account",
-          type: plaidAccountType(account),
-          last4: account.mask || "----",
-          balance: plaidAccountBalance(account),
-          currentBalance: plaidMoneyOptional(account.current_balance),
-          availableBalance: plaidMoneyOptional(account.available_balance),
-          color: account.type === "credit" ? "coral" : "teal",
-          provider: sandbox ? "Plaid Sandbox" : "Plaid",
-          plaidLinked: !sandbox,
-          plaidSandbox: sandbox,
-          plaidItemId: connection.item_id || "",
-          plaidAccountId: account.account_id,
-          plaidInstitution: connection.institution_name || "Plaid",
-          currency: account.iso_currency_code || "USD"
-        });
-      });
-    });
-    return { accounts: accountCount };
+    let accounts = 0, removedAccounts = 0;
+    const errors = [];
+    for (const connection of safeArray(result?.connections)) {
+      const summary = reconcilePlaidAccounts(connection); accounts += summary.accounts; removedAccounts += summary.removedAccounts;
+      if (connection.accounts_refresh_error || connection.accounts_stale) errors.push(connection.accounts_refresh_error || "Stored account data is stale.");
+    }
+    data.settings.plaidAccountRefreshError = [...new Set(errors)].join(" ");
+    const refreshed = safeArray(result?.connections).filter((r) => r.accounts_complete === true && !r.accounts_stale && !r.accounts_refresh_error).map((r) => r.accounts_refreshed_at).filter(Boolean).sort();
+    if (refreshed.length) data.settings.plaidLastAccountRefreshAt = refreshed[0];
+    return { accounts, removedAccounts, stale: errors.length > 0 };
   }
 
   async function syncPlaidConnections(options = {}) {
     if (!cloudConfigured() || !cloudSignedIn()) return { accounts: 0 };
+    const stillCurrent = plaidWorkspaceContext();
     try {
       const result = await plaidFunctionFetch("list_connections", {}, { timeoutMs: options.timeoutMs || 15000 });
+      if (!stillCurrent()) return { accounts: 0, aborted: true };
       const summary = applyPlaidConnectionResult(result);
-      const refreshedAt = safeArray(result?.connections)
-        .map((connection) => connection.accounts_refreshed_at)
-        .filter(Boolean)
-        .sort()
-        .pop();
-      if (refreshedAt) data.settings.plaidLastAccountRefreshAt = refreshedAt;
-      if (summary.accounts) {
-        saveData({ undo: false, cloudSync: false, syncStamp: false });
-        if (!options.silent) render();
-      }
+      if (!saveData({ undo: false, cloudSync: false })) throw new Error("Account refresh could not be stored permanently.");
+      if (!options.silent) render();
       return summary;
     } catch (error) {
-      if (!options.silent) showToast(error?.message || "Linked account refresh failed.", "danger");
-      return { accounts: 0 };
+      if (!stillCurrent()) return { accounts: 0, aborted: true };
+      data.settings.plaidAccountRefreshError = error?.message || "Linked account refresh failed.";
+      saveData({ undo: false, cloudSync: false });
+      if (!options.silent) { render(); showToast(data.settings.plaidAccountRefreshError, "danger"); }
+      return { accounts: 0, stale: true };
     }
   }
 
   async function syncPlaidTransactions(options = {}) {
-    if (!cloudConfigured()) {
-      showToast("Finish Supabase setup before syncing Plaid.", "danger");
-      return;
-    }
-    if (!cloudSignedIn()) {
-      showToast("Sign in to Supabase before syncing Plaid.", "danger");
-      openModal("cloudAuth");
-      return;
-    }
+    if (!cloudConfigured() || !cloudSignedIn()) { showToast("Sign in to your configured cloud workspace before syncing Plaid.", "danger"); return; }
+    const stillCurrent = plaidWorkspaceContext();
+    const total = { accounts: 0, transactions: 0, reviewCandidates: 0, removedTransactions: 0 };
     try {
-      data.settings.plaidLinkStatus = "Syncing transactions";
-      data.settings.plaidSyncError = "";
+      data.settings.plaidLinkStatus = "Syncing transactions"; data.settings.plaidSyncError = "";
       if (!options.silent) render();
-      await syncPlaidConnections({ silent: true });
-      const result = await plaidFunctionFetch("sync_transactions");
-      const summary = applyPlaidSyncResult(result);
-      data.settings.plaidLastBackendSyncAt = localTimestamp();
-      data.settings.plaidLinkStatus = `Synced ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}`;
-      data.settings.plaidSyncError = "";
-      const connection = data.syncConnections.find((item) => item.id === "sync_1");
-      if (connection) {
-        connection.provider = "Plaid";
-        connection.status = "Connected";
-        connection.needsAuth = false;
-        connection.lastSync = data.settings.plaidLastBackendSyncAt;
+      await acknowledgeSavedPlaidBatches(plaidFunctionFetch, stillCurrent);
+      if (!stillCurrent()) return { ...total, aborted: true };
+      let more = false;
+      for (let page = 0; page < 50; page++) {
+        const result = await plaidFunctionFetch("sync_transactions", { last_applied_batch_ids: clone(plaidDeviceDeliveryState().markers) });
+        if (!stillCurrent()) return { ...total, aborted: true };
+        if (result.delivery_protocol !== 1) throw new Error("Bank backend update required: durable delivery is unavailable. No transaction changes were applied.");
+        more = false;
+        for (const item of safeArray(result.items)) {
+          const summary = await persistPlaidDelivery(item, result.synced_at, plaidFunctionFetch, stillCurrent);
+          if (!stillCurrent()) return { ...total, aborted: true };
+          for (const key of Object.keys(total)) total[key] += summary[key] || 0;
+          more ||= Boolean(item.has_more);
+        }
+        if (!more) break;
       }
-      saveData();
-      if (!options.silent) {
-        render();
-        const reviewText = summary.reviewCandidates ? ` ${summary.reviewCandidates} review candidate${summary.reviewCandidates === 1 ? "" : "s"} staged.` : "";
-        showToast(`Plaid sync imported ${summary.accounts} account${summary.accounts === 1 ? "" : "s"} and ${summary.transactions} transaction${summary.transactions === 1 ? "" : "s"}.${reviewText}`);
-      }
-      return summary;
+      if (more) throw new Error("A large bank history was safely saved in batches. Sync again to continue from the saved delivery.");
+      data.settings.plaidLastBackendSyncAt = new Date().toISOString();
+      data.settings.plaidLinkStatus = "Transactions saved and acknowledged"; data.settings.plaidSyncError = "";
+      const connection = data.syncConnections.find((r) => r.id === "sync_1");
+      if (connection) Object.assign(connection, { provider: "Plaid", status: "Connected", needsAuth: false, lastSync: data.settings.plaidLastBackendSyncAt });
+      if (!saveData()) throw new Error("Imported data is saved, but final sync status could not be stored.");
+      if (!options.silent) { render(); showToast(`Saved ${total.transactions} bank transaction changes; ${total.reviewCandidates} candidates need review.`); }
+      return total;
     } catch (error) {
-      data.settings.plaidLinkStatus = "Sync failed";
-      data.settings.plaidSyncError = error?.message || "Plaid transaction sync failed.";
-      render();
-      showToast(error?.message || "Plaid transaction sync failed.", "danger");
-      return { accounts: 0, transactions: 0 };
+      if (!stillCurrent()) return { ...total, aborted: true };
+      data.settings.plaidLinkStatus = "Sync needs attention"; data.settings.plaidSyncError = error?.message || "Bank sync failed.";
+      saveData({ undo: false, cloudSync: false }); render();
+      if (!options.silent) showToast(data.settings.plaidSyncError, "danger");
+      return { ...total, failed: true };
     }
   }
 
@@ -21302,7 +21648,7 @@ function quickAction(action) {
   }
 
   function plaidAccountIncluded(account) {
-    return !isPlaidTrackedAccount(account) || account.plaidIncluded !== false;
+    return !isPlaidTrackedAccount(account) || (!account.plaidRemoved && account.plaidIncluded !== false);
   }
 
   function visibleAccounts() {
@@ -21430,68 +21776,35 @@ function quickAction(action) {
   }
 
   function applyPlaidSyncResult(result) {
-    let accountCount = 0;
-    let transactionCount = 0;
-    let reviewCount = 0;
-    safeArray(result.items).forEach((item) => {
-      safeArray(item.accounts).forEach((account) => {
-        if (!account.account_id) return;
-        accountCount += 1;
-        upsertById(data.accounts, {
-          id: plaidStableId("acct_plaid", account.account_id),
-          name: account.name || account.official_name || "Plaid Account",
-          type: plaidAccountType(account),
-          last4: account.mask || "----",
-          balance: plaidAccountBalance(account),
-          currentBalance: plaidMoneyOptional(account.current_balance),
-          availableBalance: plaidMoneyOptional(account.available_balance),
-          color: account.type === "credit" ? "coral" : "teal",
-          provider: "Plaid",
-          plaidLinked: true,
-          plaidItemId: item.item_id || "",
-          plaidAccountId: account.account_id || "",
-          currency: account.iso_currency_code || "USD"
-        });
-      });
-      [...safeArray(item.added), ...safeArray(item.modified)].forEach((tx) => {
-        if (!tx.transaction_id) return;
-        if (!plaidAccountIncludedById(tx.account_id)) return;
-        transactionCount += 1;
-        const accountName = plaidAccountNameByPlaidId(tx.account_id);
-        const category = plaidAppCategory(tx);
-        const frequency = plaidImportFrequency(tx, category);
-        const appTx = {
-          id: plaidStableId("tx_plaid", tx.transaction_id),
-          type: tx.type === "income" ? "income" : "expense",
-          name: tx.name || tx.merchant_name || "Plaid Transaction",
-          merchant: tx.merchant_name || tx.name || "Plaid",
-          category,
-          amount: Number(tx.amount || 0),
-          projected: Number(tx.amount || 0),
-          date: tx.date || ui.selectedDate,
-          frequency,
-          method: accountName,
-          status: tx.type === "income" ? "Received" : "Paid",
-          notes: tx.pending
-            ? "Imported from Plaid. Pending transaction."
-            : frequency === "One time"
-              ? "Imported from Plaid."
-              : "Imported from Plaid and flagged as a possible recurring charge.",
-          source: "Plaid",
-          plaidLinked: true,
-          plaidTransactionId: tx.transaction_id,
-          plaidAccountId: tx.account_id || "",
-          accountId: plaidStableId("acct_plaid", tx.account_id)
-        };
-        upsertById(data.transactions, appTx);
-        if (stageBillInboxCandidate(plaidReviewCandidate(tx, appTx))) reviewCount += 1;
-      });
-      safeArray(item.removed).forEach((removed) => {
-        const existing = data.transactions.find((tx) => tx.plaidTransactionId === removed.transaction_id);
-        if (existing) existing.status = "Removed";
-      });
-    });
-    return { accounts: accountCount, transactions: transactionCount, reviewCandidates: reviewCount };
+    let accounts = 0, transactions = 0, reviewCandidates = 0, removedTransactions = 0;
+    for (const item of safeArray(result.items)) {
+      const summary = reconcilePlaidAccounts(item); accounts += summary.accounts;
+      if (item.accounts_refresh_error) data.settings.plaidAccountRefreshError = item.accounts_refresh_error;
+      else if (item.accounts_complete === true) { data.settings.plaidAccountRefreshError = ""; data.settings.plaidLastAccountRefreshAt = item.accounts_refreshed_at || item.synced_at || result.synced_at; }
+      const sandbox = item.environment === "sandbox";
+      for (const tx of [...safeArray(item.added), ...safeArray(item.modified)]) {
+        const linkedAccount = plaidScopedAccount(tx.account_id, item);
+        if (!tx.transaction_id || (linkedAccount && !plaidAccountIncluded(linkedAccount))) continue;
+        const previous = data.transactions.find((r) => r.plaidTransactionId === tx.transaction_id && plaidRecordMatches(r, item));
+        const observed = item.synced_at || result.synced_at || new Date().toISOString();
+        if (previous && plaidObservedTime(previous.plaidObservedAt) > plaidObservedTime(observed)) continue;
+        const category = plaidAppCategory(tx), frequency = plaidImportFrequency(tx, category);
+        const appTx = { id: previous?.id || plaidStableId("tx_plaid", `${item.environment || "production"}__${item.item_id}__${tx.transaction_id}`), type: tx.type === "income" ? "income" : "expense", name: tx.name || tx.merchant_name || "Plaid Transaction",
+          merchant: tx.merchant_name || tx.name || "Plaid", category, amount: Number(tx.amount || 0), projected: Number(tx.amount || 0), date: tx.date || todayIso(), frequency,
+          method: linkedAccount ? accountDisplayLabel(linkedAccount) : "Plaid Account", status: tx.pending ? "Pending" : tx.type === "income" ? "Received" : "Paid", notes: tx.pending ? "Imported pending transaction — settlement may change." : "Imported from Plaid. Recurrence, if suggested, requires review.",
+          source: sandbox ? "Plaid Sandbox" : "Plaid", plaidLinked: !sandbox, plaidSandbox: sandbox, plaidEnvironment: item.environment || "production", plaidObservedAt: observed, plaidItemId: item.item_id, plaidTransactionId: tx.transaction_id, plaidAccountId: tx.account_id || "", accountId: linkedAccount?.id || "", updatedAt: observed };
+        upsertById(data.transactions, appTx); transactions++;
+        if (stageBillInboxCandidate(plaidReviewCandidate(tx, appTx))) reviewCandidates++;
+      }
+      for (const removed of safeArray(item.removed)) {
+        const observed = item.synced_at || result.synced_at || new Date().toISOString();
+        for (const existing of safeArray(data.transactions).filter((r) => r.plaidTransactionId === removed.transaction_id && plaidRecordMatches(r, item) && plaidObservedTime(r.plaidObservedAt) <= plaidObservedTime(observed))) {
+          existing.status = "Removed"; existing.updatedAt = observed; existing.plaidObservedAt = observed; removedTransactions++;
+          for (const candidate of safeArray(data.billInbox).filter((r) => r.sourceId === existing.id && r.status === "pending")) { candidate.status = "dismissed"; candidate.notes = "Source transaction was removed by the bank feed. Verify before using this detection."; }
+        }
+      }
+    }
+    return { accounts, transactions, reviewCandidates, removedTransactions };
   }
 
   function applyPlaidLiabilityResult(result) {

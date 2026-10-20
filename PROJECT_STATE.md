@@ -1,3 +1,7 @@
+# Current release: 20261020-1
+
+See RELEASE_CHECKPOINT_20261020.md and RELEASE_NOTES_20261020.md for the approved combined release. The material below records its preserved September baseline.
+
 # Checkpoint: BillMaster stabilization
 
 Version: 20260908-3

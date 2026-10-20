@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { publicDeliveryBatch } from "./delivery.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
     if (action === "complete_multi_item_link") return json(await completeMultiItemLink(admin, user.id, body));
     if (action === "list_connections") return json(await listConnections(admin, user.id));
     if (action === "sync_transactions") return json(await syncTransactions(admin, user.id, body));
+    if (action === "ack_transactions") return json(await acknowledgeTransactions(admin, user.id, body));
     if (action === "sync_liabilities") return json(await syncLiabilities(admin, user.id, body));
     if (action === "delete_user_data") return json(await deleteUserData(admin, user.id));
 
@@ -89,14 +91,16 @@ async function plaidHealth() {
   const requiredDatabase = [
     database.plaid_tokens_ready,
     database.plaid_connections_ready,
-    database.plaid_liabilities_ready
+    database.plaid_liabilities_ready,
+    database.plaid_delivery_ready
   ].every(Boolean);
   return {
     ok: requiredConfigured && requiredDatabase,
     plaid_env: plaidEnv(),
     configured,
     database,
-    actions: ["create_link_token", "create_update_link_token", "exchange_public_token", "complete_multi_item_link", "list_connections", "sync_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
+    delivery_protocol: 1,
+    actions: ["create_link_token", "create_update_link_token", "exchange_public_token", "complete_multi_item_link", "list_connections", "sync_transactions", "ack_transactions", "sync_liabilities", "delete_user_data", "sync_all_transactions", "sync_all_liabilities", "purge_expired_data"]
   };
 }
 
@@ -108,6 +112,7 @@ async function plaidDatabaseHealth() {
       plaid_tokens_ready: false,
       plaid_connections_ready: false,
       plaid_liabilities_ready: false,
+      plaid_delivery_ready: false,
       message: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
     };
   }
@@ -117,13 +122,16 @@ async function plaidDatabaseHealth() {
   const tokenProbe = await admin.from("billmaster_plaid_tokens").select("item_id").limit(1);
   const connectionProbe = await admin.from("billmaster_plaid_connections").select("item_id").limit(1);
   const liabilityProbe = await admin.from("billmaster_plaid_liabilities").select("account_id").limit(1);
+  const deliveryProbe = await admin.from("billmaster_plaid_sync_batches").select("batch_id").limit(1);
   return {
     plaid_tokens_ready: !tokenProbe.error,
     plaid_connections_ready: !connectionProbe.error,
     plaid_liabilities_ready: !liabilityProbe.error,
+    plaid_delivery_ready: !deliveryProbe.error,
     token_error: dbErrorSummary(tokenProbe.error),
     connection_error: dbErrorSummary(connectionProbe.error),
-    liability_error: dbErrorSummary(liabilityProbe.error)
+    liability_error: dbErrorSummary(liabilityProbe.error),
+    delivery_error: dbErrorSummary(deliveryProbe.error)
   };
 }
 
@@ -553,20 +561,20 @@ async function listConnections(admin: ReturnType<typeof createClient>, userId: s
     const environment = stringValue(token?.environment) || "unknown";
     let accounts = Array.isArray(row.accounts) ? row.accounts : [];
     let refreshed = false;
+    let refreshError = "";
 
     // Connection metadata can be stale until the first transaction sync. Refresh
     // balances here so the account picker reflects the bank right after Link.
     // Never include the access token in the response, and keep the stored metadata
     // as a fallback when Plaid is temporarily unavailable.
     const canRefresh = Boolean(token?.access_token)
-      && (environment === "unknown" || environment === plaidEnv());
+      && environment === plaidEnv();
     if (canRefresh) {
       try {
         const accountResult = await plaidPost("/accounts/get", { access_token: token.access_token });
-        const freshAccounts = Array.isArray(accountResult.accounts)
-          ? (accountResult.accounts as JsonRecord[]).map(mapPlaidAccount)
-          : [];
-        if (freshAccounts.length) {
+        if (!Array.isArray(accountResult.accounts)) throw new Error("Bank account response was incomplete.");
+        const freshAccounts = (accountResult.accounts as JsonRecord[]).map(mapPlaidAccount);
+        {
           accounts = freshAccounts;
           refreshed = true;
           const update = await admin
@@ -577,8 +585,10 @@ async function listConnections(admin: ReturnType<typeof createClient>, userId: s
           assertDb(update.error, "Updating Plaid account balances");
         }
       } catch {
-        // A stale metadata read is more useful than failing the entire account list.
+        refreshError = refreshed ? "Fresh bank accounts could not be cached; showing the provider response." : "Bank refresh failed; showing saved account data.";
       }
+    } else {
+      refreshError = environment !== plaidEnv() ? "Connection belongs to a different Plaid environment." : "Connection access is unavailable.";
     }
 
     connections.push({
@@ -590,7 +600,10 @@ async function listConnections(admin: ReturnType<typeof createClient>, userId: s
       accounts,
       last_synced_at: stringValue(row.last_synced_at),
       updated_at: stringValue(row.updated_at),
-      accounts_refreshed_at: refreshed ? refreshedAt : ""
+      accounts_refreshed_at: refreshed ? refreshedAt : "",
+      accounts_complete: refreshed,
+      accounts_stale: !refreshed,
+      accounts_refresh_error: refreshError
     });
   }
 
@@ -639,8 +652,9 @@ async function syncTransactions(admin: ReturnType<typeof createClient>, userId: 
   const itemId = String(body.item_id || "");
   let query = admin
     .from("billmaster_plaid_tokens")
-    .select("item_id, access_token, cursor")
-    .eq("user_id", userId);
+    .select("item_id, access_token, cursor, environment")
+    .eq("user_id", userId)
+    .eq("environment", plaidEnv());
   if (itemId) query = query.eq("item_id", itemId);
 
   const { data: tokens, error } = await query;
@@ -649,12 +663,28 @@ async function syncTransactions(admin: ReturnType<typeof createClient>, userId: 
 
   const syncedAt = new Date().toISOString();
   const items = [];
+  const applied = isRecord(body.last_applied_batch_ids) ? body.last_applied_batch_ids : {};
   for (const token of tokens) {
-    const item = await syncOnePlaidItem(admin, userId, token, syncedAt);
+    const item = await syncOnePlaidItem(admin, userId, token, syncedAt, stringValue(applied[stringValue(token.item_id)]));
     items.push(item);
   }
 
-  return { synced_at: syncedAt, items };
+  return { synced_at: syncedAt, delivery_protocol: 1, items };
+}
+
+async function acknowledgeTransactions(admin: ReturnType<typeof createClient>, userId: string, body: JsonRecord) {
+  const itemId = stringValue(body.item_id);
+  const batchId = stringValue(body.batch_id);
+  if (!itemId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(batchId)) {
+    throw new HttpError(400, "Choose a valid durable delivery batch to acknowledge.");
+  }
+  const result = await admin.rpc("billmaster_ack_plaid_batch", {
+    p_user_id: userId, p_item_id: itemId, p_environment: plaidEnv(), p_batch_id: batchId
+  });
+  if (result.error?.code === "40001") throw new HttpError(409, "Bank data changed during delivery. Refresh and retry.");
+  if (result.error?.code === "P0002") throw new HttpError(404, "That delivery batch is unavailable for this account.");
+  assertDb(result.error, "Acknowledging durable Plaid delivery");
+  return { ...(isRecord(result.data) ? result.data : {}), item_id: itemId };
 }
 
 async function syncAllTransactions(req: Request, body: JsonRecord) {
@@ -663,7 +693,8 @@ async function syncAllTransactions(req: Request, body: JsonRecord) {
   const maxItems = clampInt(numberValue(body.max_items), 1, 25, 25);
   const { data: tokens, error } = await admin
     .from("billmaster_plaid_tokens")
-    .select("user_id, item_id, access_token, cursor")
+    .select("user_id, item_id, access_token, cursor, environment")
+    .eq("environment", plaidEnv())
     .limit(maxItems);
   assertDb(error, "Reading Plaid tokens for scheduled sync");
 
@@ -676,7 +707,7 @@ async function syncAllTransactions(req: Request, body: JsonRecord) {
     if (!userId) continue;
     users.add(userId);
     try {
-      const item = await syncOnePlaidItem(admin, userId, token, syncedAt);
+      const item = await syncOnePlaidItem(admin, userId, token, syncedAt, "", false);
       items.push(item);
     } catch (error) {
       errors.push({
@@ -779,54 +810,112 @@ async function syncAllLiabilities(req: Request, body: JsonRecord) {
   };
 }
 
-async function syncOnePlaidItem(admin: ReturnType<typeof createClient>, userId: string, token: JsonRecord, syncedAt: string) {
-  let cursor = typeof token.cursor === "string" && token.cursor ? token.cursor : null;
+async function nextDeliveryBatch(admin: ReturnType<typeof createClient>, userId: string, itemId: string, lastAppliedBatchId: string) {
+  let afterSequence = 0;
+  if (lastAppliedBatchId) {
+    const marker = await admin.from("billmaster_plaid_sync_batches").select("batch_sequence")
+      .eq("user_id", userId).eq("item_id", itemId).eq("environment", plaidEnv())
+      .eq("batch_id", lastAppliedBatchId).maybeSingle();
+    assertDb(marker.error, "Reading Plaid delivery marker");
+    if (!marker.data) throw new HttpError(409, "Saved bank-delivery marker is unavailable. Reset this item's delivery marker to replay its journal.");
+    afterSequence = Number(marker.data.batch_sequence);
+  }
+  const read = await admin.from("billmaster_plaid_sync_batches").select("batch_id,batch_sequence,payload")
+    .eq("user_id", userId).eq("item_id", itemId).eq("environment", plaidEnv())
+    .gt("batch_sequence", afterSequence).order("batch_sequence", { ascending: true }).limit(2);
+  assertDb(read.error, "Reading durable Plaid deliveries");
+  return read.data?.length ? publicDeliveryBatch(read.data[0], read.data.length > 1) : null;
+}
+
+async function syncOnePlaidItem(admin: ReturnType<typeof createClient>, userId: string, token: JsonRecord, syncedAt: string, lastAppliedBatchId = "", replayHistory = true) {
+  const itemId = stringValue(token.item_id);
+  if (stringValue(token.environment) !== plaidEnv()) throw new HttpError(409, "That bank connection belongs to a different Plaid environment.");
+  let replay = null;
+  if (replayHistory) {
+    replay = await nextDeliveryBatch(admin, userId, itemId, lastAppliedBatchId);
+  } else {
+    const pending = await admin.from("billmaster_plaid_sync_batches").select("batch_id,batch_sequence,payload")
+      .eq("user_id", userId).eq("item_id", itemId).eq("environment", plaidEnv())
+      .is("acknowledged_at", null).order("batch_sequence", { ascending: true }).limit(1);
+    assertDb(pending.error, "Reading pending scheduled Plaid delivery");
+    if (pending.data?.length) replay = publicDeliveryBatch(pending.data[0]);
+  }
+  if (replay) return replay;
+
+  const baseCursor = typeof token.cursor === "string" && token.cursor ? token.cursor : null;
+  let cursor = baseCursor;
   let hasMore = false;
   let requests = 0;
-  const added: JsonRecord[] = [];
-  const modified: JsonRecord[] = [];
-  const removed: JsonRecord[] = [];
+  let added: JsonRecord[] = [];
+  let modified: JsonRecord[] = [];
+  let removed: JsonRecord[] = [];
+  // Plaid can invalidate pagination if transactions mutate during a multi-page pull.
+  // Restart from the original cursor and discard that attempt's partial deltas.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    cursor = baseCursor;
+    added = []; modified = []; removed = [];
+    let pageCount = 0;
+    try {
+      do {
+        requests += 1;
+        pageCount += 1;
+        const page = await plaidPost("/transactions/sync", {
+          access_token: token.access_token, cursor, count: 500,
+          options: { include_personal_finance_category: true }
+        });
+        const nextCursor = stringValue(page.next_cursor);
+        if (!nextCursor) throw new HttpError(502, "The bank returned an incomplete transaction cursor; no delivery was committed.");
+        if (Boolean(page.has_more) && nextCursor === cursor) throw new HttpError(502, "Bank pagination did not advance; no delivery was committed.");
+        cursor = nextCursor;
+        hasMore = Boolean(page.has_more);
+        if (Array.isArray(page.added)) added.push(...(page.added as JsonRecord[]));
+        if (Array.isArray(page.modified)) modified.push(...(page.modified as JsonRecord[]));
+        if (Array.isArray(page.removed)) removed.push(...(page.removed as JsonRecord[]));
+      } while (hasMore && pageCount < 50);
+      if (hasMore) throw new HttpError(503, "Bank history exceeded the safe page limit. No partial delivery or cursor was saved.");
+      break;
+    } catch (error) {
+      const code = error instanceof HttpError ? stringValue(error.details?.error_code) : "";
+      if (code !== "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION" || attempt === 2) throw error;
+    }
+  }
+
+  // /accounts/get is the authoritative full account list. Transaction sync pages
+  // do not establish account removals, and a failed refresh must never imply one.
   let accounts: JsonRecord[] = [];
-
-  do {
-    requests += 1;
-    const page = await plaidPost("/transactions/sync", {
-      access_token: token.access_token,
-      cursor,
-      count: 500,
-      options: { include_personal_finance_category: true }
-    });
-    cursor = stringValue(page.next_cursor) || cursor;
-    hasMore = Boolean(page.has_more);
-    if (Array.isArray(page.accounts)) accounts = page.accounts as JsonRecord[];
-    if (Array.isArray(page.added)) added.push(...(page.added as JsonRecord[]));
-    if (Array.isArray(page.modified)) modified.push(...(page.modified as JsonRecord[]));
-    if (Array.isArray(page.removed)) removed.push(...(page.removed as JsonRecord[]));
-  } while (hasMore && requests < 8);
-
-  const tokenUpdate = await admin
-    .from("billmaster_plaid_tokens")
-    .update({ cursor, last_synced_at: syncedAt, updated_at: syncedAt })
-    .eq("user_id", userId)
-    .eq("item_id", token.item_id);
-  assertDb(tokenUpdate.error, "Updating Plaid cursor");
-
-  const connectionUpdate = await admin
-    .from("billmaster_plaid_connections")
-    .update({ accounts, last_synced_at: syncedAt, updated_at: syncedAt })
-    .eq("user_id", userId)
-    .eq("item_id", token.item_id);
-  assertDb(connectionUpdate.error, "Updating Plaid connection metadata");
-
-  return {
-    item_id: token.item_id,
-    has_more: hasMore,
-    requests,
-    accounts: accounts.map(mapPlaidAccount),
-    added: added.map(mapPlaidTransaction),
-    modified: modified.map(mapPlaidTransaction),
+  let accountsComplete = false;
+  let refreshError = "";
+  try {
+    const accountResult = await plaidPost("/accounts/get", { access_token: token.access_token });
+    if (!Array.isArray(accountResult.accounts)) throw new Error("Incomplete account response");
+    accounts = (accountResult.accounts as JsonRecord[]).map(mapPlaidAccount);
+    accountsComplete = true;
+  } catch {
+    refreshError = "Bank account refresh failed; retain saved accounts and balances.";
+  }
+  const payload = {
+    item_id: itemId, environment: plaidEnv(), synced_at: syncedAt, has_more: hasMore, requests,
+    accounts, accounts_complete: accountsComplete, accounts_refreshed_at: accountsComplete ? syncedAt : "",
+    accounts_refresh_error: refreshError,
+    added: added.map(mapPlaidTransaction), modified: modified.map(mapPlaidTransaction),
     removed: removed.map((tx) => ({ transaction_id: stringValue(tx.transaction_id), account_id: stringValue(tx.account_id) }))
   };
+  const staged = await admin.rpc("billmaster_stage_plaid_batch", {
+    p_user_id: userId, p_item_id: itemId, p_environment: plaidEnv(),
+    p_expected_cursor: baseCursor, p_next_cursor: cursor, p_payload: payload
+  });
+  if (staged.error?.code === "40001") throw new HttpError(409, "Bank data changed during delivery. Refresh and retry.");
+  assertDb(staged.error, "Saving durable Plaid delivery");
+  if (!isRecord(staged.data) || !staged.data.batch_id || !isRecord(staged.data.payload)) {
+    throw new HttpError(500, "The bank delivery was not durably confirmed. Do not acknowledge it.");
+  }
+  // Metadata refresh is non-authoritative for delivery; a write error is visible
+  // but cannot discard an already-journaled transaction payload.
+  const metadata = await admin.from("billmaster_plaid_connections")
+    .update({ ...(accountsComplete ? { accounts } : {}), updated_at: syncedAt })
+    .eq("user_id", userId).eq("item_id", itemId);
+  const delivery = publicDeliveryBatch(staged.data);
+  return { ...delivery, metadata_refresh_error: metadata.error ? "Connection metadata refresh failed; durable batch remains available." : "" };
 }
 
 async function syncOnePlaidLiabilityItem(admin: ReturnType<typeof createClient>, userId: string, token: JsonRecord, syncedAt: string) {

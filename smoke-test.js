@@ -6,6 +6,7 @@ const plaidFunction = fs.readFileSync("supabase/functions/plaid-sync/index.ts", 
 const openAiTtsFunction = fs.readFileSync("supabase/functions/openai-tts/index.ts", "utf8");
 const views = [
   "dashboard",
+  "financial-watch",
   "tracking",
   "analytics",
   "bills",

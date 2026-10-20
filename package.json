@@ -6,6 +6,6 @@
     "test": "node --check app.js && node --check service-worker.js && node --check scripts/serve-billmaster.js && node smoke-test.js && node --test tests/*.test.js"
   },
   "devDependencies": {
-    "supabase": "latest"
+    "supabase": "2.117.0"
   }
 }

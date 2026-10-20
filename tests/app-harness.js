@@ -45,11 +45,15 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
   };
   const exports = `globalThis.testHooks = {
     get data() { return data; }, set data(value) { data = value; }, ui,
+    setTestProfile(value) { currentProfileId = value; plaidWorkspaceEpoch += 1; },
     aiAppDataAnswer, aiCalendarAnswer, aiCalendarTopic, aiCalendarRange, aiLeastEventsAnswer,
     daysBetween, nextBillMonthlyDate, nextBillIntervalDate, nextBillYearlyDate,
     visibleTaskListIds, renderTasks, render, showToast, confirmDelete, confirmStartFresh,
     startFreshSection, resetData, saveData, resetUndoBaseline, undoLastChange, renderSaveWarning,
     get undoCount() { return undoStack.length; }, get savedSnapshot() { return lastSavedSnapshot; },
+    reconcilePlaidAccounts, applyPlaidConnectionResult, applyPlaidSyncResult, persistPlaidDelivery, acknowledgeSavedPlaidBatches, plaidDeviceDeliveryState, reportableTransactions, visibleAccounts,
+    normalizeData, mergeSeed, mergeWorkspacePayloads, normalizeFinancialWatch, saveWatchSchedule, subscriptionCancellationState, subscriptionStillRecurring, monthlySubAmount, monthlySubProjected, watchWithdrawalNotices, watchResolveObligation, financialWatchGuidance, weatherForDate, weatherChip, weatherMotionLayer, modalImportStatement, paySubscription, setSubscriptionStatus,
+    financialWatchItems, financialWatchNotices, watchDate, watchSafeUrl, watchUpsert, watchUpdateStatus, renderFinancialWatch, financialWatchDashboardCard, watchWithdrawalItems,
     habitCompletionSummary, habitInstancesForRange, dashboardCashBalance, renderDashboard, todayBriefingCard,
     deleteTask, deleteNote, deleteHabitSeries, deleteSelectedTasks
   };`;
