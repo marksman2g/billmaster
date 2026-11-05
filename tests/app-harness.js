@@ -17,6 +17,7 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
     appendChild(node) { overlayNodes.push(node); }
   };
   const timers = [];
+  const listeners = {};
   const storage = new Map();
   const temporaryStorage = new Map();
   const warnings = [];
@@ -24,7 +25,7 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
     Date: FixedDate,
     document: {
       getElementById(id) { return id === 'app' ? app : null; },
-      addEventListener() {},
+      addEventListener(type, handler) { (listeners[type] ||= []).push(handler); },
       querySelectorAll(selector) {
         return overlayNodes.filter((node) => !node.removed && node.html.includes(`class="${selector.slice(1)}"`));
       },
@@ -48,7 +49,9 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
     setTestProfile(value) { currentProfileId = value; plaidWorkspaceEpoch += 1; },
     aiAppDataAnswer, aiCalendarAnswer, aiCalendarTopic, aiCalendarRange, aiLeastEventsAnswer,
     daysBetween, nextBillMonthlyDate, nextBillIntervalDate, nextBillYearlyDate,
-    visibleTaskListIds, renderTasks, render, showToast, confirmDelete, confirmStartFresh,
+    visibleTaskList, visibleTaskListIds, myDayTaskGroups, taskOccurrenceForDate, taskOccurrencesForRange,
+    calendarItemsForDay, calendarItemsForRange, toggleTaskOccurrence, taskCompletedOn,
+    taskAlertSummary, scanTaskAlerts, handleAction, modalTask, renderTasks, render, showToast, confirmDelete, confirmStartFresh,
     startFreshSection, resetData, saveData, resetUndoBaseline, undoLastChange, renderSaveWarning,
     get undoCount() { return undoStack.length; }, get savedSnapshot() { return lastSavedSnapshot; },
     reconcilePlaidAccounts, applyPlaidConnectionResult, applyPlaidSyncResult, persistPlaidDelivery, acknowledgeSavedPlaidBatches, plaidDeviceDeliveryState, reportableTransactions, visibleAccounts,
@@ -60,7 +63,7 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   vm.runInNewContext(source.replace(/\}\)\(\);\s*$/, `${exports}\n})();`), sandbox, { timeout: 10000 });
   return {
-    hooks: sandbox.testHooks, sandbox, storage, temporaryStorage, warnings, timers,
+    hooks: sandbox.testHooks, sandbox, storage, temporaryStorage, warnings, timers, listeners,
     get renders() { return renders; }, get html() { return html; },
     get overlayHtml() { return overlayNodes.filter((node) => !node.removed).map((node) => node.html).join(''); }
   };

@@ -29,6 +29,7 @@
     billInboxFilter: "pending",
     billInboxSort: "date",
     taskFilter: "all",
+    taskQuery: "",
     taskView: "regular",
     dayTaskView: "regular",
     taskSort: "newest",
@@ -1957,6 +1958,20 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   function normalizeTasks(nextData) {
     (nextData.tasks || []).forEach((task) => {
       task.endDate = task.endDate || task.date;
+      // A planned calendar date is not evidence of a hard deadline.
+      task.deadline = isIsoDateString(task.deadline) ? task.deadline : "";
+      const occurrenceStates = {};
+      if (task.occurrenceStates && typeof task.occurrenceStates === "object" && !Array.isArray(task.occurrenceStates)) {
+        Object.entries(task.occurrenceStates).forEach(([date, state]) => {
+          if (!isIsoDateString(date) || !state || typeof state !== "object") return;
+          occurrenceStates[date] = { done: state.done === true, updatedAt: String(state.updatedAt || "") };
+        });
+      }
+      if (Array.isArray(task.completedDates)) task.completedDates.filter(isIsoDateString).forEach((date) => {
+        if (!occurrenceStates[date]) occurrenceStates[date] = { done: true, updatedAt: String(task.updatedAt || "") };
+      });
+      task.occurrenceStates = occurrenceStates;
+      task.completedDates = Object.keys(occurrenceStates).filter((date) => occurrenceStates[date].done).sort();
       task.start = task.start ? normalizeClockTime(task.start, task.start) : "";
       task.end = task.end ? normalizeClockTime(task.end, task.end) : "";
       if (!taskPriorityOptions.includes(task.priority)) task.priority = "Medium";
@@ -1983,6 +1998,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       task.alertFiredKeys = Array.isArray(task.alertFiredKeys)
         ? task.alertFiredKeys.map(String).filter(Boolean).slice(-TASK_ALERT_FIRED_LIMIT)
         : [];
+      task.alertLastAttempt = task.alertLastAttempt && typeof task.alertLastAttempt === "object"
+        ? { key: String(task.alertLastAttempt.key || ""), checkedAt: String(task.alertLastAttempt.checkedAt || ""),
+          popupRequested: task.alertLastAttempt.popupRequested === true, soundStarted: task.alertLastAttempt.soundStarted === true,
+          outboxQueued: task.alertLastAttempt.outboxQueued === true }
+        : null;
       task.updatedAt = String(task.updatedAt || "");
     });
   }
@@ -2139,6 +2159,11 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       const deletedAt = cloudTimeValue(deletedItems?.[collection]?.[itemId] || "");
       if (deletedAt && deletedAt >= itemAt) return;
       const current = byId.get(itemId);
+      if (collection === "tasks" && current) {
+        const newer = syncItemTime(stamped, fallback) >= syncItemTime(current, localFallback || incomingFallback) ? stamped : current;
+        byId.set(itemId, mergeTaskOccurrenceStates(newer, current, stamped));
+        return;
+      }
       if (!current || syncItemTime(stamped, fallback) >= syncItemTime(current, localFallback || incomingFallback)) {
         byId.set(itemId, stamped);
       }
@@ -2146,6 +2171,19 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     safeArray(localItems).forEach((item) => addItem(item, localFallback));
     safeArray(incomingItems).forEach((item) => addItem(item, incomingFallback));
     return [...byId.values(), ...noIdByFingerprint.values()];
+  }
+
+  function mergeTaskOccurrenceStates(newer, first, second) {
+    const states = { ...(first.occurrenceStates || {}) };
+    Object.entries(second.occurrenceStates || {}).forEach(([date, candidate]) => {
+      const existing = states[date];
+      if (!existing || String(candidate.updatedAt || "") > String(existing.updatedAt || "")
+        || (String(candidate.updatedAt || "") === String(existing.updatedAt || "") && candidate.done === false)) {
+        states[date] = candidate;
+      }
+    });
+    return { ...newer, occurrenceStates: states,
+      completedDates: Object.keys(states).filter((date) => states[date].done).sort() };
   }
 
   function mergeWorkspacePayloads(localPayload, incomingPayload, options = {}) {
@@ -3016,7 +3054,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       .filter((bill) => bill.status !== "Paid" && daysBetween(bill.dueDate) >= 0 && daysBetween(bill.dueDate) <= 6)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
       .slice(0, 4);
-    const overdueTasks = data.tasks.filter((task) => task.status !== "Completed" && daysBetween(task.date) < 0);
+    const overdueTasks = data.tasks.map((task) => latestOverdueTask(task)).filter(Boolean);
     const recent = [...data.transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
     const today = todayIso();
     const todayItems = calendarItemsForDay(today).sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")));
@@ -3038,10 +3076,10 @@ const DEFAULT_TASK_BG = "#ff7a1a";
 
           <section class="section-card alert-panel">
             <div class="section-title">
-              <h2>${icon("alert")} ${overdueTasks.length} overdue - ${upcomingBills.length} due soon</h2>
+              <h2>${icon("alert")} ${overdueTasks.length} overdue deadlines - ${upcomingBills.length} bills due soon</h2>
               <button class="icon-btn" data-action="dismiss-alert">${icon("close")}</button>
             </div>
-            ${overdueTasks.slice(0, 3).map((task) => `<div class="alert-row"><span class="dot red"></span><span>${esc(task.title)}</span><span class="status danger">${dueText(task.date)}</span></div>`).join("")}
+            ${overdueTasks.slice(0, 3).map((task) => `<div class="alert-row"><span class="dot red"></span><span>${esc(task.title)}</span><span class="status danger">${dueText(task.deadline)}</span></div>`).join("")}
             <button class="text-btn" data-action="navigate" data-view="tasks">View all reminders</button>
           </section>
 
@@ -3225,6 +3263,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       <div class="sheet-actions briefing-actions">
         <button class="primary-btn" data-action="set-calendar-date-view" data-date="${today}" data-view="day">${icon("calendar")} Day Mode</button>
         <button class="outline-btn" data-action="set-calendar-date-view" data-date="${today}" data-view="block">${icon("chart")} Block Mode</button>
+        <button class="outline-btn" data-action="show-my-day">${icon("check")} My Day</button>
         <button class="outline-btn" data-action="navigate" data-view="inbox">${icon("receipt")} Review Inbox</button>
       </div>
     </section>`;
@@ -6219,17 +6258,67 @@ function quickAction(action) {
   }
 
   function calendarItemsForDay(iso) {
-    return visibleCalendarTasks([...data.tasks.filter((task) => task.date === iso), ...habitInstancesForDay(iso)]);
+    return visibleCalendarTasks([...data.tasks.map((task) => taskOccurrenceForDate(task, iso)).filter(Boolean), ...habitInstancesForDay(iso)]);
   }
 
   function calendarItemsForRange(startIso, endIso, { includeHidden = false } = {}) {
     const start = startIso <= endIso ? startIso : endIso;
     const end = endIso >= startIso ? endIso : startIso;
     const items = [
-      ...data.tasks.filter((task) => task.date >= start && task.date <= end),
+      ...data.tasks.flatMap((task) => taskOccurrencesForRange(task, start, end)),
       ...habitInstancesForRange(start, end)
     ];
     return includeHidden ? items.map(normalizeCalendarItemTime) : visibleCalendarTasks(items);
+  }
+
+  function taskRecurs(task) {
+    return Boolean(task && (task.recurring || (task.repeat && task.repeat !== "None")
+      || (task.repeatSchedule && task.repeatSchedule !== "None")
+      || (Array.isArray(task.repeatDays) && task.repeatDays.length)));
+  }
+
+  function taskCompletedOn(task, iso) {
+    return taskRecurs(task)
+      ? (Array.isArray(task.completedDates) && task.completedDates.includes(iso)) || (task.status === "Completed" && task.date === iso)
+      : task.status === "Completed";
+  }
+
+  function taskOccurrenceForDate(task, iso) {
+    if (!isIsoDateString(iso) || !task?.date) return null;
+    if (!taskRecurs(task)) return task.date === iso ? task : null;
+    // Legacy Completed/Cancelled status ends the whole series; do not revive it.
+    if (["Completed", "Cancelled"].includes(task.status) && task.date !== iso
+      && !(task.completedDates || []).includes(iso)) return null;
+    if (!taskOccursForAlertOn(task, iso)) return null;
+    return { ...task, date: iso, endDate: addDaysIso(iso, dateSpanDays(task.date, taskEndDate(task))),
+      deadline: isIsoDateString(task.deadline) ? addDaysIso(iso, daySpan(task.date, task.deadline)) : "",
+      occurrenceDate: iso, status: taskCompletedOn(task, iso) ? "Completed" : task.status };
+  }
+
+  function taskOccurrencesForRange(task, start, end) {
+    if (!task?.date) return [];
+    if (!taskRecurs(task)) return task.date >= start && task.date <= end ? [task] : [];
+    return dateRangeIso(start > task.date ? start : task.date, end)
+      .map((iso) => taskOccurrenceForDate(task, iso)).filter(Boolean);
+  }
+
+  function recurringDeadlineOccurrenceOn(task, deadlineDate) {
+    if (!taskRecurs(task) || !isIsoDateString(task.date) || !isIsoDateString(task.deadline)) return null;
+    const plannedDate = addDaysIso(deadlineDate, -daySpan(task.date, task.deadline));
+    const occurrence = taskOccurrenceForDate(task, plannedDate);
+    return occurrence && !taskCompletedOn(task, plannedDate) && occurrence.deadline === deadlineDate
+      ? occurrence : null;
+  }
+
+  function latestOverdueTask(task, today = todayIso()) {
+    if (!task?.deadline || ["Completed", "Cancelled"].includes(task.status)) return null;
+    if (!taskRecurs(task)) return task.deadline < today ? task : null;
+    if (!isIsoDateString(task.date) || !isIsoDateString(task.deadline)) return null;
+    const lastPlannedDate = addDaysIso(today, -1 - daySpan(task.date, task.deadline));
+    const earliest = addDaysIso(lastPlannedDate, -729);
+    const firstPlannedDate = task.date > earliest ? task.date : earliest;
+    return taskOccurrencesForRange(task, firstPlannedDate, lastPlannedDate).reverse()
+      .find((occurrence) => occurrence.deadline < today && !taskCompletedOn(task, occurrence.date)) || null;
   }
 
   function calendarExportItems() {
@@ -6837,12 +6926,12 @@ function quickAction(action) {
     const deleteAction = task.isHabit ? "delete-habit" : "delete-task";
     const editButton = task.isHabit
       ? `<button class="outline-btn" data-action="edit-habit-instance" data-id="${task.id}">${icon("edit")} Edit</button>`
-      : `<button class="outline-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${icon("edit")} Edit</button>`;
+      : `<button class="outline-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${icon("edit")} ${taskRecurs(task) ? "Edit series" : "Edit"}</button>`;
     const habit = task.isHabit ? data.habits.find((item) => item.id === task.habitId) : null;
     const habitDone = Boolean(task.isHabit && habitCompletedOn(habit, task.date));
     const doneButton = task.isHabit
       ? `<button class="${habitDone ? "outline-btn" : "success-btn"}" data-action="toggle-habit-completion" data-id="${task.habitId}" data-date="${task.date}">${icon("check")} ${habitDone ? "Undo Done" : "Mark Done"}</button>`
-      : `<button class="primary-btn" data-action="complete-task" data-id="${task.id}">${icon("check")} Done</button>`;
+      : `<button class="${task.status === "Completed" ? "outline-btn" : "primary-btn"}" data-action="toggle-task-occurrence" data-id="${task.id}" data-date="${esc(task.date)}">${icon("check")} ${task.status === "Completed" ? "Undo Done" : "Mark Done"}</button>`;
     const viewMode = ["regular", "compact", "gallery"].includes(ui.dayTaskView) ? ui.dayTaskView : "regular";
     return `<article class="task-card day-task-card compact-day-task day-task-card-${esc(viewMode)} ${taskImage ? "has-task-picture" : ""} ${task.status === "Completed" ? "complete" : ""} ${selected ? "selected" : ""}" data-task-id="${task.id}">
       ${taskImage ? `<span class="day-task-picture" ${dayTaskPictureStyle(task)}><img src="${esc(taskImage)}" alt=""></span>` : ""}
@@ -6864,7 +6953,7 @@ function quickAction(action) {
               <button class="end-time-row" data-action="open-modal" data-modal="quickTime" data-id="${task.id}">${icon("end")} <span class="task-time-label">End: ${dateLabel(taskEndDate(task))} ${timeLabel(task.end)}</span></button>
               <button class="duration-chip" data-action="open-modal" data-modal="quickTime" data-id="${task.id}"><span class="task-time-label">${durationText(task)}</span></button>
             </div>
-            <div class="task-quick-controls"><span class="task-quick-badge-stack">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span><button class="icon-btn danger-text task-delete-inline" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit occurrence" : "task"}">${icon("trash")}</button></div>
+              <div class="task-quick-controls"><span class="task-quick-badge-stack">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}</span><button class="icon-btn danger-text task-delete-inline" data-action="${deleteAction}" data-id="${task.id}" aria-label="Delete ${task.isHabit ? "habit occurrence" : taskRecurs(task) ? "entire repeating series" : "task"}">${icon("trash")}</button></div>
           </div>
         </div>
       </div>
@@ -7230,6 +7319,9 @@ function quickAction(action) {
     const colorer = isPriority ? priorityColor : statusHandleColor;
     const bg = badgeBackground(color);
     const text = badgeTextColor(color);
+    if (!isPriority && taskRecurs(task) && !task.occurrenceDate) {
+      return `<span class="status quick-badge status-badge" style="background:${bg};border-color:${color};color:${text};" title="Edit this task to change the whole repeating series">Status: ${esc(value)}</span>`;
+    }
     return `<span class="quick-picker-wrap">
       <button class="status quick-badge ${isPriority ? "priority-badge" : "status-badge"}" style="--badge-color:${color};--badge-bg:${bg};--badge-text:${text};background:${bg};border-color:${color};color:${text};" data-action="${action}" data-id="${task.id}" data-kind="${kind}" title="Select ${label.toLowerCase()}">${label}: ${esc(value)}</button>
       ${open ? `<span class="quick-picker" role="menu" aria-label="${esc(label)} options">
@@ -7237,7 +7329,7 @@ function quickAction(action) {
           const optionColor = colorer(option);
           const optionBg = badgeBackground(optionColor);
           const optionText = badgeTextColor(optionColor);
-          return `<button style="--badge-color:${optionColor};--badge-bg:${optionBg};--badge-text:${optionText};background:${optionBg};border-color:${optionColor};color:${optionText};" data-action="${optionAction}" data-id="${task.id}" data-value="${esc(option)}" role="menuitem">${esc(option)}</button>`;
+          return `<button style="--badge-color:${optionColor};--badge-bg:${optionBg};--badge-text:${optionText};background:${optionBg};border-color:${optionColor};color:${optionText};" data-action="${optionAction}" data-id="${task.id}" data-date="${esc(task.occurrenceDate || "")}" data-value="${esc(option)}" role="menuitem">${esc(option)}</button>`;
         }).join("")}
       </span>` : ""}
     </span>`;
@@ -7349,10 +7441,13 @@ function quickAction(action) {
   }
 
   function renderTasks() {
-    const done = data.tasks.filter((task) => task.status === "Completed").length;
-    const pct = progressPct(done, data.tasks.length);
-    const filtered = visibleTaskList();
-    const filteredIds = filtered.map((task) => task.id);
+    const dayGroups = ui.taskFilter === "my-day" ? myDayTaskGroups() : null;
+    const filtered = dayGroups ? dayGroups.flatMap((group) => group.tasks) : visibleTaskList();
+    const done = dayGroups ? dayGroups.find((group) => group.title === "Done today").tasks.length
+      : data.tasks.filter((task) => task.status === "Completed").length;
+    const total = dayGroups ? filtered.length : data.tasks.length;
+    const pct = progressPct(done, total);
+    const filteredIds = [...new Set(filtered.map((task) => task.id))];
     const selectedIds = filteredIds.filter((taskId) => ui.selectedTasks.includes(taskId));
     const allSelected = filteredIds.length > 0 && selectedIds.length === filteredIds.length;
     return `<section class="screen">
@@ -7365,14 +7460,14 @@ function quickAction(action) {
             <button class="icon-btn primary-btn" data-action="quick-add-task">${icon("check")}</button>
           </div>
           <div class="workspace-mini-metrics">
-            <span><strong>${done}/${data.tasks.length}</strong> done</span>
+            <span><strong>${done}/${total}</strong> ${dayGroups ? "done today" : "done"}</span>
             <span><strong>${pct}%</strong> complete</span>
-            <span><strong>${data.tasks.length - done}</strong> remaining</span>
+            <span><strong>${total - done}</strong> remaining</span>
           </div>
         </div>
         <div class="task-control-bar" aria-label="Task filters and sorting">
           <div class="task-control-group">
-            ${["all", "today", "week", "done"].map((filter) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${filterLabel(filter)}</button>`).join("")}
+            ${[["my-day", "My Day"], ["all", "All"], ["today", "Today"], ["week", "Week"], ["done", "Done"]].map(([filter, label]) => `<button class="${ui.taskFilter === filter ? "active" : ""}" data-action="set-tab" data-key="taskFilter" data-value="${filter}">${label}</button>`).join("")}
           </div>
           <div class="task-control-group">
             ${["regular", "compact", "gallery"].map((view) => `<button class="${ui.taskView === view ? "active" : ""}" data-action="set-tab" data-key="taskView" data-value="${view}">${filterLabel(view)}</button>`).join("")}
@@ -7391,14 +7486,14 @@ function quickAction(action) {
             </select>
           </div>
         </div>
-        <label class="search-field workspace-search">${icon("search")}<input placeholder="Search tasks..." /></label>
-        <div class="project-bulk-toolbar task-list-bulk-toolbar">
+        <label class="search-field workspace-search">${icon("search")}<input id="taskSearch" data-action="task-search" value="${esc(ui.taskQuery)}" placeholder="Search tasks..." aria-label="Search tasks" /></label>
+        <div class="project-bulk-toolbar task-list-bulk-toolbar" ${ui.taskFilter === "my-day" ? 'style="display:none"' : ""}>
           <button class="outline-btn" data-action="select-visible-tasks">${icon("check")} ${allSelected ? "Deselect visible" : "Select visible"}</button>
-          ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
-          <span class="muted">${selectedIds.length}/${filtered.length} selected</span>
+          ${selectedIds.length ? `<button class="outline-btn" data-action="open-modal" data-modal="duplicateTasks">${icon("note")} Copy selected</button><button class="outline-btn" data-action="open-modal" data-modal="assignProject" data-id="${selectedIds[0]}">${icon("folder")} Change project</button><button class="danger-btn" data-action="delete-selected-tasks">${icon("trash")} Delete selected tasks/series</button><button class="outline-btn" data-action="clear-selected-tasks">${icon("close")} Clear</button>` : ""}
+          <span class="muted">${selectedIds.length}/${filteredIds.length} selected</span>
         </div>
       </section>
-      <div class="list tasks-list tasks-${esc(ui.taskView)}">${filtered.map((task) => taskBoardCard(task)).join("")}</div>
+      ${dayGroups ? renderMyDayTasks(dayGroups) : `<div class="list tasks-list tasks-${esc(ui.taskView)}">${filtered.map((task) => taskBoardCard(task, { triage: ui.taskFilter === "today" || ui.taskFilter === "week" || ui.taskFilter === "done" })).join("") || `<section class="section-card"><p class="muted">No tasks match this view.</p></section>`}</div>`}
     </section>`;
   }
 
@@ -7414,24 +7509,32 @@ function quickAction(action) {
     });
   }
 
+  function renderMyDayTasks(groups = myDayTaskGroups()) {
+    return `<section class="section-card my-day-intro"><h2>My Day</h2><p>TodayΓÇÖs plan, real deadlines, and items to replan. A planned date is not a deadline.</p><p class="muted">${esc(dateFull(todayIso()))}</p></section>
+      ${groups.map((group) => `<section class="my-day-group"><h2>${esc(group.title)} <span class="status info">${group.tasks.length}</span></h2><div class="list tasks-list tasks-${esc(ui.taskView)}">${group.tasks.map((task) => taskBoardCard(task, { triage: true, selectable: false })).join("") || `<p class="muted">${esc(group.empty)}</p>`}</div></section>`).join("")}`;
+  }
+
   function priorityRank(priority) {
     return { Low: 1, Medium: 2, High: 3, Urgent: 4 }[priority] || 2;
   }
 
-  function taskBoardCard(task) {
+  function taskBoardCard(task, { triage = false, selectable = true } = {}) {
     const media = entityImage(task);
     const selected = ui.selectedTasks.includes(task.id);
+    const occurrenceDate = task.occurrenceDate || task.date;
+    const done = taskCompletedOn(task, occurrenceDate);
     return `<article class="task-card task-board-card ${task.status === "Completed" ? "complete" : ""} ${selected ? "selected" : ""}" data-action="open-modal" data-modal="editTask" data-id="${task.id}" role="button" tabindex="0" title="Edit ${esc(task.title)}">
       <div class="card-row">
         <div class="task-board-main">
-          <button class="task-mini-select task-board-select ${selected ? "active" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(task.title)}">${selected ? icon("check") : ""}</button>
+          ${selectable ? `<button class="task-mini-select task-board-select ${selected ? "active" : ""}" data-action="toggle-task-select" data-id="${task.id}" aria-label="${selected ? "Deselect" : "Select"} ${esc(task.title)}">${selected ? icon("check") : ""}</button>` : ""}
           ${taskStartDateBadge(task)}
           ${media ? `<span class="media-thumb small" ${imageStyleAttr(task)}><img src="${esc(media)}" alt=""></span>` : `<span class="dot task-board-priority-dot" style="background:${priorityColor(task.priority)};"></span>`}
-          <div class="task-board-copy"><h2 class="entity-title">${esc(task.title)}</h2><div class="entity-subtitle">${esc(task.description)}</div><div class="task-meta">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}<span class="status warn">${icon("calendar")} ${shortDate(task.date)} ${timeLabel(task.start)} - ${shortDate(taskEndDate(task))} ${timeLabel(task.end)}</span>${taskProjectBadge(task)}${task.repeat !== "None" ? `<span class="status info">${esc(task.repeat)}</span>` : ""}</div></div>
+          <div class="task-board-copy"><h2 class="entity-title">${esc(task.title)}</h2><div class="entity-subtitle">${esc(task.description)}</div><div class="task-meta">${taskQuickBadge(task, "priority")}${taskQuickBadge(task, "status")}<span class="status warn">${icon("calendar")} Planned ${shortDate(task.date)} ${timeLabel(task.start)} - ${shortDate(taskEndDate(task))} ${timeLabel(task.end)}</span>${task.deadline ? `<span class="status ${task.deadline < todayIso() && !done ? "danger" : "info"}">Deadline ${esc(shortDate(task.deadline))}</span>` : ""}${taskProjectBadge(task)}${task.repeat !== "None" ? `<span class="status info">${esc(task.repeat)}</span>` : ""}</div></div>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="icon-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}">${icon("edit")}</button>
-          <button class="icon-btn danger-text" data-action="delete-task" data-id="${task.id}" aria-label="Delete task">${icon("trash")}</button>
+          ${triage && !["Cancelled"].includes(task.status) && !(taskRecurs(task) && task.status === "Completed") ? `<button class="${done ? "outline-btn" : "success-btn"}" data-action="toggle-task-occurrence" data-id="${task.id}" data-date="${esc(occurrenceDate)}">${done ? "Undo done" : "Done"}</button>` : ""}
+          <button class="icon-btn" data-action="open-modal" data-modal="editTask" data-id="${task.id}" aria-label="${taskRecurs(task) ? "Edit repeating series" : "Edit task"}">${icon("edit")}</button>
+          ${task.occurrenceDate ? "" : `<button class="icon-btn danger-text" data-action="delete-task" data-id="${task.id}" aria-label="Delete task">${icon("trash")}</button>`}
         </div>
       </div>
       ${taskChecklistPreview(task)}
@@ -8326,17 +8429,60 @@ function quickAction(action) {
 
   function visibleTaskList() {
     const today = todayIso();
-    const week = ui.taskFilter === "week" ? new Set(weekDates(today)) : null;
-    return sortedTaskList(data.tasks.filter((task) => {
-      if (ui.taskFilter === "today") return task.date === today;
-      if (week) return week.has(task.date);
-      if (ui.taskFilter === "done") return task.status === "Completed";
+    let tasks;
+    if (ui.taskFilter === "my-day") return myDayTaskGroups().flatMap((group) => group.tasks);
+    if (ui.taskFilter === "today") tasks = data.tasks.map((task) => taskOccurrenceForDate(task, today)).filter(Boolean);
+    else if (ui.taskFilter === "week") {
+      const dates = weekDates(today);
+      tasks = data.tasks.flatMap((task) => taskOccurrencesForRange(task, dates[0], dates[6]));
+    } else if (ui.taskFilter === "done") {
+      tasks = [...data.tasks.filter((task) => !taskRecurs(task) && task.status === "Completed"),
+        ...data.tasks.filter(taskRecurs).flatMap((task) => (task.completedDates || [])
+          .filter((date) => date >= addDaysIso(today, -30) && date <= today)
+          .map((date) => taskOccurrenceForDate(task, date)).filter(Boolean))];
+    } else tasks = data.tasks;
+    return sortedTaskList(tasks.filter(taskMatchesQuery));
+  }
+
+  function taskMatchesQuery(task) {
+    const terms = String(ui.taskQuery || "").trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const content = [task.title, task.description, task.category, task.deadline, projectName(task.projectId),
+      ...(task.tags || []), ...(task.subtasks || []).map((item) => item.text || item.title || "")]
+      .join(" ").toLocaleLowerCase();
+    return terms.every((term) => content.includes(term));
+  }
+
+  function myDayTaskGroups() {
+    const today = todayIso();
+    const seen = new Set();
+    const collect = (tasks) => sortedTaskList(tasks.filter((task) => {
+      const key = `${task.id}:${task.occurrenceDate || task.date}`;
+      if (seen.has(key) || !taskMatchesQuery(task)) return false;
+      seen.add(key);
       return true;
     }));
+    const active = data.tasks.filter((task) => !["Completed", "Cancelled"].includes(task.status));
+    const overdue = collect(active.map((task) => latestOverdueTask(task, today)).filter(Boolean));
+    const due = collect(active.map((task) => taskRecurs(task) ? recurringDeadlineOccurrenceOn(task, today)
+      : task.deadline === today ? task : null).filter(Boolean));
+    const planned = collect(active.map((task) => taskOccurrenceForDate(task, today)).filter((task) => task && !taskCompletedOn(task, today)));
+    const replan = collect(active.filter((task) => !taskRecurs(task) && task.date < today && (!task.deadline || task.deadline > today)));
+    const completed = collect(data.tasks.flatMap((task) => {
+      if (taskRecurs(task)) return (task.completedDates || []).includes(today) ? [taskOccurrenceForDate(task, today)].filter(Boolean) : [];
+      return task.status === "Completed" && String(task.updatedAt || "").slice(0, 10) === today ? [task] : [];
+    }));
+    return [
+      { title: "Past deadline", tasks: overdue, empty: "No overdue deadlines." },
+      { title: "Deadline today", tasks: due, empty: "No deadlines today." },
+      { title: "Planned today", tasks: planned, empty: "Nothing planned for today." },
+      { title: "Needs replanning", tasks: replan, empty: "No old plans to review." },
+      { title: "Done today", tasks: completed, empty: "Nothing completed today yet." }
+    ];
   }
 
   function visibleTaskListIds() {
-    return visibleTaskList().map((task) => task.id);
+    return [...new Set(visibleTaskList().map((task) => task.id))];
   }
 
   function selectVisibleTasks() {
@@ -9840,7 +9986,7 @@ function quickAction(action) {
   function modalTask(taskId) {
     const projectDefault = ui.view === "projects" && ui.projectId ? ui.projectId : null;
     const task = data.tasks.find((item) => item.id === taskId) || { date: ui.selectedDate, endDate: ui.selectedDate, start: "09:00", end: "10:00", priority: "Medium", status: "Not Started", repeat: "None", includeHours: true, bgColor: defaultTaskBgColor(), projectId: projectDefault, alertOffsets: TASK_ALERT_DEFAULT_OFFSETS, alertDevice: true, alertSound: true, alertEmail: false, alertConfigured: true, alertFiredKeys: [] };
-    return `${modalHeader(task.id ? "Edit Task" : "Add Task")}
+    return `${modalHeader(task.id ? taskRecurs(task) ? "Edit Repeating Series" : "Edit Task" : "Add Task")}
       <div class="field-grid">
         ${field("taskTitle", "Task Title", task.title || "", "Task Title")}
         ${textArea("taskDescription", "Description", task.description || "", "Description (optional)")}
@@ -9850,8 +9996,11 @@ function quickAction(action) {
           ${field("taskEndDate", "End Date", taskEndDate(task), "", "date")}
           ${field("taskEnd", "End Time", task.end || "", "", "time")}
         </div>
+        ${field("taskDeadline", "Deadline (optional)", task.deadline || "", "", "date")}
+        <p class="subtle">Planned start and end are calendar times. Set a deadline only when there is a real due date.</p>
         ${choiceField("taskPriority", "Priority", taskPriorityOptions, task.priority || "Medium", priorityColor)}
         ${choiceField("taskStatus", "Status", taskStatusOptions, task.status || "Not Started", statusHandleColor)}
+        ${taskRecurs(task) ? `<p class="subtle">Status here applies to the whole series. Use My Day or Calendar to mark one occurrence done.</p>` : ""}
         ${selectField("taskRepeat", "Repeat", ["None", "Daily", "Weekly", "Bi-Weekly", "Monthly", "Custom"], task.repeat || "None")}
         ${selectField("taskCategory", "Category", [ADD_TASK_CATEGORY_VALUE, ...taskCategories], taskCategory(task), taskCategoryLabel)}
         <button class="outline-btn inline-add-trigger" data-action="show-task-category-panel">${icon("plus")} Add new category</button>
@@ -10448,7 +10597,7 @@ function quickAction(action) {
           const color = statusHandleColor(status);
           const bg = badgeBackground(color);
           const text = badgeTextColor(color);
-          return `<button class="choice-chip ${task.status === status ? "active" : ""}" style="--choice-color:${color};background:${bg};border-color:${color};color:${text};" data-action="set-task-status" data-id="${task.id}" data-value="${esc(status)}">${esc(status)}</button>`;
+          return `<button class="choice-chip ${task.status === status ? "active" : ""}" style="--choice-color:${color};background:${bg};border-color:${color};color:${text};" data-action="set-task-status" data-id="${task.id}" data-date="${taskRecurs(task) && taskOccursForAlertOn(task, ui.selectedDate) ? esc(ui.selectedDate) : ""}" data-value="${esc(status)}">${esc(status)}</button>`;
         }).join("")}
       </div>
       <p class="muted" style="margin-top:12px;">Click the bottom handle to open this chooser. Drag the same handle to resize the end time.</p>`;
@@ -13764,6 +13913,10 @@ function quickAction(action) {
       ui.billQuery = target.value;
       renderPreservingInput(target);
     }
+    if (target && target.dataset.action === "task-search") {
+      ui.taskQuery = target.value;
+      renderPreservingInput(target);
+    }
     if (target && target.dataset.action === "notes-search") {
       ui.notesQuery = target.value;
       renderPreservingInput(target);
@@ -13968,6 +14121,10 @@ function quickAction(action) {
       const input = document.getElementById("quickTaskInput");
       if (input) input.focus();
     }
+    if (event.key === "Enter" && event.target?.id === "quickTaskInput") {
+      event.preventDefault();
+      return quickAddTask();
+    }
     if (event.key === "Enter" && event.target?.id === "aiInput") {
       event.preventDefault();
       return sendAi(event.target.value);
@@ -14042,6 +14199,10 @@ function quickAction(action) {
     const action = el.dataset.action;
     if (action.startsWith("watch-")) return handleFinancialWatchAction(el);
     if (action === "navigate-root") return navigate(el.dataset.view, true);
+    if (action === "show-my-day") {
+      ui.taskFilter = "my-day";
+      return navigate("tasks");
+    }
     if (action === "navigate") return navigate(el.dataset.view);
     if (action === "back") return back();
     if (action === "undo-last-change") return undoLastChange();
@@ -14154,10 +14315,11 @@ function quickAction(action) {
     if (action === "jump-calendar-date") return jumpCalendarDate();
     if (action === "jump-calendar-month") return jumpCalendarMonth();
     if (action === "delete-task") return deleteTask(el.dataset.id);
-    if (action === "complete-task") return completeTask(el.dataset.id);
+    if (action === "complete-task") return completeTask(el.dataset.id, el.dataset.date);
+    if (action === "toggle-task-occurrence") return toggleTaskOccurrence(el.dataset.id, el.dataset.date);
     if (action === "toggle-task-picker") return toggleTaskPicker(el.dataset.id, el.dataset.kind);
     if (action === "set-task-priority") return setTaskPriority(el.dataset.id, el.dataset.value);
-    if (action === "set-task-status") return setTaskStatus(el.dataset.id, el.dataset.value);
+    if (action === "set-task-status") return setTaskStatus(el.dataset.id, el.dataset.value, el.dataset.date);
     if (action === "toggle-subtask") return toggleSubtask(el.dataset.id, el.dataset.subtask);
     if (action === "toggle-block-draw-mode") return toggleBlockDrawMode();
     if (action === "toggle-block-snap") return toggleBlockSnapInterval();
@@ -16962,7 +17124,7 @@ function quickAction(action) {
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task && isHabitInstanceId(taskId)) return deleteHabit(taskId);
     if (!task) return;
-    if (!confirmDelete(`task "${task.title}"`)) return;
+    if (!confirmDelete(`${taskRecurs(task) ? "entire repeating series" : "task"} "${task.title}"`)) return;
     data.tasks = data.tasks.filter((item) => item.id !== taskId);
     ui.selectedTasks = ui.selectedTasks.filter((item) => item !== taskId);
     ui.modal = null;
@@ -17684,6 +17846,7 @@ function quickAction(action) {
       description: value("taskDescription"),
       date: value("taskDate") || ui.selectedDate,
       endDate: value("taskEndDate") || value("taskDate") || ui.selectedDate,
+      deadline: value("taskDeadline") || "",
       start: value("taskStart"),
       end: value("taskEnd"),
       priority: value("taskPriority"),
@@ -17715,6 +17878,9 @@ function quickAction(action) {
       alertEmail: Boolean(document.getElementById("taskAlertEmail")?.checked),
       alertConfigured: alertOffsets.length > 0,
       alertFiredKeys: task?.alertFiredKeys || [],
+      alertLastAttempt: task?.alertLastAttempt || null,
+      completedDates: task?.completedDates || [],
+      occurrenceStates: task?.occurrenceStates || {},
       tags: task ? task.tags || [] : [],
       subtasks: parseTaskChecklist(value("taskSubtasks"), task?.subtasks),
       updatedAt: new Date().toISOString()
@@ -18288,7 +18454,34 @@ function quickAction(action) {
     render();
   }
 
-  function completeTask(taskId) {
+  function setTaskOccurrenceCompletion(task, iso, completed) {
+    if (!task || !isIsoDateString(iso) || !taskOccursForAlertOn(task, iso)) return false;
+    if (taskRecurs(task)) {
+      if (["Completed", "Cancelled"].includes(task.status)) return false;
+      const states = { ...(task.occurrenceStates || {}) };
+      states[iso] = { done: completed, updatedAt: new Date().toISOString() };
+      task.occurrenceStates = states;
+      task.completedDates = Object.keys(states).filter((date) => states[date].done).sort();
+    } else {
+      task.status = completed ? "Completed" : "Not Started";
+    }
+    task.updatedAt = new Date().toISOString();
+    ui.taskPicker = null;
+    const saved = saveData();
+    render();
+    showToast(saved ? completed ? "This occurrence is done." : "This occurrence is active again."
+      : "This change is not saved permanently. Use Backup or free browser storage before leaving.", saved ? "success" : "danger");
+    return saved;
+  }
+
+  function toggleTaskOccurrence(taskId, iso) {
+    const task = data.tasks.find((item) => item.id === taskId);
+    if (!task) return false;
+    const date = isIsoDateString(iso) ? iso : task.date;
+    return setTaskOccurrenceCompletion(task, date, !taskCompletedOn(task, date));
+  }
+
+  function completeTask(taskId, occurrenceDate = "") {
     const habitInstance = parseHabitInstanceId(taskId);
     if (habitInstance) {
       setHabitCompletion(habitInstance.habitId, habitInstance.date, true);
@@ -18298,6 +18491,12 @@ function quickAction(action) {
     }
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task) return;
+    if (taskRecurs(task)) {
+      const date = [occurrenceDate, ui.selectedDate, todayIso()].find((iso) => isIsoDateString(iso) && taskOccursForAlertOn(task, iso));
+      if (date) setTaskOccurrenceCompletion(task, date, true);
+      else showToast("Choose a scheduled occurrence to mark done.", "danger");
+      return;
+    }
     const previousStatus = task.status;
     task.status = "Completed";
     task.updatedAt = new Date().toISOString();
@@ -18381,7 +18580,7 @@ function quickAction(action) {
     showToast(`Priority changed to ${task.priority}.`);
   }
 
-  function setTaskStatus(taskId, status) {
+  function setTaskStatus(taskId, status, occurrenceDate = "") {
     const habitInstance = findCalendarItemById(taskId);
     if (habitInstance?.isHabit && taskStatusOptions.includes(status)) {
       if (["Completed", "Not Started"].includes(status)) {
@@ -18404,6 +18603,9 @@ function quickAction(action) {
     }
     const task = data.tasks.find((item) => item.id === taskId);
     if (!task || !taskStatusOptions.includes(status)) return;
+    if (taskRecurs(task) && isIsoDateString(occurrenceDate) && ["Completed", "Not Started"].includes(status)) {
+      return setTaskOccurrenceCompletion(task, occurrenceDate, status === "Completed");
+    }
     const previousStatus = task.status;
     task.status = status;
     task.updatedAt = new Date().toISOString();
@@ -18622,9 +18824,9 @@ function quickAction(action) {
 
   function taskNotifyTriggerSummary(task) {
     const channels = taskNotifyChannels(task).map((channel) => channel === "emailToText" ? "email-to-text" : "email").join(" + ");
-    if (task?.notifyOnAnyStatus !== false) return `Sends on every status change by ${channels}.`;
+    if (task?.notifyOnAnyStatus !== false) return `Queues an outbox entry on every status change for ${channels}.`;
     const statuses = Array.isArray(task?.notifyOnStatuses) ? task.notifyOnStatuses : [];
-    if (statuses.length) return `Sends when status becomes ${statuses.join(", ")} by ${channels}.`;
+    if (statuses.length) return `Queues an outbox entry when status becomes ${statuses.join(", ")} for ${channels}.`;
     return `Alerts are paused until you choose a status trigger.`;
   }
 
@@ -18640,16 +18842,20 @@ function quickAction(action) {
 
   function taskAlertDeliverySummary(task) {
     const methods = [];
-    if (task?.alertDevice !== false) methods.push("device popup");
-    if (task?.alertSound !== false) methods.push("sound");
-    if (task?.alertEmail) methods.push("email/text queue");
+    if (task?.alertDevice !== false) methods.push("browser popup while open (if permitted)");
+    if (task?.alertSound !== false) methods.push("sound while open (if available)");
+    if (task?.alertEmail) methods.push("Notification Outbox queue (not sent automatically)");
     return methods.length ? methods.join(" + ") : "no delivery method selected";
   }
 
   function taskAlertSummary(task) {
     const offsets = taskAlertOffsets(task);
     if (!task?.alertConfigured || !offsets.length) return "No time alerts selected yet.";
-    return `Reminds ${offsets.map(taskAlertOffsetLabel).join(" and ")} by ${taskAlertDeliverySummary(task)}.`;
+    const last = task.alertLastAttempt;
+    const outcome = last?.key ? ` Last check: ${last.checkedAt ? dateLabel(last.checkedAt.slice(0, 10)) : "time unknown"}; ${[
+      last.popupRequested ? "popup requested" : "", last.soundStarted ? "sound started" : "",
+      last.outboxQueued ? "outbox queued" : ""].filter(Boolean).join(", ") || "no channel available"}. This does not confirm receipt.` : "";
+    return `Checks ${offsets.map(taskAlertOffsetLabel).join(" and ")} by ${taskAlertDeliverySummary(task)}.${outcome}`;
   }
 
   function taskAlertPanel(task) {
@@ -18666,13 +18872,13 @@ function quickAction(action) {
       <div class="notify-channel-grid">
         <label class="check-row"><input id="taskAlertDevice" type="checkbox" ${device ? "checked" : ""}> Device popup</label>
         <label class="check-row"><input id="taskAlertSound" type="checkbox" ${sound ? "checked" : ""}> Sound</label>
-        <label class="check-row"><input id="taskAlertEmail" type="checkbox" ${email ? "checked" : ""}> Queue email/text</label>
+        <label class="check-row"><input id="taskAlertEmail" type="checkbox" ${email ? "checked" : ""}> Add to Notification Outbox</label>
       </div>
       <div class="sheet-actions" style="grid-template-columns:1fr 1fr;">
         <button class="outline-btn" data-action="request-task-alert-permission">${icon("bell")} Enable browser alerts</button>
         <button class="outline-btn" data-action="test-task-alert">${icon("playcard")} Test sound</button>
       </div>
-      <p class="subtle">Leave BillMaster open on each device for popups and sound. Use Enable browser alerts and Test sound once on each device. Email/text alerts use the Notification Outbox.</p>
+      <p class="subtle">BillMaster must stay open for task popups and sound. Browser permission and sound support vary by device. Outbox entries are queued records, not proof that email or text was sent. Closed-app task delivery needs a separately approved service.</p>
     </section>`;
   }
 
@@ -18778,6 +18984,7 @@ function quickAction(action) {
       if (task.status === "Completed" || task.status === "Cancelled") return;
       const occurrenceIso = taskAlertOccurrenceIso(task, now);
       if (!occurrenceIso) return;
+      if (taskCompletedOn(task, occurrenceIso)) return;
       const startDate = taskAlertStartDate(task, occurrenceIso);
       if (!startDate) return;
       const firedKeys = new Set(Array.isArray(task.alertFiredKeys) ? task.alertFiredKeys : []);
@@ -18788,7 +18995,8 @@ function quickAction(action) {
         if (firedKeys.has(key)) return;
         task.alertFiredKeys = [...(task.alertFiredKeys || []), key].slice(-TASK_ALERT_FIRED_LIMIT);
         firedKeys.add(key);
-        fireTaskAlert(task, offset, occurrenceIso);
+        const outcome = fireTaskAlert(task, offset, occurrenceIso);
+        task.alertLastAttempt = { key, checkedAt: now.toISOString(), ...outcome };
         changed = true;
       });
     });
@@ -18846,11 +19054,13 @@ function quickAction(action) {
   function fireTaskAlert(task, offset, occurrenceIso) {
     const title = offset ? `${task.title} starts in ${offset} minutes` : `${task.title} starts now`;
     const message = taskAlertReminderMessage(task, offset, occurrenceIso);
-    if (task.alertDevice !== false) showBrowserTaskNotification(title, message, `task:${task.id}:${taskAlertFiredKey(occurrenceIso, task.start, offset)}`);
-    if (task.alertSound !== false) playTaskAlertSound();
-    const queued = task.alertEmail ? queueTaskTimeNotification(task, offset, occurrenceIso) : false;
-    if (task.alertEmail && !queued) showToast(`${title}. Add a notification recipient to queue email/text.`, "danger");
-    else showToast(queued ? `${title}. Email/text queued.` : title);
+    const popupRequested = task.alertDevice !== false
+      && showBrowserTaskNotification(title, message, `task:${task.id}:${taskAlertFiredKey(occurrenceIso, task.start, offset)}`);
+    const soundStarted = task.alertSound !== false && playTaskAlertSound();
+    const outboxQueued = Boolean(task.alertEmail && queueTaskTimeNotification(task, offset, occurrenceIso));
+    if (!popupRequested && !soundStarted && !outboxQueued) showToast(`${title}. No reminder channel was available; check task alert settings.`, "danger");
+    else showToast(`${title}. ${[popupRequested ? "Popup requested" : "", soundStarted ? "Sound started" : "", outboxQueued ? "Outbox entry queued" : ""].filter(Boolean).join(", ")}.`);
+    return { popupRequested, soundStarted, outboxQueued };
   }
 
   function taskAlertOccurrenceTask(task, occurrenceIso) {
@@ -19359,8 +19569,21 @@ function quickAction(action) {
 
   function completeSelectedTasks() {
     let queuedCount = 0;
+    let skippedSeries = 0;
+    const occurrenceDate = ui.view === "calendar" ? ui.selectedDate
+      : ui.view === "tasks" && ["today", "my-day"].includes(ui.taskFilter) ? todayIso() : "";
     data.tasks.forEach((task) => {
       if (ui.selectedTasks.includes(task.id)) {
+        if (taskRecurs(task)) {
+          if (isIsoDateString(occurrenceDate) && taskOccursForAlertOn(task, occurrenceDate)
+            && !["Completed", "Cancelled"].includes(task.status)) {
+            task.occurrenceStates = { ...(task.occurrenceStates || {}),
+              [occurrenceDate]: { done: true, updatedAt: new Date().toISOString() } };
+            task.completedDates = Object.keys(task.occurrenceStates).filter((date) => task.occurrenceStates[date].done).sort();
+            task.updatedAt = new Date().toISOString();
+          } else skippedSeries += 1;
+          return;
+        }
         const previousStatus = task.status;
         task.status = "Completed";
         task.updatedAt = new Date().toISOString();
@@ -19375,6 +19598,7 @@ function quickAction(action) {
     saveData();
     closeModal();
     if (queuedCount) showToast(`${queuedCount} notification${queuedCount === 1 ? "" : "s"} queued.`);
+    if (skippedSeries) showToast(`${skippedSeries} repeating task${skippedSeries === 1 ? "" : "s"} need a selected occurrence date; no series was ended.`, "danger");
   }
 
   function prioritySelectedTasks(priority) {
@@ -19556,7 +19780,8 @@ function quickAction(action) {
       return;
     }
     const selectedIds = [...ui.selectedTasks];
-    if (!confirmDelete(`${count} selected task or habit occurrence${count === 1 ? "" : "s"}`)) return;
+    const seriesCount = data.tasks.filter((task) => selectedIds.includes(task.id) && taskRecurs(task)).length;
+    if (!confirmDelete(`${count} selected task or habit occurrence${count === 1 ? "" : "s"}${seriesCount ? `, including ${seriesCount} entire repeating series` : ""}`)) return;
     data.tasks = data.tasks.filter((task) => !selectedIds.includes(task.id));
     selectedIds.forEach((taskId) => {
       const parsed = parseHabitInstanceId(taskId);

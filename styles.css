@@ -21716,3 +21716,12 @@ canvas {
 .watch-proposals { padding-left:22px; }
 .watch-proposals li { padding:8px 0; line-height:1.6; }
 @media(max-width:800px) { .watch-columns { grid-template-columns:1fr; } .watch-metrics { gap:8px; } .watch-metrics .section-card { padding:12px; } .watch-metrics span { font-size:12px; } }
+
+/* Task organizer: keep the daily decision list easy to scan. */
+.my-day-intro { margin:16px 0; }
+.my-day-intro h2 { margin:0 0 8px; }
+.my-day-group { margin:22px 0; }
+.my-day-group > h2 { display:flex; align-items:center; gap:10px; font-size:1.15rem; margin:0 0 10px; }
+.my-day-group > .tasks-list { display:grid; gap:10px; }
+.my-day-group > .tasks-list > p { margin:0; padding:12px 16px; }
+@media(max-width:640px) { .my-day-group .task-board-card .card-row { align-items:flex-start; } }
