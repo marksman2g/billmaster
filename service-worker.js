@@ -1,4 +1,4 @@
-const CACHE_NAME = "billmaster-shell-v102";
+const CACHE_NAME = "billmaster-shell-v103";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -61,5 +61,32 @@ self.addEventListener("fetch", (event) => {
       if (request.mode === "navigate") return (await cachedResponse("./index.html")) || Response.error();
       return Response.error();
     }
+  })());
+});
+
+self.addEventListener("push", (event) => {
+  // Keep financial and task details off the device lock screen.
+  event.waitUntil(self.registration.showNotification("BillMaster reminder", {
+    body: "Open your Review Inbox to see your reminders.",
+    icon: new URL("billmaster-icon-192.png", self.registration.scope).href,
+    data: { kind: "billmaster-reminder" }
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  if (event.notification.data?.kind !== "billmaster-reminder") return;
+  event.notification.close();
+  const inbox = new URL("index.html#inbox", self.registration.scope);
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window" });
+    const existing = windows.find(client => {
+      const url = new URL(client.url);
+      return url.origin === inbox.origin && url.pathname === inbox.pathname;
+    });
+    if (existing) {
+      const target = await existing.navigate(inbox.href);
+      if (target) return target.focus();
+    }
+    return self.clients.openWindow(inbox.href);
   })());
 });
