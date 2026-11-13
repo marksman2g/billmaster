@@ -27,6 +27,12 @@ Part 2, steps 1-2 passed occurrence acknowledgment and Focus Mode tests. Daily s
 
 Part 3, steps 1-2 have a tested Budget Analytics view for upcoming saved bills and task occurrences. The private Gmail adapter was located on Animal. Daily scanning and the live inbox connection are outstanding. All 81 behavioral tests passed on Animal.
 
+## Current development checkpoint - November 13, 2026
+
+Part 2, step 3 is complete in development. The focused command `node --test tests/push-enrollment.test.js tests/push-backend.test.js` passes 15/15 after an initial 0/12 RED checkpoint and later atomic-claim and input-hardening regressions. `npm.cmd test` passes 97/97, all five new Edge Function TypeScript files pass the local parser check, and `npm.cmd audit --audit-level=high` reports zero vulnerabilities.
+
+No production migration, Edge Function deployment, VAPID secret, sender token, phone enrollment, live inbox access, real SMS adapter, phone number, send or charge was performed. Live activation remains blocked on those separately authorized steps plus durable SMS consent and destination storage, failed-acknowledgment retry, provider-grade idempotency, concurrent spend reservation and live billing validation. A physical phone check remains separate and does not block development. Next action: inspect the final scoped diff, commit it on the current feature branch, and push only that branch if the configured remote is available.
+
 ## Step receipts and handoff
 
 Before switching topics, record the part, step, command or test, outcome, and exact next action here. A dispatched command stays in progress until its result is read back. Record failed checks beside later successful checks. A saved next action is queued work.
@@ -38,8 +44,8 @@ Before switching topics, record the part, step, command or test, outcome, and ex
 | 1.3 | Passed in desktop browser QA | 412 x 915 Chromium reported zero installability errors and reopened the dashboard offline. A physical phone installation is unverified. |
 | 2.1 | Passed in development | Acknowledging one occurrence stops its later alerts; next recurrence remains open. |
 | 2.2 | Passed in development | Focus Mode suppresses a due alert without consuming it; daily reminder list shows acknowledgment. |
-| 2.3 | In progress | Windows headless Chromium did not return a displayed notification. A separate Edge run on Animal closed every BillMaster tab, injected a synthetic push through the browser, observed the worker receive it, and found BillMaster reminder in the notification list. Next: enroll an opted-in device and verify server-originated delivery before evaluating the 15-minute SMS fallback. |
-| 2.4 | Queued | SMS balance, opt-in, spending caps and verified provider accounting. |
+| 2.3 | Development complete; live activation open | Added explicit PushManager opt-in/reuse/rollback/revoke, device-local enrollment state, authenticated user-derived storage and acknowledgment, service-only generic Web Push sender, hard-delete revocation, dead-subscription cleanup, and service-only atomic duplicate suppression. Focused RED was 0/12; final focused GREEN is 15/15. Full suite is 97/97; five Edge files parse; dependency audit reports zero vulnerabilities. VAPID keys, sender token, migration application, Edge Function deployment and test-device enrollment remain unconfigured by design. Next: commit and push only the feature branch. |
+| 2.4 | Development controls passed; paid delivery disabled | Synthetic tests cover an opt-in flag for important alerts only, an exact 15-minute wait, acknowledgment stop, sequential duplicate suppression, successful accounting, per-message/monthly caps, provider balance and provider failure. No durable SMS consent or destination, real provider, number, send or charge exists. Next activation requires separate approval for those items plus failed-acknowledgment retry, provider idempotency, concurrent spend reservation and live billing verification. |
 | 3.1 | Passed in development | Period view totals unpaid scheduled bills and planned time. |
 | 3.2 | Passed in development | Monthly recurrence fixture totals four 90-minute tasks as six hours; untimed items reported separately. |
 | 3.3 | In progress | Private Gmail intake located on Animal; daily scanning and live inbox connection pending. |

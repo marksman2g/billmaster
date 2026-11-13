@@ -8,6 +8,7 @@
   const CLOUD_CONFIG_KEY = "billmaster-cloud-config-v1";
   const CLOUD_SESSION_KEY = "billmaster-cloud-session-v1";
   const CLOUD_PENDING_CLEAN_SIGNUP_KEY = "billmaster-cloud-pending-clean-signup-v1";
+  const PUSH_DEVICE_STATE_PREFIX = "billmaster-push-device-state-v1:";
   const FRIEND_ALPHA_CACHE_VERSION = "20260629-14";
   const hostedCloudConfig = normalizeCloudConfig(typeof window === "undefined" ? {} : window.BILLMASTER_CLOUD_CONFIG || {});
 
@@ -640,6 +641,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     "cloud-sign-in",
     "cloud-sign-up",
     "cloud-sign-out",
+    "enroll-push-device",
+    "revoke-push-device",
     "cloud-push-workspace",
     "cloud-force-push-workspace",
     "cloud-pull-workspace",
@@ -767,7 +770,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     url = url.replace(/\/(rest|auth|storage|graphql)\/v1\/?$/i, "");
     return {
       url,
-      anonKey: normalizeCloudKey(config?.anonKey)
+      anonKey: normalizeCloudKey(config?.anonKey),
+      pushPublicKey: String(config?.pushPublicKey || "").trim()
     };
   }
 
@@ -791,7 +795,8 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     }
     return normalizeCloudConfig({
       url: saved.url || hostedCloudConfig.url,
-      anonKey: saved.anonKey || hostedCloudConfig.anonKey
+      anonKey: saved.anonKey || hostedCloudConfig.anonKey,
+      pushPublicKey: saved.pushPublicKey || hostedCloudConfig.pushPublicKey
     });
   }
 
@@ -1142,6 +1147,147 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     }
     const message = cloudFriendlyErrorMessage(body?.msg || body?.message || body?.error_description || body?.error || text || response.statusText || "", response.status);
     return { ok: response.ok, status: response.status, message, body };
+  }
+
+  function urlBase64ToUint8Array(value) {
+    const normalized = String(value || "").trim().replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = atob(padded);
+    return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  }
+
+  function pushSubscriptionJson(subscription) {
+    const value = typeof subscription?.toJSON === "function" ? subscription.toJSON() : subscription;
+    return {
+      endpoint: String(value?.endpoint || subscription?.endpoint || ""),
+      expirationTime: value?.expirationTime ?? subscription?.expirationTime ?? null,
+      keys: {
+        p256dh: String(value?.keys?.p256dh || ""),
+        auth: String(value?.keys?.auth || "")
+      }
+    };
+  }
+
+  async function pushSubscriptionFetch(action, payload = {}) {
+    if (!cloudSignedIn()) throw new Error("Sign in to cloud sync before changing closed-app reminders.");
+    return cloudFetch("/functions/v1/push-subscriptions", {
+      method: "POST",
+      body: JSON.stringify({ action, ...payload })
+    });
+  }
+
+  function pushDeviceStateKey() {
+    return `${PUSH_DEVICE_STATE_PREFIX}${cloudSession?.user?.id || "signed-out"}`;
+  }
+
+  function pushDeviceState() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(pushDeviceStateKey()) || "{}");
+      return {
+        status: ["enabled", "disabled", "error"].includes(stored.status) ? stored.status : "disabled",
+        changedAt: String(stored.changedAt || ""),
+        error: String(stored.error || "")
+      };
+    } catch (error) {
+      return { status: "disabled", changedAt: "", error: "" };
+    }
+  }
+
+  function setPushEnrollmentState(status, error = "") {
+    try {
+      localStorage.setItem(pushDeviceStateKey(), JSON.stringify({ status, changedAt: new Date().toISOString(), error }));
+    } catch (storageError) {
+      console.warn("BillMaster could not save this browser's push state.", storageError);
+    }
+    if (ui.view === "sync") render();
+  }
+
+  async function enrollPushDevice() {
+    if (!cloudSignedIn()) {
+      setPushEnrollmentState("disabled", "Sign in to cloud sync first.");
+      showToast("Sign in to cloud sync before enabling closed-app reminders.", "danger");
+      return { enrolled: false, reason: "sign-in-required" };
+    }
+    if (!cloudConfig.pushPublicKey) {
+      setPushEnrollmentState("disabled", "VAPID public key is not configured.");
+      showToast("Closed-app reminders need the server public key configured first.", "danger");
+      return { enrolled: false, reason: "configuration-missing" };
+    }
+    if (typeof navigator === "undefined" || !navigator.serviceWorker?.ready || typeof Notification === "undefined") {
+      setPushEnrollmentState("disabled", "Push is unavailable in this browser.");
+      showToast("Closed-app browser reminders are not available here.", "danger");
+      return { enrolled: false, reason: "unsupported" };
+    }
+    if (Notification.permission === "denied") {
+      setPushEnrollmentState("disabled", "Browser notification permission is blocked.");
+      showToast("Browser notifications are blocked in browser settings.", "danger");
+      return { enrolled: false, reason: "permission-denied" };
+    }
+    let createdSubscription = null;
+    let reusedExisting = false;
+    try {
+      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushEnrollmentState("disabled", "Browser notification permission was not granted.");
+        return { enrolled: false, reason: "permission-denied" };
+      }
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration?.pushManager) throw new Error("PushManager is unavailable in this browser.");
+      const existing = await registration.pushManager.getSubscription();
+      reusedExisting = Boolean(existing);
+      createdSubscription = existing || await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(cloudConfig.pushPublicKey)
+      });
+      const result = await pushSubscriptionFetch("enroll", {
+        subscription: pushSubscriptionJson(createdSubscription),
+        user_agent: String(navigator.userAgent || "").slice(0, 512)
+      });
+      setPushEnrollmentState("enabled");
+      showToast(result?.duplicate ? "Closed-app reminders were already enabled on this browser." : "Closed-app reminders enabled for this browser.", "success");
+      return { enrolled: true, duplicate: Boolean(result?.duplicate) };
+    } catch (error) {
+      if (createdSubscription && !reusedExisting) {
+        try { await createdSubscription.unsubscribe(); } catch { }
+      }
+      const message = error instanceof Error ? error.message : "Closed-app reminder enrollment failed.";
+      setPushEnrollmentState("error", message);
+      showToast("Closed-app reminders could not be enrolled. No device was kept enrolled by this attempt.", "danger");
+      return { enrolled: false, reason: "backend-failure" };
+    }
+  }
+
+  async function revokePushDevice() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker?.ready) {
+      setPushEnrollmentState("disabled");
+      return { revoked: true, local: false };
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager?.getSubscription();
+      if (subscription) {
+        const result = await pushSubscriptionFetch("revoke", { endpoint: subscription.endpoint });
+        if (result?.revoked === false) throw new Error("The server did not revoke this subscription.");
+        await subscription.unsubscribe();
+      }
+      setPushEnrollmentState("disabled");
+      showToast("Closed-app reminders disabled for this browser.", "success");
+      return { revoked: true, local: Boolean(subscription) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Closed-app reminder revocation failed.";
+      setPushEnrollmentState("error", message);
+      showToast("Closed-app reminders could not be safely revoked. Retry while signed in.", "danger");
+      return { revoked: false, reason: "backend-failure" };
+    }
+  }
+
+  async function acknowledgeRemoteReminder(task, day) {
+    if (!cloudSignedIn() || !task?.id || !day) return { acknowledged: false, reason: "offline-or-signed-out" };
+    try {
+      return await pushSubscriptionFetch("acknowledge", { occurrence_key: `${task.id}:${day}` });
+    } catch (error) {
+      return { acknowledged: false, reason: "backend-failure" };
+    }
   }
 
   function cloudFriendlyErrorMessage(message, status = 0) {
@@ -4413,6 +4559,7 @@ function quickAction(action) {
       ${syncCommandPanel(connected, connections.length, needsAuth)}
       ${phoneInstallPanel()}
       ${cloudWorkspacePanel()}
+      ${pushEnrollmentPanel()}
       ${backupSafetyPanel()}
       ${liveDataSafetyPanel()}
       ${plaidSandboxPanel()}
@@ -4434,6 +4581,25 @@ function quickAction(action) {
           ${syncRoadmapStep("7", "Drive Backup", "Later: add true Google Drive OAuth backup so BillMaster can create scheduled cloud backup files without manual downloads.")}
         </div>
       `)}
+    </section>`;
+  }
+
+  function pushEnrollmentPanel() {
+    const deviceState = pushDeviceState();
+    const status = deviceState.status;
+    const supported = typeof navigator !== "undefined" && Boolean(navigator.serviceWorker?.ready) && typeof Notification !== "undefined";
+    const configured = Boolean(cloudConfig.pushPublicKey);
+    const enabled = status === "enabled";
+    const label = enabled ? "Enabled" : status === "error" ? "Needs retry" : configured ? "Off" : "Needs server key";
+    const statusClass = enabled ? "success" : status === "error" ? "danger" : configured ? "info" : "warn";
+    return `<section class="section-card">
+      <div class="section-title"><h2>${icon("bell")} Closed-app reminders</h2><span class="status ${statusClass}">${esc(label)}</span></div>
+      <p class="muted">Opt in on each browser. BillMaster stores the browser push subscription under your signed-in account and shows only a generic lock-screen message.</p>
+      <div class="sheet-actions">
+        ${enabled ? `<button class="outline-btn" data-action="revoke-push-device">Disable on this browser</button>` : `<button class="primary-btn" data-action="enroll-push-device" ${supported && configured && cloudSignedIn() ? "" : "disabled"}>Enable on this browser</button>`}
+      </div>
+      <p class="subtle">Important-alert SMS fallback remains provider-disabled in development. The server gate waits 15 minutes, rechecks acknowledgment, and applies balance and spending caps before any provider adapter may send.</p>
+      ${deviceState.error ? `<p class="status danger">${esc(deviceState.error)}</p>` : ""}
     </section>`;
   }
 
@@ -14289,6 +14455,8 @@ function quickAction(action) {
       saveData();
       return render();
     }
+    if (action === "enroll-push-device") return enrollPushDevice();
+    if (action === "revoke-push-device") return revokePushDevice();
     if (action === "ack-reminder") {
       const task = data.tasks.find(item => item.id === el.dataset.id);
       const day = el.dataset.date;
@@ -14296,6 +14464,7 @@ function quickAction(action) {
       task.acknowledgedAlerts = [...new Set([...acknowledgedDates(task), day])].sort().slice(-64);
       task.updatedAt = new Date().toISOString();
       saveData();
+      acknowledgeRemoteReminder(task, day).catch(() => {});
       return render();
     }
     if (action === "back") return back();

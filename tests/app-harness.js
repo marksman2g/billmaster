@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
+function createApp({ now = '2026-09-08T12:00:00', confirm, navigator: navigatorValue = {}, Notification: NotificationValue, fetch: fetchValue, cloudConfig: hostedCloudConfig = {} } = {}) {
   const NativeDate = Date;
   class FixedDate extends NativeDate {
     constructor(...args) { super(...(args.length ? args : [now])); }
@@ -21,6 +21,8 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
   const storage = new Map();
   const temporaryStorage = new Map();
   const warnings = [];
+  const windowValue = { location: { hash: '#dashboard' }, history: { pushState() {} }, addEventListener() {}, open() {}, confirm, navigator: navigatorValue, BILLMASTER_CLOUD_CONFIG: hostedCloudConfig };
+  if (NotificationValue) windowValue.Notification = NotificationValue;
   const sandbox = {
     Date: FixedDate,
     document: {
@@ -39,15 +41,24 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
     },
     localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
     sessionStorage: { getItem: (key) => temporaryStorage.get(key) || null, setItem: (key, value) => temporaryStorage.set(key, value), removeItem: (key) => temporaryStorage.delete(key) },
-    window: { location: { hash: '#dashboard' }, history: { pushState() {} }, addEventListener() {}, open() {}, confirm },
+    window: windowValue,
+    navigator: navigatorValue,
+    Notification: NotificationValue,
+    fetch: fetchValue,
     requestAnimationFrame(callback) { callback(); },
     setTimeout(callback) { timers.push(callback); return timers.length; }, clearTimeout() {},
-    structuredClone, Blob, URL, console: { ...console, warn: (...args) => warnings.push(args) }
+    structuredClone, Blob, URL, Request, Response, atob, btoa, Uint8Array, console: { ...console, warn: (...args) => warnings.push(args) }
   };
   const exports = `globalThis.testHooks = {
     reminderSummaryPanel, planningView,
     get data() { return data; }, set data(value) { data = value; }, ui,
     setTestProfile(value) { currentProfileId = value; plaidWorkspaceEpoch += 1; },
+    setTestCloud(config, session) { cloudConfig = { ...config }; cloudSession = session; },
+    enrollPushDevice: typeof enrollPushDevice === "function" ? enrollPushDevice : undefined,
+    revokePushDevice: typeof revokePushDevice === "function" ? revokePushDevice : undefined,
+    pushEnrollmentPanel: typeof pushEnrollmentPanel === "function" ? pushEnrollmentPanel : undefined,
+    pushDeviceState: typeof pushDeviceState === "function" ? pushDeviceState : undefined,
+    acknowledgeRemoteReminder: typeof acknowledgeRemoteReminder === "function" ? acknowledgeRemoteReminder : undefined,
     aiAppDataAnswer, aiCalendarAnswer, aiCalendarTopic, aiCalendarRange, aiLeastEventsAnswer,
     daysBetween, nextBillMonthlyDate, nextBillIntervalDate, nextBillYearlyDate,
     visibleTaskList, visibleTaskListIds, myDayTaskGroups, taskOccurrenceForDate, taskOccurrencesForRange,
