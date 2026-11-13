@@ -438,6 +438,26 @@ const DEFAULT_TASK_BG = "#ff7a1a";
   let lastSavedSnapshot = JSON.stringify(data);
   const undoStack = [];
   const app = document.getElementById("app");
+  let installPrompt = null;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    if (ui.view === "sync") render();
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    if (ui.view === "sync") render();
+  });
+
+  function phoneInstallPanel() {
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone;
+    if (standalone) return '<section class="section-card"><h2>BillMaster is installed</h2></section>';
+    const action = installPrompt
+      ? '<button class="primary-btn" data-action="install-billmaster">Install BillMaster</button>'
+      : '<p>On Android, open the browser menu and choose Install app or Add to Home screen. On iPhone, open Safari, tap Share, then Add to Home Screen.</p>';
+    return '<section class="section-card"><h2>Install BillMaster on your phone</h2>' + action + '</section>';
+  }
+
   let toastTimer = null;
   let cloudAutoPushTimer = null;
   let cloudAutoPullTimer = null;
@@ -2173,6 +2193,10 @@ const DEFAULT_TASK_BG = "#ff7a1a";
     return [...byId.values(), ...noIdByFingerprint.values()];
   }
 
+  function acknowledgedDates(task) {
+    return Array.isArray(task.acknowledgedAlerts) ? task.acknowledgedAlerts.filter(isIsoDateString) : [];
+  }
+
   function mergeTaskOccurrenceStates(newer, first, second) {
     const states = { ...(first.occurrenceStates || {}) };
     Object.entries(second.occurrenceStates || {}).forEach(([date, candidate]) => {
@@ -2183,6 +2207,7 @@ const DEFAULT_TASK_BG = "#ff7a1a";
       }
     });
     return { ...newer, occurrenceStates: states,
+      acknowledgedAlerts: [...new Set([...acknowledgedDates(first), ...acknowledgedDates(second)])].sort().slice(-64),
       completedDates: Object.keys(states).filter((date) => states[date].done).sort() };
   }
 
@@ -4013,13 +4038,53 @@ function quickAction(action) {
     </button>`;
   }
 
+  function planningView() {
+    const today = todayIso();
+    const now = parseLocalDate(today);
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const weekEnd = addDaysIso(startOfWeekIso(today), 6);
+    const ends = { Week: weekEnd, Month: isoDate(new Date(year, month + 1, 0)),
+      Quarter: isoDate(new Date(year, Math.floor(month / 3) * 3 + 3, 0)), Year: isoDate(new Date(year, 11, 31)) };
+    const period = Object.hasOwn(ends, ui.planPeriod || "") ? ui.planPeriod : "Week";
+    const end = ends[period];
+    const bills = data.bills.filter(bill => bill.status !== "Paid" && isIsoDateString(bill.dueDate)
+      && bill.dueDate >= today && bill.dueDate <= end);
+    const planned = data.tasks.flatMap(task => taskOccurrencesForRange(task, today, end))
+      .filter(task => task.status !== "Completed" && task.status !== "Cancelled" && task.includeHours !== false);
+    const minutesTotal = planned.reduce((sum, task) => sum + taskDurationMinutes(task), 0);
+    const untimed = planned.filter(task => !taskDurationMinutes(task)).length;
+    const recurring = new Map();
+    for (const task of planned.filter(taskRecurs)) {
+      const item = recurring.get(task.id) || { title: task.title, count: 0, minutes: 0 };
+      item.count++;
+      item.minutes += taskDurationMinutes(task);
+      recurring.set(task.id, item);
+    }
+    return `<section class="screen">${header("Money and time plan")}
+      <button class="outline-btn" data-action="set-tab" data-key="analyticsTab" data-value="expenses">Back to expenses</button>
+      <section class="section-card"><div class="filter-row">${Object.keys(ends).map(label =>
+        `<button aria-pressed="${label === period}" class="${label === period ? "active" : ""}" data-action="set-tab" data-key="planPeriod" data-value="${label}">${label}</button>`).join("")}</div>
+      <p>${esc(today)} through ${esc(end)}</p>
+      <h2>${money(bills.reduce((sum, bill) => sum + nextBillPaymentAmount(bill), 0))} in scheduled bill payments</h2>
+      <p class="muted">Next payment for each saved unpaid bill due in this period.</p>
+      ${bills.map(bill => `<div class="data-row"><span>${esc(bill.name)} &middot; ${esc(bill.dueDate)}</span><strong>${money(nextBillPaymentAmount(bill))}</strong></div>`).join("")}
+      </section><section class="section-card"><h2>${durationLabel(minutesTotal)} of planned task time</h2>
+      <p>${planned.length} scheduled occurrences &middot; ${untimed} without a duration</p>
+      ${[...recurring.values()].sort((a,b) => b.minutes - a.minutes).map(item =>
+        `<div class="data-row"><span>${esc(item.title)} &times; ${item.count}</span><strong>${durationLabel(item.minutes)}</strong></div>`).join("")}
+      </section></section>`;
+  }
+
   function renderAnalytics() {
+    if (ui.analyticsTab === "plan") return planningView();
     if (ui.analyticsTab === "compare") return renderIncomeExpenseAnalytics();
     const type = ui.analyticsTab === "income" ? "income" : "expense";
     const items = reportableTransactions(type);
     const title = type === "income" ? "Income" : "Expenses";
     return `<section class="screen">
       ${header("Budget Analytics")}
+      <button class="outline-btn" data-action="set-tab" data-key="analyticsTab" data-value="plan">Plan money and time</button>
       <div class="segmented segmented--three">
         <button class="${ui.analyticsTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="expenses">Expenses</button>
         <button class="${ui.analyticsTab === "income" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="income">Income</button>
@@ -4053,6 +4118,7 @@ function quickAction(action) {
     const expenseRows = categoryBreakdown(reportableTransactions("expense"));
     return `<section class="screen">
       ${header("Budget Analytics")}
+      <button class="outline-btn" data-action="set-tab" data-key="analyticsTab" data-value="plan">Plan money and time</button>
       <div class="segmented segmented--three">
         <button class="${ui.analyticsTab === "expenses" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="expenses">Expenses</button>
         <button class="${ui.analyticsTab === "income" ? "active" : ""}" data-action="set-tab" data-key="analyticsTab" data-value="income">Income</button>
@@ -4319,6 +4385,7 @@ function quickAction(action) {
           <div><strong>${data.cancellations.length}</strong><span>Cancellations</span></div>
         </div>
       </section>
+      ${reminderSummaryPanel()}
       ${notificationFoundationPanel("inbox")}
       ${billSyncPanel(items)}
       ${billReviewControlPanel(items)}
@@ -4344,6 +4411,7 @@ function quickAction(action) {
     return `<section class="screen">
       ${header("Sync Center", `<button class="icon-btn" data-action="run-smart-sync" title="Run smart sync">${icon("filter")}</button><button class="icon-btn" data-action="navigate" data-view="inbox" title="Review Inbox">${icon("receipt")}</button>`)}
       ${syncCommandPanel(connected, connections.length, needsAuth)}
+      ${phoneInstallPanel()}
       ${cloudWorkspacePanel()}
       ${backupSafetyPanel()}
       ${liveDataSafetyPanel()}
@@ -4494,6 +4562,18 @@ function quickAction(action) {
       return `<button class="primary-btn" data-action="sync-plaid-liabilities">${icon("chart")} Sync Minimums / APR</button>`;
     }
     return `<button class="primary-btn" data-action="navigate" data-view="bills">${icon("receipt")} Review Bills</button>`;
+  }
+
+  function reminderSummaryPanel() {
+    const day = todayIso();
+    const tasks = data.tasks.filter(task => task.alertConfigured && taskOccurrenceForDate(task, day)
+      && !taskCompletedOn(task, day) && task.status !== "Cancelled");
+    const pending = tasks.filter(task => !acknowledgedDates(task).includes(day));
+    return `<section class="section-card"><div class="section-title"><h2>Today's reminders</h2>
+      <button class="outline-btn" data-action="toggle-reminder-focus" aria-pressed="${Boolean(data.settings.reminderFocus)}">Focus Mode: ${data.settings.reminderFocus ? "on" : "off"}</button></div>
+      <p class="muted">${pending.length} pending &middot; ${tasks.length - pending.length} acknowledged${data.settings.reminderFocus ? " &middot; Task alerts paused" : ""}</p>
+      ${pending.map(task => `<div class="data-row"><span>${esc(task.title)} &middot; ${esc(task.start || "Time unset")}</span>
+        <button class="outline-btn" data-action="ack-reminder" data-id="${esc(task.id)}" data-date="${day}">Acknowledge</button></div>`).join("")}</section>`;
   }
 
   function notificationFoundationPanel(context = "sync") {
@@ -14204,6 +14284,20 @@ function quickAction(action) {
       return navigate("tasks");
     }
     if (action === "navigate") return navigate(el.dataset.view);
+    if (action === "toggle-reminder-focus") {
+      data.settings.reminderFocus = !data.settings.reminderFocus;
+      saveData();
+      return render();
+    }
+    if (action === "ack-reminder") {
+      const task = data.tasks.find(item => item.id === el.dataset.id);
+      const day = el.dataset.date;
+      if (!task || day !== todayIso() || !taskOccurrenceForDate(task, day)) return;
+      task.acknowledgedAlerts = [...new Set([...acknowledgedDates(task), day])].sort().slice(-64);
+      task.updatedAt = new Date().toISOString();
+      saveData();
+      return render();
+    }
     if (action === "back") return back();
     if (action === "undo-last-change") return undoLastChange();
     if (action === "reload-app") return render();
@@ -14374,6 +14468,12 @@ function quickAction(action) {
     if (action === "set-notify-status-preset") return setNotifyStatusPreset(el.dataset.preset);
     if (action === "save-task-notify") return saveTaskNotify(el.dataset.id);
     if (action === "request-task-alert-permission") return requestTaskAlertPermission();
+    if (action === "install-billmaster" && installPrompt) {
+      const pending = installPrompt;
+      installPrompt = null;
+      pending.prompt().then(() => pending.userChoice).catch(() => showToast("Use the browser menu to install BillMaster.")).finally(() => render());
+      return;
+    }
     if (action === "test-task-alert") return testTaskAlert();
     if (action === "set-contact-group-filter") return setContactGroupFilter(el.dataset.id);
     if (action === "open-task-route") return openSelectedTaskRoute();
@@ -18984,7 +19084,8 @@ function quickAction(action) {
       if (task.status === "Completed" || task.status === "Cancelled") return;
       const occurrenceIso = taskAlertOccurrenceIso(task, now);
       if (!occurrenceIso) return;
-      if (taskCompletedOn(task, occurrenceIso)) return;
+      if (taskCompletedOn(task, occurrenceIso) || acknowledgedDates(task).includes(occurrenceIso)) return;
+      if (data.settings.reminderFocus) return;
       const startDate = taskAlertStartDate(task, occurrenceIso);
       if (!startDate) return;
       const firedKeys = new Set(Array.isArray(task.alertFiredKeys) ? task.alertFiredKeys : []);

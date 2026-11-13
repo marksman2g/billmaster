@@ -45,6 +45,7 @@ function createApp({ now = '2026-09-08T12:00:00', confirm } = {}) {
     structuredClone, Blob, URL, console: { ...console, warn: (...args) => warnings.push(args) }
   };
   const exports = `globalThis.testHooks = {
+    reminderSummaryPanel, planningView,
     get data() { return data; }, set data(value) { data = value; }, ui,
     setTestProfile(value) { currentProfileId = value; plaidWorkspaceEpoch += 1; },
     aiAppDataAnswer, aiCalendarAnswer, aiCalendarTopic, aiCalendarRange, aiLeastEventsAnswer,

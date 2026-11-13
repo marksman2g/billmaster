@@ -47,6 +47,7 @@ function client(service, initial) {
     data: clone(initial), seed: payload(), cloudSession: { user: { id: 'fixture-owner' } }, currentProfileId: 'fixture-profile',
     cloudHasLocalUnsyncedChanges: true, clone, normalizeData: (v) => v,
     mergeSeed: (base, saved) => ({ ...base, ...saved, settings: { ...base.settings, ...saved.settings } }),
+    isIsoDateString: (value) => /^\d{4}-\d{2}-\d{2}$/.test(value),
     safeArray: (v) => Array.isArray(v) ? v.filter((item) => item && typeof item === 'object') : [],
     syncCollectionKeys: () => ['tasks'], syncItemId: (_name, item) => item?.id || '',
     cloudTimeValue: (v) => Number.isFinite(Date.parse(v)) ? Date.parse(v) : 0,
